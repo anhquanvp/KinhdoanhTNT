@@ -692,11 +692,44 @@ function mkChart(id, cfg){
   if(!el||typeof Chart==='undefined') return;
   window._charts[id]=new Chart(el, cfg);
 }
-function drawOverviewCharts(recs){
+function buildMonthProjectLine(series, {year, curY, curM, elapsed, totalDays}){
+  const out=Array(12).fill(null);
+  if(year!==curY||!elapsed||elapsed>=totalDays) return out;
+  const idx=curM-1;
+  const mtd=series[idx];
+  if(mtd==null||mtd<=0) return out;
+  if(idx>0) out[idx-1]=series[idx-1];
+  out[idx]=mtd/elapsed*totalDays;
+  return out;
+}
+function chartProjLabel(base){
+  return {
+    display(ctx){
+      const ds=ctx.dataset, i=ctx.dataIndex, v=ds.data[i];
+      if(v==null||v===0) return false;
+      let last=-1;
+      ds.data.forEach((x,j)=>{ if(x!=null) last=j; });
+      return i===last;
+    },
+    align:'top',
+    anchor:'end',
+    offset:6,
+    font:{size:9,weight:'700'},
+    color(ctx){ return ctx.dataset.borderColor; },
+    formatter:(v)=>fmtChartLabel(v)+'†'
+  };
+}
+function drawOverviewCharts(recs, progress){
+  progress=progress||getMonthProgress(window._DATA?.dtNgay);
+  const {y:curY,m:curM,elapsed,totalDays}=progress;
   ['cDtYoY','cLoaiHang'].forEach(destroyChart);
   const labels=Array.from({length:12}, (_,i)=>String(i+1).padStart(2,'0'));
   const dt2025=aggMonthlyByYear(recs,2025).map(v=>v==null?null:v/1e6);
   const dt2026=aggMonthlyByYear(recs,2026).map(v=>v==null?null:v/1e6);
+  const dt2026Proj=buildMonthProjectLine(dt2026,{year:2026,curY,curM,elapsed,totalDays});
+  const loai2026Nang=aggMonthlyLoai(recs,2026,'nang').map(v=>v==null?null:v/1e6);
+  const loai2026Nhe=aggMonthlyLoai(recs,2026,'nhe').map(v=>v==null?null:v/1e6);
+  const showProj=elapsed<totalDays&&dt2026Proj.some(v=>v!=null);
   const lineOpts={responsive:true,maintainAspectRatio:false,plugins:{
     legend:{position:'bottom',labels:{font:{size:11},padding:14,usePointStyle:true}},
     datalabels:chartDataLabel
@@ -704,21 +737,32 @@ function drawOverviewCharts(recs){
     x:{grid:{display:false},ticks:{font:{size:11},color:'#94A3B8'}},
     y:{grid:{color:'#F1F5F9'},ticks:{font:{size:11},color:'#64748B'},title:{display:true,text:'Triệu đồng',font:{size:11},color:'#94A3B8'}}
   }};
-  mkChart('cDtYoY',{type:'line',data:{labels,datasets:[
+  const yoySets=[
     {label:'2025',data:dt2025,borderColor:'#94A3B8',backgroundColor:'rgba(148,163,184,.06)',tension:.35,pointRadius:4,pointHoverRadius:6,borderWidth:2,spanGaps:false},
     {label:'2026',data:dt2026,borderColor:'#2563EB',backgroundColor:'rgba(37,99,235,.06)',tension:.35,pointRadius:4,pointHoverRadius:6,borderWidth:2.5,spanGaps:false}
-  ]},options:lineOpts});
-  mkChart('cLoaiHang',{type:'line',data:{labels,datasets:[
+  ];
+  if(showProj) yoySets.push({label:'2026 dự kiến',data:dt2026Proj,borderColor:'#38BDF8',backgroundColor:'transparent',tension:0,pointRadius:[0,5],pointHoverRadius:6,borderWidth:2,borderDash:[7,5],spanGaps:false,datalabels:chartProjLabel()});
+  mkChart('cDtYoY',{type:'line',data:{labels,datasets:yoySets},options:lineOpts});
+  const loaiSets=[
     {label:'2025 Nặng',data:aggMonthlyLoai(recs,2025,'nang').map(v=>v==null?null:v/1e6),borderColor:'#DC2626',tension:.35,pointRadius:3,borderWidth:2,spanGaps:false},
     {label:'2025 Nhẹ',data:aggMonthlyLoai(recs,2025,'nhe').map(v=>v==null?null:v/1e6),borderColor:'#FCA5A5',borderDash:[5,4],tension:.35,pointRadius:3,borderWidth:1.5,spanGaps:false},
-    {label:'2026 Nặng',data:aggMonthlyLoai(recs,2026,'nang').map(v=>v==null?null:v/1e6),borderColor:'#1D4ED8',tension:.35,pointRadius:3,borderWidth:2,spanGaps:false},
-    {label:'2026 Nhẹ',data:aggMonthlyLoai(recs,2026,'nhe').map(v=>v==null?null:v/1e6),borderColor:'#93C5FD',borderDash:[5,4],tension:.35,pointRadius:3,borderWidth:1.5,spanGaps:false}
-  ]},options:{...lineOpts,plugins:{...lineOpts.plugins,datalabels:{...chartDataLabel,font:{size:8,weight:'600'}}}}});
+    {label:'2026 Nặng',data:loai2026Nang,borderColor:'#1D4ED8',tension:.35,pointRadius:3,borderWidth:2,spanGaps:false},
+    {label:'2026 Nhẹ',data:loai2026Nhe,borderColor:'#93C5FD',borderDash:[5,4],tension:.35,pointRadius:3,borderWidth:1.5,spanGaps:false}
+  ];
+  if(showProj){
+    loaiSets.push({label:'DK 2026 Nặng',data:buildMonthProjectLine(loai2026Nang,{year:2026,curY,curM,elapsed,totalDays}),borderColor:'#60A5FA',tension:0,pointRadius:[0,4],borderWidth:1.5,borderDash:[6,4],spanGaps:false,datalabels:chartProjLabel({font:{size:7,weight:'700'}})});
+    loaiSets.push({label:'DK 2026 Nhẹ',data:buildMonthProjectLine(loai2026Nhe,{year:2026,curY,curM,elapsed,totalDays}),borderColor:'#BAE6FD',tension:0,pointRadius:[0,4],borderWidth:1.5,borderDash:[6,4],spanGaps:false,datalabels:chartProjLabel({font:{size:7,weight:'700'}})});
+  }
+  mkChart('cLoaiHang',{type:'line',data:{labels,datasets:loaiSets},options:{...lineOpts,plugins:{...lineOpts.plugins,datalabels:{...chartDataLabel,font:{size:8,weight:'600'}}}}});
 }
-function renderChartSection(){
+function renderChartSection(progress){
+  const p=progress||{};
+  const projNote=(p.elapsed&&p.totalDays&&p.elapsed<p.totalDays)
+    ? ` · <span style="color:#0284C7">† Tháng ${String(p.m).padStart(2,'0')}: đường nét đứt = dự kiến cả tháng (MTD÷${p.elapsed}×${p.totalDays} ngày)</span>`
+    : '';
   return `<div class="chart-grid">
-    <div class="chart-box"><div class="chart-title">Doanh Thu Theo Tháng</div><div class="chart-sub">So sánh 2025 vs 2026 · triệu đồng</div><div class="chart-wrap"><canvas id="cDtYoY"></canvas></div></div>
-    <div class="chart-box"><div class="chart-title">Hàng Nặng / Hàng Nhẹ Theo Tháng</div><div class="chart-sub">2025: ${SHEET.dtThang2025} · 2026: ${SHEET.dtThang2026} · triệu đồng</div><div class="chart-wrap"><canvas id="cLoaiHang"></canvas></div></div>
+    <div class="chart-box"><div class="chart-title">Doanh Thu Theo Tháng</div><div class="chart-sub">So sánh 2025 vs 2026 · triệu đồng${projNote}</div><div class="chart-wrap"><canvas id="cDtYoY"></canvas></div></div>
+    <div class="chart-box"><div class="chart-title">Hàng Nặng / Hàng Nhẹ Theo Tháng</div><div class="chart-sub">2025: ${SHEET.dtThang2025} · 2026: ${SHEET.dtThang2026} · triệu đồng${projNote}</div><div class="chart-wrap"><canvas id="cLoaiHang"></canvas></div></div>
   </div>`;
 }
 function slkhByNhomCurrentMonth(recs, thang){
@@ -1044,7 +1088,8 @@ function renderOverview(){
   }
   const totalVol = Object.values(volByAM).reduce((s,v)=>s+v,0);
 
-  const { elapsed, totalDays, pctTime, maxDataDay } = getMonthProgress(dtNgay);
+  const monthProgress = getMonthProgress(dtNgay);
+  const { elapsed, totalDays, pctTime, maxDataDay } = monthProgress;
 
   // --- KPI Vùng theo AM — chỉ tháng hiện tại ---
   const hKPI = kpiAM[0];
@@ -1156,7 +1201,7 @@ function renderOverview(){
   const { recs: pnRecs } = parsePhanNhomRecs(phanNhom);
   const slkhInfo = slkhByNhomCurrentMonth(pnRecs, thang);
   const slkhSection = renderSlkhSection(slkhInfo, thangLabel);
-  const chartSection = renderChartSection();
+  const chartSection = renderChartSection(monthProgress);
   const hangSection = renderHangNangNheSection(dtThangRecs);
 
   el.innerHTML = `
@@ -1168,7 +1213,7 @@ function renderOverview(){
   ${slkhSection}
   ${hangSection}
   <div class="foot-note">Nguồn: "Kết Quả" · "KPI AM" · "${SHEET.dtThang2025}" · "${SHEET.dtThang2026}" · Đơn vị DT: triệu đồng.</div>`;
-  drawOverviewCharts(dtThangRecs);
+  drawOverviewCharts(dtThangRecs, monthProgress);
 }
 
 /* ===================== 2) AM GIẢM DOANH THU SO VỚI NGÀY TRƯỚC ===================== */

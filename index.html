@@ -181,8 +181,11 @@ const GID = {
 };
 const SHEET = {
   dtThang2025: 'DT-Tháng2025',  // Doanh thu 2025 — fetch theo tên sheet
-  dtThang2026: 'DT Tháng'       // Doanh thu 2026 — fetch theo tên sheet
+  dtThang2026: 'DT Tháng',       // Doanh thu 2026 — fetch theo tên sheet
+  doanhThuGTC: 'DoanhThu-GTC',    // Doanh thu GTC — cấu trúc giống DT-Tháng
+  totalKH: 'TotalKH'               // Chi tiết KH theo nhóm — tính tiềm năng lên A
 };
+const NHOM_A_DT_NGUONG = 45e6;   // Ngưỡng nhóm A: 45 triệu đồng / tháng
 const VUNG_NAME = 'Vùng TNT';
 const NHOM_GIU_CU = ['A','BCD','EF'];
 window._charts = {};
@@ -439,6 +442,51 @@ function parseDtThangSheet(dtThang, yearOnly){
 function mergeDtThangRecs(dtThang2025, dtThang){
   return [...parseDtThangSheet(dtThang2025, 2025), ...parseDtThangSheet(dtThang, 2026)];
 }
+function sumSheetDtMonth(sheet, thang){
+  if(!sheet||sheet.length<2) return 0;
+  const h=sheet[0];
+  const iThang=idxOf(h,'Thang'), iDT=idxOf(h,'DoanhThu');
+  if(iThang<0||iDT<0) return 0;
+  let total=0;
+  for(let i=1;i<sheet.length;i++){
+    const r=sheet[i];
+    const cell=(r[iThang]||'').trim();
+    if(cell && !rowMatchesPreferredThang(cell, thang, null)) continue;
+    total+=parseVNNum(r[iDT]);
+  }
+  return total;
+}
+function countKhTiemNangFromTotalKH(totalKH, thang, elapsed, totalDays){
+  if(!totalKH||totalKH.length<2||!elapsed||!totalDays) return {count:0, rows:[]};
+  const h=totalKH[0];
+  const iMa=idxOf(h,'MaKH'), iTen=idxOf(h,'TenKH'), iNhom=idxOf(h,'Nhom');
+  const iVung=idxOf(h,'Vung'), iNgay=idxOf(h,'Ngay'), iMtd=idxOf(h,'MTD');
+  const iNV=idxOf(h,'Nhanvien');
+  const byCust={};
+  for(let i=1;i<totalKH.length;i++){
+    const r=totalKH[i];
+    const ma=(r[iMa]||'').trim();
+    if(!ma) continue;
+    if(iVung>=0 && !isVungTnt(r[iVung])) continue;
+    const grp=normNhom(r[iNhom]);
+    if(grp!=='BCD'&&grp!=='EF') continue;
+    const iso=parseVnNgay(r[iNgay]);
+    const mk=monthKeyFromIso(iso);
+    if(!mk||!thangEq(mk, thang)) continue;
+    const mtd=parseMtdNum(r[iMtd]);
+    if(!byCust[ma]) byCust[ma]={ma,ten:(r[iTen]||'').trim(),grp,nv:(r[iNV]||'').trim(),mtd:0,maxNgay:''};
+    byCust[ma].ten=(r[iTen]||'').trim()||byCust[ma].ten;
+    if(iso>=byCust[ma].maxNgay){
+      byCust[ma].maxNgay=iso;
+      if(mtd>=byCust[ma].mtd) byCust[ma].mtd=mtd;
+    }
+  }
+  const rows=Object.values(byCust).map(c=>{
+    const projected=c.mtd/elapsed*totalDays;
+    return {...c, projected, tiemNang:projected>=NHOM_A_DT_NGUONG};
+  }).filter(c=>c.tiemNang).sort((a,b)=>b.projected-a.projected);
+  return {count:rows.length, rows};
+}
 function reconcileDtWithKetQua(recs, ketQua, thang){
   const p=parseThang(thang);
   if(!p||!ketQua||ketQua.length<2) return recs;
@@ -642,6 +690,24 @@ function ddmmyyyy2iso(s){
   if(!m) return s;
   return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
 }
+function parseVnNgay(s){
+  s=(s||'').trim();
+  const m=s.match(/^(\d{1,2})\s+thg\s+(\d{1,2}),\s*(\d{4})$/);
+  if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  return ddmmyyyy2iso(s);
+}
+function parseMtdNum(s){
+  if(s==null) return 0;
+  s=String(s).trim();
+  if(!s||s==='-') return 0;
+  if((s.match(/,/g)||[]).length>1) return parseFloat(s.replace(/,/g,''))||0;
+  return parseVNNum(s);
+}
+function isVungTnt(vung){
+  vung=(vung||'').trim().toUpperCase();
+  return vung.startsWith('TNT')||vung.includes('VÙNG TNT');
+}
 function isoShort(iso){
   if(!iso) return '—';
   const m=iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -764,10 +830,10 @@ async function loadAll(){
   btn.classList.add('spinning');
   Object.keys(window._charts).forEach(k=>destroyChart(k));
   try{
-    const [ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025] = await Promise.all([
-      fetchGid(GID.ketQua), fetchGid(GID.kpiAM), fetchGid(GID.dtNgay), fetchGid(GID.phanNhom), fetchGid(GID.khNhomA), fetchSheet(SHEET.dtThang2026), fetchSheet(SHEET.dtThang2025)
+    const [ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH] = await Promise.all([
+      fetchGid(GID.ketQua), fetchGid(GID.kpiAM), fetchGid(GID.dtNgay), fetchGid(GID.phanNhom), fetchGid(GID.khNhomA), fetchSheet(SHEET.dtThang2026), fetchSheet(SHEET.dtThang2025), fetchSheet(SHEET.doanhThuGTC), fetchSheet(SHEET.totalKH)
     ]);
-    window._DATA = { ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025 };
+    window._DATA = { ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH };
     loaded = true;
     document.getElementById('exportDocBtn').disabled = false;
     document.getElementById('lastUpdate').textContent = 'Tải lúc: ' + new Date().toLocaleString('vi-VN');
@@ -1285,7 +1351,7 @@ function sumPnSlkh(recs, pred){ return recs.filter(pred).reduce((s,r)=>s+r.slkh,
 function sumPnVol(recs, pred){ return recs.filter(pred).reduce((s,r)=>s+r.vol,0); }
 
 function buildWeeklyReportData(){
-  const { ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025 } = window._DATA;
+  const { ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH } = window._DATA;
   const thang = currentThang();
   const thangLabel = formatThangLabel(thang);
   const dtThangRecs = reconcileDtWithKetQua(mergeDtThangRecs(dtThang2025, dtThang), ketQua, thang);
@@ -1295,6 +1361,7 @@ function buildWeeklyReportData(){
   const mtdKetQua = sumKetQuaMonth(ketQua, thang);
   const mtdLtcThang = dtThangRecs.filter(r=>thangEq(`${r.y}/${r.m}`, thang)).reduce((s,r)=>s+r.dt,0);
   const mtdLtc = mtdLtcThang || mtdKetQua;
+  const mtdGtc = sumSheetDtMonth(dtGtc, thang);
 
   const hKPI = kpiAM[0];
   const iAMk = idxOf(hKPI,'AM'), iKPIVung = idxOf(hKPI,'KPI Vùng'), iThangKPI = idxOf(hKPI,'Tháng');
@@ -1382,17 +1449,21 @@ function buildWeeklyReportData(){
     nhomA.churnRows=rows.filter(r=>r.noRev7||r.drop10).sort((a,b)=>a.pctD-b.pctD).slice(0,15);
   }
 
+  const tiemNang = countKhTiemNangFromTotalKH(totalKH, thang, elapsed, totalDays);
+
   return {
     vung:VUNG_NAME, thangLabel, weekCur, weekPrev,
     weekLabel: weekCur ? weekLabelShort(weekCur) : '—',
     dateStr: new Date().toISOString().slice(0,10),
     pnMaxDate, elapsed, totalDays,
-    mtdLtc, targetThang, kpiCungKy, pctHoanThanh, pctCungKy,
+    mtdLtc, mtdGtc, targetThang, kpiCungKy, pctHoanThanh, pctCungKy,
+    pctHoanThanhGtc: pct(mtdGtc, targetThang),
     wowLtc: pctWoWText(dtWeekAll(weekCur), dtWeekAll(weekPrev)),
+    wowGtc: '—',
     mtdGiu, mtdBanMoi,
     wowGiu: pctWoWText(dtWeekGiu(weekCur), dtWeekGiu(weekPrev)),
     wowBanMoi: pctWoWText(dtWeekBanMoi(weekCur), dtWeekBanMoi(weekPrev)),
-    slkhG, volG, slkhAvgG, topAmBanMoi, topAmGiam, nhomWeekGiu, nhomA
+    slkhG, volG, slkhAvgG, topAmBanMoi, topAmGiam, nhomWeekGiu, nhomA, tiemNang
   };
 }
 
@@ -1436,13 +1507,13 @@ ul{margin:6px 0 6px 20px}
 </style></head><body>
 <h1>BÁO CÁO KẾT QUẢ KINH DOANH ${h('',d.weekLabel)} – ${h('',d.vung)}</h1>
 <p class="meta">Tháng ${h('',d.thangLabel)} · Cập nhật dữ liệu: ${h('',d.pnMaxDate?isoShort2(d.pnMaxDate):'—')} · Xuất lúc: ${new Date().toLocaleString('vi-VN')}<br>
-<small>Nguồn tự động: Kết Quả · KPI AM · DT-Tháng · PHÂN NHÓM KHÁCH HÀNG · khách hàng nhóm A · Đơn vị DT: triệu đồng</small></p>
+<small>Nguồn tự động: Kết Quả · KPI AM · ${SHEET.dtThang2026} · ${SHEET.doanhThuGTC} · PHÂN NHÓM KHÁCH HÀNG · ${SHEET.totalKH} · khách hàng nhóm A · Đơn vị DT: triệu đồng</small></p>
 
 <h2>1. TỔNG QUAN KẾT QUẢ KINH DOANH</h2>
 <h3>1.1. Mức độ hoàn thành kế hoạch</h3>
 <table><thead><tr><th>Chỉ tiêu</th><th>Doanh thu Thực tế (MTD)</th><th>Target tháng</th><th>% Hoàn thành</th><th>% vs tuần trước</th></tr></thead><tbody>
 ${docRow4('Tổng doanh thu LTC', fmtVnd(d.mtdLtc), fmtVnd(d.targetThang), d.pctHoanThanh.toFixed(1)+'%', d.wowLtc)}
-${docRow4('Tổng doanh thu GTC', 'Chưa có dữ liệu', '—', '—', '—')}
+${docRow4('Tổng doanh thu GTC', d.mtdGtc?fmtVnd(d.mtdGtc):'Chưa có dữ liệu', fmtVnd(d.targetThang), d.mtdGtc?d.pctHoanThanhGtc.toFixed(1)+'%':'—', d.wowGtc)}
 ${docRow4('Doanh thu giữ cũ (A/BCD/EF)', fmtVnd(d.mtdGiu), '—', '—', d.wowGiu)}
 ${docRow4('Doanh thu bán mới (Nhóm G)', fmtVnd(d.mtdBanMoi), '—', '—', d.wowBanMoi)}
 </tbody></table>
@@ -1477,7 +1548,7 @@ ${docRow4('Doanh thu bán mới (Nhóm G)', fmtVnd(d.mtdBanMoi), '—', '—', d
 <tr><td>Số KH có lên đơn đến hiện tại</td><td align="right">${fmt(d.nhomA.coDon)}</td><td>—</td><td></td></tr>
 <tr><td>Số KH A dự kiến giảm hạng</td><td align="right">${fmt(d.nhomA.giamHang)}</td><td>—</td><td>Giảm &gt;10% vs ngày trước</td></tr>
 <tr><td>Số KH A nguy cơ rời bỏ</td><td align="right">${fmt(d.nhomA.nguyCo)}</td><td>—</td><td>Không DT 7N hoặc giảm &gt;10%</td></tr>
-<tr><td>Số KH tiềm năng lên hạng A</td><td align="right">—</td><td>—</td><td>Chưa có dữ liệu</td></tr>
+<tr><td>Số KH tiềm năng lên hạng A</td><td align="right">${fmt(d.tiemNang.count)}</td><td>—</td><td>${SHEET.totalKH} · BCD/EF · DT dự kiến ≥ 45 tr</td></tr>
 </tbody></table>
 <p><b>Nhận định chính:</b> <span class="placeholder">[AM vùng điền]</span></p>
 

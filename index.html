@@ -1434,7 +1434,8 @@ function buildWeeklyReportData(){
   const thang = currentThang();
   const thangLabel = formatThangLabel(thang);
   const dtThangRecs = reconcileDtWithKetQua(mergeDtThangRecs(dtThang2025, dtThang), ketQua, thang);
-  const { recs: pnRecs, maxDate: pnMaxDate } = parsePhanNhomRecs(phanNhom);
+  const { recs: pnRecs, maxDate: pnMaxDateInit } = parsePhanNhomRecs(phanNhom);
+  let pnMaxDate = pnMaxDateInit;
   const { elapsed, totalDays } = getMonthProgress(dtNgay);
 
   const mtdKetQua = sumKetQuaMonth(ketQua, thang);

@@ -181,7 +181,7 @@ const GID = {
 };
 const SHEET = {
   dtThang2025: 'DT-Tháng2025',  // Doanh thu 2025 — fetch theo tên sheet
-  dtThang2026: 'DT Tháng',       // Doanh thu 2026 — fetch theo tên sheet
+  dtThang2026: 'DT-Tháng',       // Doanh thu 2026 — sheet bổ sung (vd. 2026/6 + 2026/06)
   doanhThuGTC: 'DoanhThu-GTC',    // Doanh thu GTC — cấu trúc giống DT-Tháng
   totalKH: 'TotalKH'               // Chi tiết KH theo nhóm — tính tiềm năng lên A
 };
@@ -426,15 +426,59 @@ function normLoaiHang(s){
   if(s.includes('nhẹ')||s.includes('nh?')) return 'nhe';
   return null;
 }
+function fillDownThangColumn(sheet, iThang){
+  if(!sheet||sheet.length<2||iThang<0) return sheet;
+  const out=sheet.map(r=>[...r]);
+  let last='';
+  for(let i=1;i<out.length;i++){
+    const t=(out[i][iThang]||'').trim();
+    if(t){ last=t; continue; }
+    if(last) out[i][iThang]=last;
+  }
+  return out;
+}
+function monthsPresentInDtSheet(sheet, year){
+  const months=new Set();
+  if(!sheet||sheet.length<2) return months;
+  const iThang=idxOf(sheet[0],'Thang');
+  const data=fillDownThangColumn(sheet, iThang);
+  for(let i=1;i<data.length;i++){
+    const ts=parseThangSheet((data[i][iThang]||'').trim());
+    if(ts&&ts.y===year&&ts.p>=1&&ts.p<=12) months.add(ts.p);
+  }
+  return months;
+}
+function filterDtSheetExcludeMonths(sheet, monthSet, year){
+  if(!sheet||sheet.length<2||!monthSet.size) return sheet;
+  const iThang=idxOf(sheet[0],'Thang');
+  const data=fillDownThangColumn(sheet, iThang);
+  const out=[data[0]];
+  let lastThang='';
+  for(let i=1;i<data.length;i++){
+    const r=data[i];
+    const t=(r[iThang]||'').trim();
+    if(t) lastThang=t;
+    const ts=parseThangSheet(lastThang);
+    if(ts&&ts.y===year&&monthSet.has(ts.p)) continue;
+    out.push(r);
+  }
+  return out;
+}
+function concatSheetData(a, b){
+  if(!a||a.length<2) return b||a;
+  if(!b||b.length<2) return a;
+  return [a[0], ...a.slice(1), ...b.slice(1)];
+}
 function parseDtThangSheet(dtThang, yearOnly){
   if(!dtThang||dtThang.length<2) return [];
   const h=dtThang[0];
   const iThang=idxOf(h,'Thang'), iDT=idxOf(h,'DoanhThu'), iVol=idxOf(h,'Volume');
   const iLoai=idxOf(h,'Loại Hàng'), iTinh=idxOf(h,'Tỉnh Chuẩn');
-  const layout=detectDtThangLayout(dtThang, yearOnly);
+  const data=fillDownThangColumn(dtThang, iThang);
+  const layout=detectDtThangLayout(data, yearOnly);
   const recs=[];
-  for(let i=1;i<dtThang.length;i++){
-    const r=dtThang[i];
+  for(let i=1;i<data.length;i++){
+    const r=data[i];
     const ts=parseThangSheet(r[iThang]);
     const loai=normLoaiHang(r[iLoai]);
     const tinh=(r[iTinh]||'').trim();
@@ -893,11 +937,18 @@ window._DATA = {};
 let loaded = false;
 
 async function fetchDtThang2026(){
-  try{
-    const s=await fetchSheet(SHEET.dtThang2026);
-    if(s&&s.length>1) return s;
-  }catch(e){}
-  return fetchGid(GID.dtThang);
+  const gid=await fetchGid(GID.dtThang);
+  let extra=null;
+  for(const name of [SHEET.dtThang2026,'DT Tháng']){
+    try{
+      const s=await fetchSheet(name);
+      if(s&&s.length>1){ extra=s; break; }
+    }catch(e){}
+  }
+  if(!extra) return gid;
+  const extraMonths=monthsPresentInDtSheet(extra, 2026);
+  if(!extraMonths.size) return gid;
+  return concatSheetData(filterDtSheetExcludeMonths(gid, extraMonths, 2026), extra);
 }
 async function loadAll(){
   const btn=document.getElementById('refreshBtn');

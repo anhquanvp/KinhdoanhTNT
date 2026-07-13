@@ -989,6 +989,36 @@ function getLastNMonths(dateIsos,n=3){
   return uniqueMonthsSorted(dateIsos.map(monthKeyFromIso).filter(Boolean)).slice(-n);
 }
 function daysInMonth(y,m){ return new Date(y, m, 0).getDate(); }
+function getLast7DaysInMonth(y, m, endDay){
+  const dim=daysInMonth(y,m);
+  const end=Math.min(Math.max(endDay||dim,1), dim);
+  const start=Math.max(1, end-6);
+  const out=[];
+  for(let d=start; d<=end; d++){
+    out.push(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+  }
+  return out;
+}
+function nhomA7DayWindow(thang, dtNgay){
+  const p=parseThang(thang);
+  if(!p) return {days:[], label:'—'};
+  const now=new Date();
+  const prog=dtNgay?getMonthProgress(dtNgay):null;
+  let endDay;
+  if(p.y===now.getFullYear() && p.m===now.getMonth()+1){
+    endDay=(prog&&prog.maxDataDay>0)?prog.maxDataDay:now.getDate();
+  } else {
+    endDay=daysInMonth(p.y,p.m);
+  }
+  const days=getLast7DaysInMonth(p.y,p.m,endDay);
+  const label=days.length?`${isoShort2(days[0])} → ${isoShort2(days[days.length-1])}`:'—';
+  return {days, label};
+}
+function sumDtOnDays(custDates, days){
+  let s=0;
+  days.forEach(d=>{ s+=custDates[d]||0; });
+  return s;
+}
 function kpiSamePeriod(kpiFull, elapsed, totalDays){
   if(!kpiFull||!totalDays) return 0;
   return kpiFull * elapsed / totalDays;
@@ -1375,32 +1405,34 @@ function renderNhomA(){
 
   const allDates = [];
   for(let i=1;i<khNhomA.length;i++){
-    const ngay = (khNhomA[i][iNgay]||'').trim();
-    if(ngay) allDates.push(ngay);
+    const ngayIso = normalizeNgayToIso(khNhomA[i][iNgay]);
+    if(ngayIso) allDates.push(ngayIso);
   }
   const last3Months = getLastNMonths(allDates, 3);
   const monthSet = new Set(last3Months);
   const monthLabels = last3Months.map(formatThangLabel);
+  const thangCur = currentThang();
+  const win7 = nhomA7DayWindow(thangCur, window._DATA?.dtNgay);
 
   const byCust = {};
   const dateSet = new Set();
   for(let i=1;i<khNhomA.length;i++){
     const r = khNhomA[i];
     const ma = (r[iMa]||'').trim(), ten = (r[iTen]||'').trim(), am = (r[iAM]||'').trim();
-    const ngay = (r[iNgay]||'').trim();
-    if(!ma || !ngay) continue;
-    const mk = monthKeyFromIso(ngay);
+    const ngayIso = normalizeNgayToIso(r[iNgay]);
+    if(!ma || !ngayIso) continue;
+    const mk = monthKeyFromIso(ngayIso);
     if(!mk || !monthSet.has(mk)) continue;
     const dt = parseVNNum(r[iDT]);
     const vol = iVol>=0 ? parseVNNum(r[iVol]) : 0;
-    dateSet.add(ngay);
+    dateSet.add(ngayIso);
     const key = ma;
     if(!byCust[key]) byCust[key]={ma,ten,am,dates:{},vols:{},months:{}};
     last3Months.forEach(m=>{ if(!byCust[key].months[m]) byCust[key].months[m]=0; });
     byCust[key].ten = ten || byCust[key].ten;
     byCust[key].am = am || byCust[key].am;
-    byCust[key].dates[ngay] = (byCust[key].dates[ngay]||0)+dt;
-    byCust[key].vols[ngay] = (byCust[key].vols[ngay]||0)+vol;
+    byCust[key].dates[ngayIso] = (byCust[key].dates[ngayIso]||0)+dt;
+    byCust[key].vols[ngayIso] = (byCust[key].vols[ngayIso]||0)+vol;
     byCust[key].months[mk] = (byCust[key].months[mk]||0)+dt;
   }
 
@@ -1433,12 +1465,13 @@ function renderNhomA(){
     prev7.forEach(d=>{ dtP7+=c.dates[d]||0; });
     const pctW = dtP7>0 ? (dt7-dtP7)/dtP7*100 : (dt7>0?100:0);
     const mVals = last3Months.map(m=>c.months[m]||0);
-    const noRev7 = dt7===0;
+    const dt7m = sumDtOnDays(c.dates, win7.days);
+    const noRev7 = win7.days.length > 0 && dt7m === 0;
     const drop10 = pctD<-10;
     const steady = dt7>0 && prev>0 && Math.abs(pctD)<=10 && (dtP7===0 || Math.abs(pctW)<=10);
     const dropWeek10 = pctW<-10;
     const dropDay = prev>0 && cur<prev;
-    return { ...c, cur, prev, delta, pctD, pctW, dt7, dtP7, mVals, noRev7, drop10, dropWeek10, dropDay, steady, alert: drop10||noRev7 };
+    return { ...c, cur, prev, delta, pctD, pctW, dt7, dtP7, dt7m, mVals, noRev7, drop10, dropWeek10, dropDay, steady, alert: drop10||noRev7 };
   });
 
   const totalKH = rows.length;
@@ -1467,7 +1500,7 @@ function renderNhomA(){
       <div class="ic" style="background:var(--red-bg);color:var(--red)">⚠️</div>
       <div class="lbl">Giảm Ngày Mới Nhất</div>
       <div class="val"><span class="hero-amt">${fmt(countDropDay)}</span><span class="hero-unit">KH</span></div>
-      <div class="cmp">Giảm &gt;10%: <b class="up">${countDrop10Day}</b> · Mất DT 7N: <b class="up">${countNoRev7}</b></div>
+      <div class="cmp">Giảm &gt;10%: <b class="up">${countDrop10Day}</b> · Không DT 7N (tháng HT): <b class="up">${countNoRev7}</b></div>
     </div>
   </div>`;
 
@@ -1483,7 +1516,7 @@ function renderNhomA(){
     return '';
   }
   function alertLabel(r){
-    if(r.noRev7) return '<span class="alert-tag">Không DT 7N</span>';
+    if(r.noRev7) return '<span class="alert-tag">Không DT 7N (tháng HT)</span>';
     if(r.drop10) return '<span class="alert-tag warn">Giảm &gt;10%</span>';
     return '—';
   }
@@ -1493,7 +1526,7 @@ function renderNhomA(){
 
   let alertCard = `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--red)">🚨</div>Cảnh Báo Cần Chú Ý</div><span class="badge">${isoShort2(isoPrev)} → ${isoShort2(maxIso)}</span></div>`;
   if(!alerts.length){
-    alertCard += `<div class="section-note">✅ Không có KH giảm &gt;10% hoặc mất doanh thu 7 ngày (${monthLabels.join(', ')}).</div>`;
+    alertCard += `<div class="section-note">✅ Không có KH giảm &gt;10% hoặc không phát sinh DT trong 7 ngày gần nhất của tháng hiện tại (${win7.label}).</div>`;
   } else {
     alertCard += `<div class="table-wrap"><table class="tbl-pro"><thead><tr>
       <th style="width:40px">#</th><th>Mã</th><th>Tên KH</th><th>AM</th><th class="num">${isoShort2(isoPrev)}</th><th class="num">${isoShort2(maxIso)}</th><th class="num">%</th><th class="num">7N</th><th class="num">Trend</th><th>Cảnh báo</th>
@@ -1502,7 +1535,7 @@ function renderNhomA(){
       alertCard += `<tr class="${rowClass(r)}"><td>${i+1}</td><td>${r.ma}</td><td><span class="lbl-name">${r.ten}</span></td><td>${r.am}</td>
         <td class="num">${fmtVndCell(r.prev)}</td><td class="num">${fmtVndCell(r.cur)}</td>
         <td class="num"><span class="trend-tag ${r.pctD<0?'up':'down'}">${r.pctD.toFixed(0)}%</span></td>
-        <td class="num">${fmtVndCell(r.dt7)}</td><td class="num">${trendArrow(r.dt7,r.dtP7)}</td>
+        <td class="num">${fmtVndCell(r.dt7m)}</td><td class="num">${trendArrow(r.dt7,r.dtP7)}</td>
         <td>${alertLabel(r)}</td></tr>`;
     });
     alertCard += `</tbody></table></div>`;
@@ -1523,7 +1556,7 @@ function renderNhomA(){
     fullTable += `<tr class="${rowClass(r)}"><td>${i+1}</td><td>${r.ma}</td><td><span class="lbl-name">${r.ten}</span></td><td>${r.am}</td>${mCells}
       <td class="num">${fmtVndCell(r.prev)}</td><td class="num">${fmtVndCell(r.cur)}</td>
       <td class="num"><span class="trend-tag ${r.pctD<0?'up':'down'}">${r.pctD.toFixed(0)}%</span></td>
-      <td class="num">${fmtVndCell(r.dt7)}</td><td class="num">${trendArrow(r.dt7,r.dtP7)}</td>${mTrend}
+      <td class="num">${fmtVndCell(r.dt7m)}</td><td class="num">${trendArrow(r.dt7,r.dtP7)}</td>${mTrend}
       <td>${alertLabel(r)}</td></tr>`;
   });
   fullTable += `</tbody></table></div></div>`;
@@ -1533,11 +1566,11 @@ function renderNhomA(){
 
   el.innerHTML = `
   <div class="page-header"><div><div class="page-title">Nhóm A — Phân Tích KH</div><div class="page-sub">3 tháng gần nhất · <span class="unit-note">triệu đồng</span></div></div></div>
-  <div class="data-banner">📅 Phạm vi: <b>${monthLabels.join(' · ')}</b> · So sánh ngày <b>${isoShort2(isoPrev)} → ${isoShort2(maxIso)}</b> · Trend 7N: <b>${isoShort2(last7[0])} → ${isoShort2(last7[last7.length-1])}</b>. ${isStale?'Dữ liệu chưa cập nhật đến hôm nay.':''}</div>
+  <div class="data-banner">📅 Phạm vi: <b>${monthLabels.join(' · ')}</b> · So sánh ngày <b>${isoShort2(isoPrev)} → ${isoShort2(maxIso)}</b> · Không DT 7N: <b>7 ngày lịch gần nhất tháng hiện tại (${win7.label})</b> · Trend tuần: <b>${isoShort2(last7[0])} → ${isoShort2(last7[last7.length-1])}</b>. ${isStale?'Dữ liệu chưa cập nhật đến hôm nay.':''}</div>
   ${kpiCards}
   ${alertCard}
   ${fullTable}
-  <div class="foot-note">Nguồn: sheet "khách hàng nhóm A" (gid=${GID.khNhomA}) · Lọc 3 tháng gần nhất có trong dữ liệu. Đỏ = không DT 7 ngày · Vàng = giảm &gt;10% vs ngày trước.</div>`;
+  <div class="foot-note">Nguồn: sheet "khách hàng nhóm A" (gid=${GID.khNhomA}) · Lọc 3 tháng gần nhất. Đỏ = không DT trong 7 ngày lịch gần nhất của tháng hiện tại · Vàng = giảm &gt;10% vs ngày trước.</div>`;
 }
 function isoShort2(iso){
   if(!iso) return '—';
@@ -1675,26 +1708,27 @@ function buildWeeklyReportData(){
     let iDT = idxOfNth(h,'% Doanh thu đạt được so với MTD',3);
     if(iDT<0) iDT = 14;
     const byCust={}; const dateSet=new Set();
+    const win7=nhomA7DayWindow(thang, dtNgay);
     for(let i=1;i<khNhomA.length;i++){
-      const r=khNhomA[i]; const ma=(r[iMa]||'').trim(), ngay=(r[iNgay]||'').trim();
-      if(!ma||!ngay) continue;
-      const mk=monthKeyFromIso(ngay);
+      const r=khNhomA[i]; const ma=(r[iMa]||'').trim();
+      const ngayIso=normalizeNgayToIso(r[iNgay]);
+      if(!ma||!ngayIso) continue;
+      const mk=monthKeyFromIso(ngayIso);
       if(!mk||!thangEq(mk, thang)) continue;
-      dateSet.add(ngay);
+      dateSet.add(ngayIso);
       if(!byCust[ma]) byCust[ma]={ma,ten:(r[iTen]||'').trim(),am:(r[iAMk]||'').trim(),dates:{}};
       byCust[ma].ten=(r[iTen]||'').trim()||byCust[ma].ten;
       byCust[ma].am=(r[iAMk]||'').trim()||byCust[ma].am;
-      byCust[ma].dates[ngay]=(byCust[ma].dates[ngay]||0)+parseVNNum(r[iDT]);
+      byCust[ma].dates[ngayIso]=(byCust[ma].dates[ngayIso]||0)+parseVNNum(r[iDT]);
     }
     const distinctDates=[...dateSet].sort();
     const maxIso=distinctDates[distinctDates.length-1]||'';
     const isoPrev=distinctDates.length>=2?distinctDates[distinctDates.length-2]:'';
-    const last7=distinctDates.slice(-7);
     const rows=Object.values(byCust).map(c=>{
       const cur=c.dates[maxIso]||0, prev=c.dates[isoPrev]||0;
-      let dt7=0; last7.forEach(d=>{ dt7+=c.dates[d]||0; });
+      const dt7=sumDtOnDays(c.dates, win7.days);
       const pctD=prev>0?(cur-prev)/prev*100:(cur>0?100:0);
-      const noRev7=dt7===0, drop10=pctD<-10;
+      const noRev7=win7.days.length>0&&dt7===0, drop10=pctD<-10;
       const dtAll=Object.values(c.dates).reduce((s,v)=>s+v,0);
       const daysActive=Object.keys(c.dates).length;
       const dtTbThang = daysActive ? dtAll : 0;
@@ -1802,7 +1836,7 @@ ${docRow4('Doanh thu bán mới (Nhóm G)', fmtVnd(d.mtdBanMoi), '—', '—', d
 <tr><td>Tổng SL KH nhóm A (tháng hiện tại)</td><td align="right">${fmt(d.nhomA.total)}</td><td>—</td><td>Chưa có snapshot đầu tháng</td></tr>
 <tr><td>Số KH có lên đơn đến hiện tại</td><td align="right">${fmt(d.nhomA.coDon)}</td><td>—</td><td></td></tr>
 <tr><td>Số KH A dự kiến giảm hạng</td><td align="right">${fmt(d.nhomA.giamHang)}</td><td>—</td><td>Giảm &gt;10% vs ngày trước</td></tr>
-<tr><td>Số KH A nguy cơ rời bỏ</td><td align="right">${fmt(d.nhomA.nguyCo)}</td><td>—</td><td>Không DT 7N hoặc giảm &gt;10%</td></tr>
+<tr><td>Số KH A nguy cơ rời bỏ</td><td align="right">${fmt(d.nhomA.nguyCo)}</td><td>—</td><td>Không DT 7 ngày lịch gần nhất (tháng HT) hoặc giảm &gt;10%</td></tr>
 <tr><td>Số KH tiềm năng lên hạng A</td><td align="right">${fmt(d.tiemNang.count)}</td><td>—</td><td>${SHEET.totalKH} · BCD/EF · DT dự kiến ≥ 45 tr</td></tr>
 </tbody></table>
 <p><b>Nhận định chính:</b> <span class="placeholder">[AM vùng điền]</span></p>

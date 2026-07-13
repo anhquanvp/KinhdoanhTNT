@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Báo Cáo Doanh Thu — Vùng TNT | GHN</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --blue:#2563EB;--blue-dark:#1D4ED8;--blue-light:#EFF6FF;--blue-mid:#BFDBFE;
+  --ink:#0F172A;--text-main:#1E293B;--text-sub:#64748B;--text-muted:#94A3B8;
+  --border:#E2E8F0;--border-light:#F1F5F9;--bg:#F1F5F9;--card:#FFFFFF;
+  --shadow-sm:0 1px 3px rgba(15,23,42,0.06);
+  --shadow-md:0 8px 30px rgba(15,23,42,0.08);--radius:14px;
+  --green:#059669;--yellow:#D97706;--red:#DC2626;
+  --green-bg:#ECFDF5;--yellow-bg:#FFFBEB;--red-bg:#FEF2F2;
+  --sidebar-w:240px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text-main);display:flex;min-height:100vh;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.sidebar{width:var(--sidebar-w);background:#0F172A;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;overflow-y:auto;border-right:1px solid rgba(255,255,255,.06)}
+.logo-area{padding:22px 18px 18px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.logo-title{color:#fff;font-size:15px;font-weight:800;letter-spacing:-.2px}
+.logo-sub{color:rgba(255,255,255,.5);font-size:10px;font-weight:600;letter-spacing:.6px;margin-top:8px;text-transform:uppercase}
+.logo-author{color:rgba(255,255,255,.28);font-size:10px;margin-top:6px}
+.nav-section{padding:16px 18px 8px;color:rgba(255,255,255,.28);font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:10px;padding:11px 14px;margin:2px 10px;border-radius:10px;cursor:pointer;color:rgba(255,255,255,.58);font-size:13px;font-weight:500;transition:all .15s;border:none;background:none;width:calc(100% - 20px);text-align:left}
+.nav-item:hover{background:rgba(255,255,255,.07);color:#fff}
+.nav-item.active{background:var(--blue);color:#fff;font-weight:600;box-shadow:0 4px 14px rgba(37,99,235,.35)}
+.nav-item .icon{font-size:14px;width:18px;text-align:center;flex-shrink:0;opacity:.85}
+.refresh-btn{display:flex;align-items:center;justify-content:center;gap:7px;margin:16px 12px 6px;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.75);font-size:12px;font-weight:600;cursor:pointer;width:calc(100% - 24px);transition:background .15s}
+.refresh-btn:hover{background:rgba(255,255,255,.1);color:#fff}
+.export-btn{display:flex;align-items:center;justify-content:center;gap:7px;margin:6px 12px 4px;padding:10px 14px;border-radius:10px;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.28);color:#6EE7B7;font-size:12px;font-weight:600;cursor:pointer;width:calc(100% - 24px);transition:background .15s}
+.export-btn:hover{background:rgba(16,185,129,.22);color:#fff}
+.export-btn:disabled{opacity:.45;cursor:not-allowed}
+.refresh-btn.spinning .spin{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.last-update{color:rgba(255,255,255,.28);font-size:10px;text-align:center;padding:8px 12px 18px}
+.main{margin-left:var(--sidebar-w);flex:1;padding:28px 32px 72px;max-width:1480px}
+.page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;padding-bottom:20px;border-bottom:1px solid var(--border)}
+.page-title{font-size:22px;font-weight:800;letter-spacing:-.4px;color:var(--ink)}
+.page-sub{color:var(--text-sub);font-size:13px;margin-top:5px;font-weight:400}
+.badge{display:inline-flex;align-items:center;gap:5px;background:var(--blue-light);color:var(--blue-dark);font-size:11px;font-weight:600;padding:5px 12px;border-radius:99px;border:1px solid var(--blue-mid)}
+.data-banner{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;font-size:13px;font-weight:500;padding:12px 16px;border-radius:var(--radius);margin-bottom:20px;line-height:1.55}
+.data-banner.err{background:var(--red-bg);border-color:#FECACA;color:#991B1B}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:24px}
+.kpi-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:20px 22px;border:1px solid var(--border);position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--blue),var(--blue-dark));opacity:.85}
+.kpi-card:nth-child(2)::before{background:linear-gradient(90deg,#059669,#10B981)}
+.kpi-card:nth-child(3)::before{background:linear-gradient(90deg,#D97706,#F59E0B)}
+.kpi-card:nth-child(4)::before{background:linear-gradient(90deg,#6366F1,#818CF8)}
+.kpi-card .ic{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;margin-bottom:14px}
+.kpi-card .lbl{color:var(--text-sub);font-size:12px;font-weight:600;margin-bottom:8px;line-height:1.4}
+.kpi-card .val{margin-bottom:4px}
+.kpi-card .hero-amt{font-size:28px;font-weight:800;letter-spacing:-.5px;color:var(--ink);font-variant-numeric:tabular-nums}
+.kpi-card .hero-unit{font-size:13px;font-weight:600;color:var(--text-muted);margin-left:4px}
+.kpi-card .hero-sub{font-size:15px;font-weight:600;color:var(--text-sub)}
+.kpi-card .sub{font-size:12px;color:var(--text-muted);margin-top:10px;line-height:1.45}
+.kpi-card .progress{margin-top:14px;height:6px;background:var(--border-light);border-radius:99px;overflow:hidden}
+.kpi-card .progress-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--blue),var(--blue-dark));transition:width .4s ease}
+.kpi-card .progress-lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-top:6px;font-weight:500}
+.kpi-card .cmp{margin-top:12px;padding-top:12px;border-top:1px solid var(--border-light);font-size:12px;line-height:1.65;color:var(--text-sub)}
+.kpi-card .cmp b{font-weight:700;color:var(--text-main);font-variant-numeric:tabular-nums}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-sm);border:1px solid var(--border);margin-bottom:24px;overflow:hidden}
+.card-header{padding:16px 22px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:linear-gradient(180deg,#FAFBFC 0%,#FFF 100%)}
+.card-title{display:flex;align-items:center;gap:10px;font-weight:700;font-size:14px;color:var(--ink);letter-spacing:-.2px}
+.card-icon{width:28px;height:28px;border-radius:8px;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.tbl-pro{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+table.tbl-pro th{padding:11px 16px;text-align:left;font-weight:600;font-size:11px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap;background:#F8FAFC;position:sticky;top:0;z-index:2}
+table.tbl-pro th.num{text-align:right}
+table.tbl-pro th.grp-hdr{text-align:center;background:#EFF6FF;color:var(--blue-dark);font-size:10px;letter-spacing:.6px;border-bottom:1px solid var(--blue-mid)}
+table.tbl-pro td{padding:12px 16px;border-bottom:1px solid var(--border-light);vertical-align:middle}
+table.tbl-pro tbody tr:hover td{background:#F8FAFC}
+table.tbl-pro tbody tr:nth-child(even):not(.tot):not(.row-grp-tot) td{background:#FAFBFC}
+table.tbl-pro tbody tr:hover:nth-child(even):not(.tot) td{background:#F1F5F9}
+table.tbl-pro .col-sticky{position:sticky;left:0;background:inherit;z-index:1;box-shadow:2px 0 4px rgba(15,23,42,.04)}
+table.tbl-pro .col-sticky-2{position:sticky;left:120px;background:inherit;z-index:1}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:11px 16px;text-align:left;font-weight:600;font-size:11px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border);white-space:nowrap;background:#F8FAFC}
+td{padding:12px 16px;border-bottom:1px solid var(--border-light);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr.row-warn td{background:var(--yellow-bg)!important}
+tr.row-danger td{background:var(--red-bg)!important;color:#991B1B;font-weight:600}
+tr.row-danger td:first-child{border-left:3px solid var(--red)}
+tr.tot td{background:var(--blue-light)!important;font-weight:700;color:var(--blue-dark);border-top:2px solid var(--blue-mid)}
+tr.row-grp-tot td{background:#F1F5F9!important;font-weight:600}
+.am-block{margin-bottom:20px}
+.am-block .am-title{font-size:12px;font-weight:700;padding:10px 22px;background:#F8FAFC;border-bottom:1px solid var(--border-light);color:var(--text-sub);text-transform:uppercase;letter-spacing:.4px}
+.alert-tag{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:var(--red-bg);color:var(--red)}
+.alert-tag.warn{background:var(--yellow-bg);color:var(--yellow)}
+.unit-note{font-size:11px;color:var(--text-muted);font-weight:500}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.v-num{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.v-unit{font-size:10px;font-weight:600;color:var(--text-muted);margin-left:3px;letter-spacing:.2px}
+.empty-val{color:var(--text-muted);font-weight:400}
+.lbl-name{font-weight:600;color:var(--ink);white-space:nowrap}
+.lbl-sub{font-size:11px;color:var(--text-muted);font-weight:500}
+.nhom-tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;background:#F1F5F9;color:var(--text-sub)}
+.nhom-tag.g-a{background:#EFF6FF;color:#1D4ED8}
+.nhom-tag.g-bcd{background:#F0FDF4;color:#047857}
+.nhom-tag.g-ef{background:#FFFBEB;color:#B45309}
+.nhom-tag.g-g{background:#F5F3FF;color:#6D28D9}
+.up{color:var(--red);font-weight:600;font-size:12px}
+.down{color:var(--green);font-weight:600;font-size:12px}
+.flat{color:var(--text-muted);font-size:12px;font-weight:500}
+.trend-tag{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;white-space:nowrap}
+.trend-tag.up{background:var(--red-bg);color:var(--red)}
+.trend-tag.down{background:var(--green-bg);color:var(--green)}
+.trend-tag.flat{background:#F1F5F9;color:var(--text-muted)}
+.pct-pill{display:inline-block;padding:4px 10px;border-radius:99px;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;min-width:52px;text-align:center}
+.pct-g{background:var(--green-bg);color:var(--green)}
+.pct-y{background:var(--yellow-bg);color:var(--yellow)}
+.pct-r{background:var(--red-bg);color:var(--red)}
+.pct-wrap{display:inline-flex;align-items:center;gap:8px;justify-content:flex-end;width:100%}
+.pct-bar{flex:1;max-width:64px;height:5px;background:var(--border-light);border-radius:99px;overflow:hidden}
+.pct-fill{height:100%;border-radius:99px;transition:width .3s}
+.pct-fill.pct-g{background:var(--green)}
+.pct-fill.pct-y{background:var(--yellow)}
+.pct-fill.pct-r{background:var(--red)}
+.analysis-box{margin:0 22px 20px;padding:14px 18px;background:var(--blue-light);border-radius:10px;font-size:13px;line-height:1.7;color:var(--text-main);border:1px solid var(--blue-mid)}
+.analysis-box b{color:var(--blue-dark);font-weight:700}
+.section-note{padding:18px 22px;color:var(--text-sub);font-size:13px;line-height:1.55}
+.tabbar{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap}
+.tabbtn{padding:9px 14px;border:none;background:none;font-size:12.5px;font-weight:700;color:var(--text-sub);cursor:pointer;border-bottom:2.5px solid transparent}
+.tabbtn.active{color:var(--blue);border-bottom-color:var(--blue)}
+.loading{padding:48px;text-align:center;color:var(--text-sub)}
+.spin-ic{display:inline-block;animation:spin 1s linear infinite}
+.foot-note{font-size:11px;color:var(--text-muted);padding:12px 22px 18px;line-height:1.5}
+.chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:20px;margin-bottom:24px}
+.chart-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:20px 22px}
+.chart-box .chart-title{font-size:14px;font-weight:700;margin-bottom:4px;color:var(--ink);letter-spacing:-.2px}
+.chart-box .chart-sub{font-size:11px;color:var(--text-muted);margin-bottom:16px}
+.chart-wrap{position:relative;height:300px}
+.rank-num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;background:#F1F5F9;color:var(--text-sub);font-size:11px;font-weight:700}
+.rank-num.top3{background:var(--blue-light);color:var(--blue-dark)}
+@media(max-width:900px){.sidebar{display:none}.main{margin-left:0;padding:20px 16px 48px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="logo-area">
+    <div class="logo-title">📦 GHN — Vùng TNT</div>
+    <div class="logo-sub">Báo cáo Doanh Thu</div>
+    <div class="logo-author">AM Vùng: Phan Văn Quân</div>
+  </div>
+  <div class="nav-section">Báo cáo</div>
+  <button class="nav-item active" data-page="overview" onclick="showPage('overview')"><span class="icon">📌</span> Tổng Quan</button>
+  <button class="nav-item" data-page="decline" onclick="showPage('decline')"><span class="icon">⚠️</span> AM Giảm Doanh Thu</button>
+  <button class="nav-item" data-page="segment" onclick="showPage('segment')"><span class="icon">👥</span> Phân Nhóm Khách Hàng</button>
+  <button class="nav-item" data-page="nhomA" onclick="showPage('nhomA')"><span class="icon">⭐</span> Nhóm A</button>
+  <button class="refresh-btn" id="refreshBtn" onclick="refreshAll()"><span class="spin">🔄</span> Cập nhật dữ liệu</button>
+  <button class="export-btn" id="exportDocBtn" onclick="exportWeeklyReportDoc()" disabled>📄 Xuất báo cáo tuần (.doc)</button>
+  <div class="last-update" id="lastUpdate">Chưa tải dữ liệu</div>
+</div>
+
+<div class="main">
+  <div id="overview" class="page"></div>
+  <div id="decline" class="page" style="display:none"></div>
+  <div id="segment" class="page" style="display:none"></div>
+  <div id="nhomA" class="page" style="display:none"></div>
+</div>
+
+<script>
+/* ===================== CONFIG ===================== */
+const SID = '15vJ5y5hkS8VvZtBpZkltzP-yzx-QrVh5FK9OgMzeO4Y';
+const GID = {
+  ketQua: '0',              // Kết Quả — DoanhThu MTD theo AM (Thang hiện tại)
+  kpiAM: '2068174456',      // KPI AM — Tháng, AM, KPI Vùng, KPI Cty
+  dtThang: '2046881648',    // DT-Tháng — doanh thu 2026 theo tháng
+  dtNgay: '2072520508',     // DT-Ngày — DoanhThu theo AM theo Ngày
+  phanNhom: '682625869',    // PHÂN NHÓM KHÁCH HÀNG — theo Nhom/Ngay/Tuần
+  khNhomA: '1648814630'     // khách hàng nhóm A — chi tiết khách hàng
+};
+const SHEET = {
+  dtThang2025: 'DT-Tháng2025'  // Doanh thu 2025 cố định — fetch theo tên sheet
+};
+const VUNG_NAME = 'Vùng TNT';
+const NHOM_GIU_CU = ['A','BCD','EF'];
+window._charts = {};
+if(typeof ChartDataLabels!=='undefined') Chart.register(ChartDataLabels);
+
+/* ===================== HELPERS ===================== */
+function fmt(n){ if(n==null||isNaN(n))return '—'; return Math.round(n).toLocaleString('vi-VN'); }
+function fmtM(n){
+  if(n==null||isNaN(n)) return '—';
+  const v=n/1e6;
+  if(Math.abs(v)>=100) return v.toLocaleString('vi-VN',{maximumFractionDigits:0});
+  if(Math.abs(v)>=10) return v.toLocaleString('vi-VN',{minimumFractionDigits:1,maximumFractionDigits:1});
+  return v.toLocaleString('vi-VN',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function fmtVnd(n){ return fmtM(n)+' tr'; }
+function fmtVndCell(n){
+  if(n==null||isNaN(n)||!n) return '<span class="empty-val">—</span>';
+  return `<span class="v-num">${fmtM(n)}</span><span class="v-unit">tr</span>`;
+}
+function fmtVolCell(n){
+  if(n==null||isNaN(n)||!n) return '<span class="empty-val">—</span>';
+  return `<span class="v-num">${fmt(n)}</span><span class="v-unit">đơn</span>`;
+}
+function fmtVndHero(n){
+  if(n==null||isNaN(n)||!n) return '<span class="empty-val">—</span>';
+  const v=n/1e6;
+  const amt=v>=100?v.toLocaleString('vi-VN',{maximumFractionDigits:0}):v.toLocaleString('vi-VN',{minimumFractionDigits:1,maximumFractionDigits:1});
+  return `<span class="hero-amt">${amt}</span><span class="hero-unit">tr</span>`;
+}
+function pctCell(p){
+  const cls=p>=100?'pct-g':p>=70?'pct-y':'pct-r';
+  const w=Math.min(100,Math.max(0,p));
+  return `<div class="pct-wrap"><div class="pct-bar"><div class="pct-fill ${cls}" style="width:${w}%"></div></div><span class="pct-pill ${cls}">${p.toFixed(0)}%</span></div>`;
+}
+function nhomTag(g){
+  const cls={A:'g-a',BCD:'g-bcd',EF:'g-ef',G:'g-g'}[g]||'';
+  return `<span class="nhom-tag ${cls}">${g}</span>`;
+}
+function pct(n,d){ if(!d) return 0; return n/d*100; }
+function idxOfLast(header,name){
+  let idx=-1;
+  header.forEach((h,i)=>{ if((h||'').trim()===name) idx=i; });
+  return idx;
+}
+function idxOfNth(header,name,n){
+  let c=0;
+  for(let i=0;i<header.length;i++){
+    if((header[i]||'').trim()===name){ c++; if(c===n) return i; }
+  }
+  return -1;
+}
+function idxAMCol(header){
+  let c=0, amIdx=-1;
+  header.forEach((h,i)=>{
+    if((h||'').trim()==='Kho Chuẩn'){ c++; if(c===2) amIdx=i; }
+  });
+  return amIdx;
+}
+function normNhom(n){
+  n=(n||'').trim().toUpperCase();
+  if(!n) return null;
+  if(n==='A'||/^A\d+$/.test(n)) return 'A';
+  if(n==='BCD'||n==='B'||n==='C'||n==='D') return 'BCD';
+  if(n==='EF'||n==='E'||n==='F') return 'EF';
+  if(n==='G') return 'G';
+  return null;
+}
+const NHOM_LABELS=['A','BCD','EF','G'];
+function trendArrow(cur,prev){
+  if(prev===0 && cur===0) return '<span class="trend-tag flat">— 0%</span>';
+  if(prev===0) return '<span class="trend-tag up">▲ mới</span>';
+  const d=(cur-prev)/prev*100;
+  if(d>0.5) return `<span class="trend-tag up">▲ ${d.toFixed(0)}%</span>`;
+  if(d<-0.5) return `<span class="trend-tag down">▼ ${Math.abs(d).toFixed(0)}%</span>`;
+  return `<span class="trend-tag flat">— ${d.toFixed(0)}%</span>`;
+}
+function weekSortKey(w){ const m=(w||'').match(/^(\d+)\/(\d+)$/); return m? parseInt(m[1])*100+parseInt(m[2]) : 0; }
+function idxTinhCol(header){ const i=idxOf(header,'Tỉnh Chuẩn'); return i>=0?i:16; }
+function parsePhanNhomRecs(phanNhom){
+  if(!phanNhom||phanNhom.length<2) return {recs:[],maxDate:''};
+  const h=phanNhom[0];
+  const iNhom=idxOf(h,'Nhom'), iNgay=idxOf(h,'Ngay'), iDT=idxOf(h,'Doanh Thu');
+  const iSLKH=idxOf(h,'SLKH'), iVol=idxOf(h,'Volume');
+  const iAM=idxAMCol(h)>=0?idxAMCol(h):15, iTinh=idxTinhCol(h), iTuan=idxOf(h,'Tuần');
+  const recs=[]; let maxDate='';
+  for(let i=1;i<phanNhom.length;i++){
+    const r=phanNhom[i];
+    const grp=normNhom(r[iNhom]), ngay=(r[iNgay]||'').trim();
+    if(!grp||!ngay) continue;
+    if(ngay>maxDate) maxDate=ngay;
+    recs.push({grp,ngay,am:(r[iAM]||'').trim(),tinh:(r[iTinh]||'').trim(),dt:parseVNNum(r[iDT]),slkh:parseVNNum(r[iSLKH]),vol:parseVNNum(r[iVol]),tuan:(r[iTuan]||'').trim(),thang:monthKeyFromIso(ngay)});
+  }
+  return {recs,maxDate};
+}
+function buildNhomCombinedPeriod(recs){
+  const allDates=[...new Set(recs.map(r=>r.ngay))].sort();
+  const last3d=allDates.slice(-3), prev3d=allDates.slice(-6,-3);
+  const allWeeks=[...new Set(recs.map(r=>r.tuan).filter(Boolean))].sort((a,b)=>weekSortKey(a)-weekSortKey(b));
+  const last3w=allWeeks.slice(-3), prev3w=allWeeks.slice(-6,-3);
+  const allMonths=[...new Set(recs.map(r=>r.thang).filter(Boolean))].sort((a,b)=>monthSortKey(a)-monthSortKey(b));
+  const last2m=allMonths.slice(-2), prev2m=allMonths.slice(-4,-2);
+  return {last3d,prev3d,last3w,prev3w,last2m,prev2m};
+}
+function dtFor(recs,dimKey,dimVal,grp,matchFn,buckets){
+  let t=0;
+  recs.forEach(r=>{
+    if(dimKey&&r[dimKey]!==dimVal) return;
+    if(grp&&r.grp!==grp) return;
+    buckets.forEach(b=>{ if(matchFn(r,b)) t+=r.dt; });
+  });
+  return t;
+}
+function dtOne(recs,dimKey,dimVal,grp,matchFn,bucket){
+  let t=0;
+  recs.forEach(r=>{
+    if(dimKey&&r[dimKey]!==dimVal) return;
+    if(grp&&r.grp!==grp) return;
+    if(matchFn(r,bucket)) t+=r.dt;
+  });
+  return t;
+}
+function renderNhomCombinedTable(recs, per, dimKey, dimLabel){
+  const dims=dimKey?[...new Set(recs.map(r=>r[dimKey]).filter(Boolean))].sort():['__ALL__'];
+  if(!recs.length) return `<div class="section-note">Chưa có dữ liệu.</div>`;
+  const nd=per.last3d.length, nw=per.last3w.length, nm=per.last2m.length;
+  const dHdr=per.last3d.map(d=>`<th class="num">${isoShort2(d)}</th>`).join('');
+  const wHdr=per.last3w.map(w=>`<th class="num">T.${w.split('/').pop()||w}</th>`).join('');
+  const mHdr=per.last2m.map(m=>`<th class="num">${formatThangLabel(m)}</th>`).join('');
+  let html=`<div class="table-wrap"><table class="tbl-pro"><thead>
+    <tr><th class="col-sticky" rowspan="2">${dimLabel}</th><th rowspan="2">Nhóm</th>
+    ${nd?`<th class="grp-hdr num" colspan="${nd}">3 ngày gần nhất</th>`:''}<th class="grp-hdr num" rowspan="2">Δ</th>
+    ${nw?`<th class="grp-hdr num" colspan="${nw}">3 tuần gần nhất</th>`:''}<th class="grp-hdr num" rowspan="2">Δ</th>
+    ${nm?`<th class="grp-hdr num" colspan="${nm}">2 tháng gần nhất</th>`:''}<th class="grp-hdr num" rowspan="2">Δ</th></tr>
+    <tr>${dHdr}${wHdr}${mHdr}</tr>
+  </thead><tbody>`;
+  const matchDay=(r,b)=>r.ngay===b, matchWeek=(r,b)=>r.tuan===b, matchMonth=(r,b)=>r.thang===b;
+  dims.forEach(dim=>{
+    const dKey=dimKey||null, dVal=dimKey?dim:'';
+    NHOM_LABELS.forEach((g,gi)=>{
+      const dCells=per.last3d.map(b=>`<td class="num">${fmtVndCell(dtOne(recs,dKey,dVal,g,matchDay,b))}</td>`).join('');
+      const wCells=per.last3w.map(b=>`<td class="num">${fmtVndCell(dtOne(recs,dKey,dVal,g,matchWeek,b))}</td>`).join('');
+      const mCells=per.last2m.map(b=>`<td class="num">${fmtVndCell(dtOne(recs,dKey,dVal,g,matchMonth,b))}</td>`).join('');
+      const dCur=dtFor(recs,dKey,dVal,g,matchDay,per.last3d), dPrev=dtFor(recs,dKey,dVal,g,matchDay,per.prev3d);
+      const wCur=dtFor(recs,dKey,dVal,g,matchWeek,per.last3w), wPrev=dtFor(recs,dKey,dVal,g,matchWeek,per.prev3w);
+      const mCur=dtFor(recs,dKey,dVal,g,matchMonth,per.last2m), mPrev=dtFor(recs,dKey,dVal,g,matchMonth,per.prev2m);
+      const dimShow=dimKey?(gi===0?`<span class="lbl-name">${dim}</span>`:''):(gi===0?'<span class="lbl-name">Vùng TNT</span>':'');
+      html+=`<tr><td class="col-sticky">${dimShow}</td><td>${nhomTag(g)}</td>${dCells}
+        <td class="num">${trendArrow(dCur,dPrev)}</td>${wCells}<td class="num">${trendArrow(wCur,wPrev)}</td>${mCells}<td class="num">${trendArrow(mCur,mPrev)}</td></tr>`;
+    });
+    const tDC=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,dKey,dVal,g,matchDay,per.last3d),0);
+    const tDP=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,dKey,dVal,g,matchDay,per.prev3d),0);
+    const tWC=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,dKey,dVal,g,matchWeek,per.last3w),0);
+    const tWP=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,dKey,dVal,g,matchWeek,per.prev3w),0);
+    const tMC=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,dKey,dVal,g,matchMonth,per.last2m),0);
+    const tMP=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,dKey,dVal,g,matchMonth,per.prev2m),0);
+    const tDCells=per.last3d.map(b=>{ const v=NHOM_LABELS.reduce((s,g)=>s+dtOne(recs,dKey,dVal,g,matchDay,b),0); return `<td class="num">${fmtVndCell(v)}</td>`; }).join('');
+    const tWCells=per.last3w.map(b=>{ const v=NHOM_LABELS.reduce((s,g)=>s+dtOne(recs,dKey,dVal,g,matchWeek,b),0); return `<td class="num">${fmtVndCell(v)}</td>`; }).join('');
+    const tMCells=per.last2m.map(b=>{ const v=NHOM_LABELS.reduce((s,g)=>s+dtOne(recs,dKey,dVal,g,matchMonth,b),0); return `<td class="num">${fmtVndCell(v)}</td>`; }).join('');
+    const totLbl=dimKey?`Tổng ${dim}`:'TỔNG VÙNG';
+    html+=`<tr class="tot row-grp-tot"><td class="col-sticky"></td><td>${totLbl}</td>${tDCells}<td class="num">${trendArrow(tDC,tDP)}</td>${tWCells}<td class="num">${trendArrow(tWC,tWP)}</td>${tMCells}<td class="num">${trendArrow(tMC,tMP)}</td></tr>`;
+  });
+  html+=`</tbody></table></div>`;
+  return html;
+}
+function renderOverviewNhomSection(recs, maxDate){
+  if(!recs.length) return '';
+  const per=buildNhomCombinedPeriod(recs);
+  const badge=`3N: ${per.last3d.map(isoShort2).join(' · ')||'—'} · 3T: ${per.last3w.map(w=>'T.'+(w.split('/').pop()||w)).join(' · ')||'—'} · 2T: ${per.last2m.map(formatThangLabel).join(' · ')||'—'}`;
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">👥</div>Doanh Thu Theo Nhóm Khách Hàng</div><span class="badge">${isoShort2(maxDate)}</span></div>
+  <div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📊 ${badge} · Δ = so với kỳ liền trước · Đơn vị: triệu đồng</div>`;
+  html+=`<div class="am-title">Tổng Hợp Toàn Vùng TNT</div>`;
+  html+=renderNhomCombinedTable(recs,per,null,'Vùng');
+  html+=`<div class="am-title" style="font-size:11px;background:var(--card);color:var(--text-sub)">Theo Tỉnh · Ngày + Tuần + Tháng liền một bảng</div>`;
+  html+=renderNhomCombinedTable(recs,per,'tinh','Tỉnh');
+  html+=`<div class="am-title" style="font-size:11px;background:var(--card);color:var(--text-sub)">Theo AM · Ngày + Tuần + Tháng liền một bảng</div>`;
+  html+=renderNhomCombinedTable(recs,per,'am','AM');
+  html+=`</div>`;
+  return html;
+}
+function parseThangSheet(s){
+  s=(s||'').trim().replace(/\s+/g,'');
+  let m=s.match(/^(\d{4})[\/\-](\d{1,2})$/);
+  if(!m) return null;
+  const y=+m[1], p=+m[2];
+  if(p<0) return null;
+  return {y,p,key:`${y}/${p}`};
+}
+function detectDtThangLayout(dtThang, yearOnly){
+  if(!dtThang||dtThang.length<2) return {hybrid:false,maxPeriod:0};
+  const iThang=idxOf(dtThang[0],'Thang');
+  let maxPeriod=0;
+  for(let i=1;i<dtThang.length;i++){
+    const ts=parseThangSheet(dtThang[i][iThang]);
+    if(!ts||ts.y!==yearOnly) continue;
+    maxPeriod=Math.max(maxPeriod, ts.p);
+  }
+  return {hybrid:maxPeriod>12,maxPeriod};
+}
+function weekToCalendarMonth(y, w){
+  const dayOfYear=(w-1)*7+4;
+  const d=new Date(y,0,dayOfYear);
+  return {y:d.getFullYear(),m:d.getMonth()+1};
+}
+function calendarFromPeriod(y, p, layout){
+  if(layout.hybrid){
+    if(p>=1&&p<=12) return {y,m:p};
+    if(p>=13) return weekToCalendarMonth(y,p);
+    return null;
+  }
+  if(p>=1&&p<=12) return {y,m:p};
+  return null;
+}
+function isFutureMonth(y, m){
+  const now=new Date();
+  const curY=now.getFullYear(), curM=now.getMonth()+1;
+  return y>curY || (y===curY && m>curM);
+}
+function normLoaiHang(s){
+  s=(s||'').trim();
+  if(!s) return null;
+  if(s.includes('nặng')||s.includes('n?ng')) return 'nang';
+  if(s.includes('nhẹ')||s.includes('nh?')) return 'nhe';
+  return null;
+}
+function parseDtThangSheet(dtThang, yearOnly){
+  if(!dtThang||dtThang.length<2) return [];
+  const h=dtThang[0];
+  const iThang=idxOf(h,'Thang'), iDT=idxOf(h,'DoanhThu'), iVol=idxOf(h,'Volume');
+  const iLoai=idxOf(h,'Loại Hàng'), iTinh=idxOf(h,'Tỉnh Chuẩn');
+  const layout=detectDtThangLayout(dtThang, yearOnly);
+  const recs=[];
+  for(let i=1;i<dtThang.length;i++){
+    const r=dtThang[i];
+    const ts=parseThangSheet(r[iThang]);
+    const loai=normLoaiHang(r[iLoai]);
+    const tinh=(r[iTinh]||'').trim();
+    const cal=ts?calendarFromPeriod(ts.y, ts.p, layout):null;
+    if(!cal||!loai||!tinh||cal.y!==yearOnly) continue;
+    if(isFutureMonth(cal.y, cal.m)) continue;
+    recs.push({y:cal.y,m:cal.m,key:`${cal.y}/${cal.m}`,tinh,loai,dt:parseVNNum(r[iDT]),vol:Math.round(parseVNNum(r[iVol]))});
+  }
+  return recs;
+}
+function mergeDtThangRecs(dtThang2025, dtThang){
+  return [...parseDtThangSheet(dtThang2025, 2025), ...parseDtThangSheet(dtThang, 2026)];
+}
+function reconcileDtWithKetQua(recs, ketQua, thang){
+  const p=parseThang(thang);
+  if(!p||!ketQua||ketQua.length<2) return recs;
+  const kqTotal=sumKetQuaMonth(ketQua, thang);
+  if(!kqTotal) return recs;
+  const dtTotal=recs.filter(r=>r.y===p.y&&r.m===p.m).reduce((s,r)=>s+r.dt,0);
+  if(!dtTotal||dtTotal>=kqTotal*0.98) return recs;
+  const ratio=kqTotal/dtTotal;
+  return recs.map(r=>(r.y===p.y&&r.m===p.m)?{...r,dt:r.dt*ratio}:r);
+}
+function aggMonthlyByYear(recs, year){
+  const now=new Date();
+  const maxM = year===now.getFullYear() ? now.getMonth()+1 : 12;
+  return Array.from({length:12}, (_,i)=>{
+    const m=i+1;
+    if(m>maxM) return null;
+    const v=recs.filter(r=>r.y===year&&r.m===m).reduce((s,r)=>s+r.dt,0);
+    return v>0 ? v : null;
+  });
+}
+function aggMonthlyLoai(recs, year, loai){
+  const now=new Date();
+  const maxM = year===now.getFullYear() ? now.getMonth()+1 : 12;
+  return Array.from({length:12}, (_,i)=>{
+    const m=i+1;
+    if(m>maxM) return null;
+    const v=recs.filter(r=>r.y===year&&r.m===m&&r.loai===loai).reduce((s,r)=>s+r.dt,0);
+    return v>0 ? v : null;
+  });
+}
+function fmtChartLabel(v){
+  if(v==null||isNaN(v)) return '';
+  if(v>=1000) return Math.round(v).toLocaleString('vi-VN');
+  if(v>=10) return v.toFixed(0);
+  return v.toFixed(1);
+}
+const chartDataLabel={
+  display(ctx){
+    const v=ctx.dataset.data[ctx.dataIndex];
+    return v!=null && v!==0;
+  },
+  align:'top',
+  anchor:'end',
+  offset:4,
+  font:{size:9,weight:'600'},
+  color(ctx){ return ctx.dataset.borderColor; },
+  formatter:(v)=>fmtChartLabel(v)
+};
+function destroyChart(id){
+  if(window._charts[id]){ window._charts[id].destroy(); delete window._charts[id]; }
+}
+function mkChart(id, cfg){
+  destroyChart(id);
+  const el=document.getElementById(id);
+  if(!el||typeof Chart==='undefined') return;
+  window._charts[id]=new Chart(el, cfg);
+}
+function drawOverviewCharts(recs){
+  ['cDtYoY','cLoaiHang'].forEach(destroyChart);
+  const labels=Array.from({length:12}, (_,i)=>String(i+1).padStart(2,'0'));
+  const dt2025=aggMonthlyByYear(recs,2025).map(v=>v==null?null:v/1e6);
+  const dt2026=aggMonthlyByYear(recs,2026).map(v=>v==null?null:v/1e6);
+  const lineOpts={responsive:true,maintainAspectRatio:false,plugins:{
+    legend:{position:'bottom',labels:{font:{size:11},padding:14,usePointStyle:true}},
+    datalabels:chartDataLabel
+  },scales:{
+    x:{grid:{display:false},ticks:{font:{size:11},color:'#94A3B8'}},
+    y:{grid:{color:'#F1F5F9'},ticks:{font:{size:11},color:'#64748B'},title:{display:true,text:'Triệu đồng',font:{size:11},color:'#94A3B8'}}
+  }};
+  mkChart('cDtYoY',{type:'line',data:{labels,datasets:[
+    {label:'2025',data:dt2025,borderColor:'#94A3B8',backgroundColor:'rgba(148,163,184,.06)',tension:.35,pointRadius:4,pointHoverRadius:6,borderWidth:2,spanGaps:false},
+    {label:'2026',data:dt2026,borderColor:'#2563EB',backgroundColor:'rgba(37,99,235,.06)',tension:.35,pointRadius:4,pointHoverRadius:6,borderWidth:2.5,spanGaps:false}
+  ]},options:lineOpts});
+  mkChart('cLoaiHang',{type:'line',data:{labels,datasets:[
+    {label:'2025 Nặng',data:aggMonthlyLoai(recs,2025,'nang').map(v=>v==null?null:v/1e6),borderColor:'#DC2626',tension:.35,pointRadius:3,borderWidth:2,spanGaps:false},
+    {label:'2025 Nhẹ',data:aggMonthlyLoai(recs,2025,'nhe').map(v=>v==null?null:v/1e6),borderColor:'#FCA5A5',borderDash:[5,4],tension:.35,pointRadius:3,borderWidth:1.5,spanGaps:false},
+    {label:'2026 Nặng',data:aggMonthlyLoai(recs,2026,'nang').map(v=>v==null?null:v/1e6),borderColor:'#1D4ED8',tension:.35,pointRadius:3,borderWidth:2,spanGaps:false},
+    {label:'2026 Nhẹ',data:aggMonthlyLoai(recs,2026,'nhe').map(v=>v==null?null:v/1e6),borderColor:'#93C5FD',borderDash:[5,4],tension:.35,pointRadius:3,borderWidth:1.5,spanGaps:false}
+  ]},options:{...lineOpts,plugins:{...lineOpts.plugins,datalabels:{...chartDataLabel,font:{size:8,weight:'600'}}}}});
+}
+function renderChartSection(){
+  return `<div class="chart-grid">
+    <div class="chart-box"><div class="chart-title">Doanh Thu Theo Tháng</div><div class="chart-sub">So sánh 2025 vs 2026 · triệu đồng</div><div class="chart-wrap"><canvas id="cDtYoY"></canvas></div></div>
+    <div class="chart-box"><div class="chart-title">Hàng Nặng / Hàng Nhẹ Theo Tháng</div><div class="chart-sub">4 đường theo loại hàng · triệu đồng</div><div class="chart-wrap"><canvas id="cLoaiHang"></canvas></div></div>
+  </div>`;
+}
+function slkhByNhomCurrentMonth(recs, thang){
+  const monthRecs=recs.filter(r=>r.thang&&thangEq(r.thang, thang));
+  if(!monthRecs.length) return null;
+  const latestDate=[...new Set(monthRecs.map(r=>r.ngay))].sort().pop();
+  const latest=monthRecs.filter(r=>r.ngay===latestDate);
+  const byGrp={};
+  latest.forEach(r=>{ byGrp[r.grp]=(byGrp[r.grp]||0)+r.slkh; });
+  return {latestDate, byGrp, total:NHOM_LABELS.reduce((s,g)=>s+(byGrp[g]||0),0)};
+}
+function renderSlkhSection(slkhInfo, thangLabel){
+  let slkhBody='';
+  if(!slkhInfo){
+    slkhBody=`<div class="section-note">Chưa có dữ liệu PHÂN NHÓM cho tháng <b>${thangLabel}</b>.</div>`;
+  } else {
+    const cells=NHOM_LABELS.map(g=>`<td class="num"><span class="v-num">${fmt(slkhInfo.byGrp[g]||0)}</span></td>`).join('');
+    slkhBody=`<div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📅 SLKH tại ngày mới nhất: <b>${isoShort2(slkhInfo.latestDate)}</b></div>
+    <div class="table-wrap"><table class="tbl-pro"><thead><tr><th>Nhóm KH</th>${NHOM_LABELS.map(g=>`<th class="num">${g}</th>`).join('')}<th class="num">Tổng</th></tr></thead>
+    <tbody><tr><td><span class="lbl-name">Số lượng KH</span></td>${cells}<td class="num"><span class="v-num">${fmt(slkhInfo.total)}</span></td></tr></tbody></table></div>`;
+  }
+  return `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">👥</div>Số Lượng Khách Hàng Theo Nhóm</div><span class="badge">Tháng ${thangLabel}</span></div>${slkhBody}</div>`;
+}
+function renderHangNangNheSection(recs){
+  if(!recs.length) return '';
+  const years=[2025,2026];
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">📦</div>Doanh Thu Hàng Nặng / Hàng Nhẹ Theo Tỉnh</div><span class="badge">2025: DT-Tháng2025 · 2026: DT-Tháng</span></div>`;
+  years.forEach(y=>{
+    const yrRecs=recs.filter(r=>r.y===y);
+    if(!yrRecs.length) return;
+    const now=new Date();
+    const maxM = y===now.getFullYear() ? now.getMonth()+1 : 12;
+    const months=[...new Set(yrRecs.map(r=>r.m))].filter(m=>m<=maxM).sort((a,b)=>a-b);
+    const tinhs=[...new Set(yrRecs.map(r=>r.tinh))].sort();
+    const mHdr=months.map(m=>`<th class="num" colspan="2">${String(m).padStart(2,'0')}/${y}</th>`).join('');
+    const subHdr=months.map(()=>`<th class="num">Nặng</th><th class="num">Nhẹ</th>`).join('');
+    html+=`<div class="am-title">Năm ${y}</div><div class="table-wrap"><table class="tbl-pro"><thead>
+      <tr><th class="col-sticky" rowspan="2">Tỉnh</th>${mHdr}<th class="num" rowspan="2">Σ Nặng</th><th class="num" rowspan="2">Σ Nhẹ</th></tr>
+      <tr>${subHdr}</tr></thead><tbody>`;
+    tinhs.forEach(tinh=>{
+      let tNang=0,tNhe=0;
+      const cells=months.map(m=>{
+        const nang=yrRecs.filter(r=>r.tinh===tinh&&r.m===m&&r.loai==='nang').reduce((s,r)=>s+r.dt,0);
+        const nhe=yrRecs.filter(r=>r.tinh===tinh&&r.m===m&&r.loai==='nhe').reduce((s,r)=>s+r.dt,0);
+        tNang+=nang; tNhe+=nhe;
+        return `<td class="num">${fmtVndCell(nang)}</td><td class="num">${fmtVndCell(nhe)}</td>`;
+      }).join('');
+      html+=`<tr><td class="col-sticky"><span class="lbl-name">${tinh}</span></td>${cells}<td class="num">${fmtVndCell(tNang)}</td><td class="num">${fmtVndCell(tNhe)}</td></tr>`;
+    });
+    const totCells=months.map(m=>{
+      const nang=yrRecs.filter(r=>r.m===m&&r.loai==='nang').reduce((s,r)=>s+r.dt,0);
+      const nhe=yrRecs.filter(r=>r.m===m&&r.loai==='nhe').reduce((s,r)=>s+r.dt,0);
+      return `<td class="num">${fmtVndCell(nang)}</td><td class="num">${fmtVndCell(nhe)}</td>`;
+    }).join('');
+    const gNang=yrRecs.filter(r=>r.loai==='nang').reduce((s,r)=>s+r.dt,0);
+    const gNhe=yrRecs.filter(r=>r.loai==='nhe').reduce((s,r)=>s+r.dt,0);
+    html+=`<tr class="tot"><td class="col-sticky">TỔNG ${y}</td>${totCells}<td class="num">${fmtVndCell(gNang)}</td><td class="num">${fmtVndCell(gNhe)}</td></tr>`;
+    html+=`</tbody></table></div>`;
+  });
+  html+=`</div>`;
+  return html;
+}
+function parseVNNum(s){
+  if(s==null) return 0;
+  s = String(s).trim();
+  if(!s) return 0;
+  return parseFloat(s.replace(/\./g,'').replace(',','.')) || 0;
+}
+function parseCSV(text){
+  const rows=[]; let row=[],field='',q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){field+='"';i++;} else q=false; } else field+=c; }
+    else{
+      if(c==='"') q=true;
+      else if(c===','){row.push(field);field='';}
+      else if(c==='\r'){}
+      else if(c==='\n'){row.push(field);rows.push(row);row=[];field='';}
+      else field+=c;
+    }
+  }
+  if(field.length||row.length){row.push(field);rows.push(row);}
+  return rows;
+}
+async function fetchGid(gid, retry=2){
+  const url = `https://docs.google.com/spreadsheets/d/${SID}/gviz/tq?tqx=out:csv&gid=${gid}&_=${Date.now()}`;
+  for(let i=0;i<=retry;i++){
+    try{
+      const r = await fetch(url, {cache:'no-store'});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const t = await r.text();
+      return parseCSV(t);
+    }catch(e){
+      if(i===retry) throw e;
+      await new Promise(res=>setTimeout(res,1200*(i+1)));
+    }
+  }
+}
+async function fetchSheet(sheetName, retry=2){
+  const url = `https://docs.google.com/spreadsheets/d/${SID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&_=${Date.now()}`;
+  for(let i=0;i<=retry;i++){
+    try{
+      const r = await fetch(url, {cache:'no-store'});
+      if(!r.ok) throw new Error('HTTP '+r.status+' ('+sheetName+')');
+      const t = await r.text();
+      return parseCSV(t);
+    }catch(e){
+      if(i===retry) throw e;
+      await new Promise(res=>setTimeout(res,1200*(i+1)));
+    }
+  }
+}
+function idxOf(header,name){ return header.map(h=>(h||'').trim()).indexOf(name); }
+// Ngay dạng dd/mm/yyyy -> sortable yyyy-mm-dd
+function ddmmyyyy2iso(s){
+  s=(s||'').trim(); const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(!m) return s;
+  return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+}
+function isoShort(iso){
+  if(!iso) return '—';
+  const m=iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(!m) return iso;
+  return `${m[3]}/${m[2]}`;
+}
+function currentThang(){
+  const now=new Date();
+  return `${now.getFullYear()}/${now.getMonth()+1}`;
+}
+function parseThang(s){
+  s=(s||'').trim();
+  const m=s.match(/^(\d{4})\/(\d{1,2})$/);
+  if(!m) return null;
+  return { y:+m[1], m:+m[2] };
+}
+function thangEq(a,b){
+  const pa=parseThang(a), pb=parseThang(b);
+  return pa && pb && pa.y===pb.y && pa.m===pb.m;
+}
+function canonicalThangKey(y,m){
+  return `${y}/${String(m).padStart(2,'0')}`;
+}
+function thangCellPreferred(rows, iThang, thang){
+  const p=parseThang(thang);
+  if(!p||iThang<0) return null;
+  const canon=canonicalThangKey(p.y,p.m), short=`${p.y}/${p.m}`;
+  let hasCanon=false, hasShort=false;
+  rows.forEach(r=>{
+    const t=(r[iThang]||'').trim();
+    if(t===canon) hasCanon=true;
+    if(t===short) hasShort=true;
+  });
+  if(hasCanon) return canon;
+  if(hasShort) return short;
+  return null;
+}
+function rowMatchesPreferredThang(cell, thang, preferred){
+  if(!cell) return true;
+  const t=cell.trim();
+  if(preferred) return t===preferred;
+  return thangEq(t, thang);
+}
+function sumKetQuaMonth(ketQua, thang){
+  if(!ketQua||ketQua.length<2) return 0;
+  const h=ketQua[0];
+  const iAM=idxOf(h,'AM Chuẩn'), iDT=idxOf(h,'DoanhThu'), iThang=idxOf(h,'Thang');
+  const preferred=thangCellPreferred(ketQua.slice(1), iThang, thang);
+  let total=0;
+  for(let i=1;i<ketQua.length;i++){
+    const r=ketQua[i];
+    if(!r[iAM]) continue;
+    if(iThang>=0&&r[iThang]&&!rowMatchesPreferredThang(r[iThang], thang, preferred)) continue;
+    total+=parseVNNum(r[iDT]);
+  }
+  return total;
+}
+function formatThangLabel(s){
+  const p=parseThang(s);
+  return p ? `${p.y}/${String(p.m).padStart(2,'0')}` : s;
+}
+function monthKeyFromIso(iso){
+  const m=(iso||'').match(/^(\d{4})-(\d{2})/);
+  return m ? `${+m[1]}/${+m[2]}` : null;
+}
+function monthSortKey(s){
+  const p=parseThang(s);
+  return p ? p.y*100+p.m : 0;
+}
+function getLastNMonths(dateIsos,n=3){
+  const months=[...new Set(dateIsos.map(monthKeyFromIso).filter(Boolean))]
+    .sort((a,b)=>monthSortKey(a)-monthSortKey(b));
+  return months.slice(-n);
+}
+function daysInMonth(y,m){ return new Date(y, m, 0).getDate(); }
+function kpiSamePeriod(kpiFull, elapsed, totalDays){
+  if(!kpiFull||!totalDays) return 0;
+  return kpiFull * elapsed / totalDays;
+}
+function getMonthProgress(dtNgay){
+  const parsed = parseThang(currentThang());
+  const { y, m } = parsed;
+  const totalDays = daysInMonth(y, m);
+  const now = new Date();
+  let maxDataDay = 0;
+  if(dtNgay && dtNgay.length>1){
+    const iNgay = idxOf(dtNgay[0],'Ngay');
+    for(let i=1;i<dtNgay.length;i++){
+      const iso = ddmmyyyy2iso(dtNgay[i][iNgay]);
+      const dm = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if(dm && +dm[1]===y && +dm[2]===m) maxDataDay = Math.max(maxDataDay, +dm[3]);
+    }
+  }
+  let elapsed;
+  if(y===now.getFullYear() && m===now.getMonth()+1){
+    elapsed = maxDataDay > 0 ? maxDataDay : now.getDate();
+  } else {
+    elapsed = maxDataDay > 0 ? maxDataDay : totalDays;
+  }
+  elapsed = Math.min(Math.max(elapsed, 1), totalDays);
+  return { elapsed, totalDays, y, m, pctTime: elapsed/totalDays*100, maxDataDay };
+}
+
+/* ===================== STATE ===================== */
+window._DATA = {};
+let loaded = false;
+
+async function loadAll(){
+  const btn=document.getElementById('refreshBtn');
+  btn.classList.add('spinning');
+  Object.keys(window._charts).forEach(k=>destroyChart(k));
+  try{
+    const [ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025] = await Promise.all([
+      fetchGid(GID.ketQua), fetchGid(GID.kpiAM), fetchGid(GID.dtNgay), fetchGid(GID.phanNhom), fetchGid(GID.khNhomA), fetchGid(GID.dtThang), fetchSheet(SHEET.dtThang2025)
+    ]);
+    window._DATA = { ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025 };
+    loaded = true;
+    document.getElementById('exportDocBtn').disabled = false;
+    document.getElementById('lastUpdate').textContent = 'Tải lúc: ' + new Date().toLocaleString('vi-VN');
+    renderOverview();
+    renderDecline();
+    renderSegment();
+    renderNhomA();
+  }catch(e){
+    ['overview','decline','segment','nhomA'].forEach(id=>{
+      document.getElementById(id).innerHTML = `<div class="data-banner err">⚠️ Lỗi tải dữ liệu từ Google Sheet: ${e.message}. Kiểm tra quyền chia sẻ (Anyone with link) hoặc thử Cập nhật lại.</div>`;
+    });
+  }
+  btn.classList.remove('spinning');
+}
+function refreshAll(){ loadAll(); }
+function showPage(p){
+  document.querySelectorAll('.page').forEach(el=>el.style.display='none');
+  document.getElementById(p).style.display='block';
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.toggle('active', el.dataset.page===p));
+}
+
+/* ===================== 1) TỔNG QUAN ===================== */
+function renderOverview(){
+  const el = document.getElementById('overview');
+  const { ketQua, kpiAM, dtNgay, phanNhom, dtThang, dtThang2025 } = window._DATA;
+  const thang = currentThang();
+  const thangLabel = formatThangLabel(thang);
+  const dtThangRecs = reconcileDtWithKetQua(mergeDtThangRecs(dtThang2025, dtThang), ketQua, thang);
+
+  // --- DT thực tế theo AM (Kết Quả) — chỉ tháng hiện tại ---
+  const hKQ = ketQua[0];
+  const iAM = idxOf(hKQ,'AM Chuẩn'), iDT = idxOf(hKQ,'DoanhThu'), iVol = idxOf(hKQ,'Volume'), iThangKQ = idxOf(hKQ,'Thang');
+  const preferredKQ = thangCellPreferred(ketQua.slice(1), iThangKQ, thang);
+  const actualByAM = {}, volByAM = {};
+  for(let i=1;i<ketQua.length;i++){
+    const r = ketQua[i]; if(!r[iAM]) continue;
+    if(iThangKQ>=0 && r[iThangKQ] && !rowMatchesPreferredThang(r[iThangKQ], thang, preferredKQ)) continue;
+    actualByAM[r[iAM]] = (actualByAM[r[iAM]]||0) + parseVNNum(r[iDT]);
+    if(iVol>=0) volByAM[r[iAM]] = (volByAM[r[iAM]]||0) + Math.round(parseVNNum(r[iVol]));
+  }
+  const totalVol = Object.values(volByAM).reduce((s,v)=>s+v,0);
+
+  const { elapsed, totalDays, pctTime, maxDataDay } = getMonthProgress(dtNgay);
+
+  // --- KPI Vùng theo AM — chỉ tháng hiện tại ---
+  const hKPI = kpiAM[0];
+  const iAMk = idxOf(hKPI,'AM'), iKPIVung = idxOf(hKPI,'KPI Vùng'), iKPICty = idxOf(hKPI,'KPI Cty'), iThangKPI = idxOf(hKPI,'Tháng');
+  const preferredKPI = thangCellPreferred(kpiAM.slice(1), iThangKPI, thang);
+  const kpiByAM = {}; let kpiCtyHasData=false, totalKpiCty=0;
+  for(let i=1;i<kpiAM.length;i++){
+    const r = kpiAM[i]; if(!r[iAMk]) continue;
+    if(iThangKPI>=0 && r[iThangKPI] && !rowMatchesPreferredThang(r[iThangKPI], thang, preferredKPI)) continue;
+    kpiByAM[r[iAMk]] = parseVNNum(r[iKPIVung]);
+    const cty = parseVNNum(r[iKPICty]);
+    if(cty){ kpiCtyHasData=true; totalKpiCty+=cty; }
+  }
+
+  const allAM = [...new Set([...Object.keys(actualByAM), ...Object.keys(kpiByAM), ...Object.keys(volByAM)])].sort();
+  let totalActual=0, totalKPI=0, totalKPIPeriod=0, totalProjected=0;
+  const rows = allAM.map(am=>{
+    const actual = actualByAM[am]||0;
+    const vol = volByAM[am]||0;
+    const kpi = kpiByAM[am]||0;
+    const kpiPeriod = kpiSamePeriod(kpi, elapsed, totalDays);
+    const projected = actual/elapsed*totalDays;
+    totalActual+=actual; totalKPI+=kpi; totalKPIPeriod+=kpiPeriod; totalProjected+=projected;
+    const ratePeriod = pct(actual, kpiPeriod);
+    const projRate = pct(projected, kpi);
+    return {am, actual, vol, kpi, kpiPeriod, ratePeriod, projected, projRate};
+  }).sort((a,b)=>b.actual-a.actual);
+
+  const pctClass = p => p>=100?'pct-g':p>=70?'pct-y':'pct-r';
+  const rateTotal = pct(totalActual, totalKPIPeriod);
+  const projRateTotal = pct(totalProjected, totalKPI);
+  const dataNote = maxDataDay ? `Dữ liệu cập nhật đến ngày ${maxDataDay}/${totalDays}` : `Tính theo ngày ${elapsed}/${totalDays} trong tháng`;
+  const noDataBanner = totalActual===0 && Object.keys(kpiByAM).length===0
+    ? `<div class="data-banner err">⚠️ Chưa có dữ liệu tháng <b>${thangLabel}</b> trong sheet. Báo cáo luôn lọc theo tháng hiện tại của hệ thống — kiểm tra sheet "Kết Quả" và "KPI AM" đã cập nhật tháng này chưa.</div>`
+    : totalActual===0
+    ? `<div class="data-banner">📅 Chưa có doanh thu thực đạt tháng <b>${thangLabel}</b> trong sheet "Kết Quả". KPI tháng vẫn hiển thị nếu có trong sheet "KPI AM".</div>`
+    : '';
+
+  const kpiCards = `
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="ic" style="background:var(--blue-light);color:var(--blue-dark)">⏱️</div>
+      <div class="lbl">Thời gian đã qua trong tháng</div>
+      <div class="val"><span class="hero-amt">${elapsed}</span><span class="hero-sub"> / ${totalDays} ngày</span></div>
+      <div class="progress"><div class="progress-fill" style="width:${pctTime.toFixed(1)}%"></div></div>
+      <div class="progress-lbl"><span>Tháng ${thangLabel}</span><span>${pctTime.toFixed(0)}% tháng</span></div>
+      <div class="sub">${dataNote}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="ic" style="background:var(--green-bg);color:var(--green)">💰</div>
+      <div class="lbl">MTD Thực đạt Doanh Thu</div>
+      <div class="val">${fmtVndHero(totalActual)}</div>
+      <div class="cmp">
+        KPI cùng kỳ: <b>${fmtVnd(totalKPIPeriod)}</b> ·
+        Đạt <b class="${rateTotal>=100?'down':'up'}">${rateTotal.toFixed(0)}%</b>
+        <span class="lbl-sub"> · KPI tháng ${fmtVnd(totalKPI)}</span>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="ic" style="background:var(--yellow-bg);color:var(--yellow)">📈</div>
+      <div class="lbl">Dự kiến cuối tháng</div>
+      <div class="val">${fmtVndHero(totalProjected)}</div>
+      <div class="sub">MTD ÷ ${elapsed} ngày × ${totalDays} ngày</div>
+      <div class="cmp">
+        % dự kiến / KPI: <b class="${projRateTotal>=100?'down':'up'}">${projRateTotal.toFixed(0)}%</b>
+        ${kpiCtyHasData ? `<span class="lbl-sub"> · KPI Cty ${fmtVnd(totalKpiCty)}</span>` : ''}
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="ic" style="background:#EEF2FF;color:#4338CA">📦</div>
+      <div class="lbl">Volume MTD</div>
+      <div class="val"><span class="hero-amt">${fmt(totalVol)}</span><span class="hero-unit">đơn</span></div>
+      <div class="sub">Tháng ${thangLabel}</div>
+    </div>
+  </div>`;
+
+  let table = `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">📊</div>Doanh Thu Theo AM</div><span class="badge">Tháng ${thangLabel} · ${elapsed}/${totalDays} ngày</span></div>
+  <div class="table-wrap"><table class="tbl-pro"><thead><tr>
+    <th style="width:48px">#</th><th>AM</th><th class="num">MTD</th><th class="num">Volume MTD</th><th class="num">KPI cùng kỳ</th><th class="num">% Đạt</th><th class="num">KPI tháng</th><th class="num">Dự kiến</th><th class="num">% Dự kiến</th>
+  </tr></thead><tbody>`;
+  rows.forEach((r,i)=>{
+    table += `<tr><td><span class="rank-num${i<3?' top3':''}">${i+1}</span></td><td><span class="lbl-name">${r.am}</span></td>
+      <td class="num">${fmtVndCell(r.actual)}</td>
+      <td class="num">${fmtVolCell(r.vol)}</td>
+      <td class="num">${r.kpiPeriod?fmtVndCell(r.kpiPeriod):'<span class="empty-val">—</span>'}</td>
+      <td class="num">${pctCell(r.ratePeriod)}</td>
+      <td class="num">${r.kpi?fmtVndCell(r.kpi):'<span class="empty-val">—</span>'}</td>
+      <td class="num">${fmtVndCell(r.projected)}</td>
+      <td class="num">${pctCell(r.projRate)}</td>
+    </tr>`;
+  });
+  table += `<tr class="tot"><td></td><td>TỔNG VÙNG TNT</td>
+    <td class="num">${fmtVndCell(totalActual)}</td><td class="num">${fmtVolCell(totalVol)}</td><td class="num">${fmtVndCell(totalKPIPeriod)}</td>
+    <td class="num"><span class="pct-pill ${pctClass(rateTotal)}">${rateTotal.toFixed(0)}%</span></td>
+    <td class="num">${fmtVndCell(totalKPI)}</td><td class="num">${fmtVndCell(totalProjected)}</td>
+    <td class="num"><span class="pct-pill ${pctClass(projRateTotal)}">${projRateTotal.toFixed(0)}%</span></td></tr>`;
+  table += `</tbody></table></div>`;
+
+  const worst = rows.slice().sort((a,b)=>a.ratePeriod-b.ratePeriod)[0];
+  const best = rows.slice().sort((a,b)=>b.ratePeriod-a.ratePeriod)[0];
+  table += `<div class="analysis-box">
+    <b>Nhận định nhanh:</b> Qua ${elapsed}/${totalDays} ngày, vùng đạt <b>${fmtVnd(totalActual)}</b> (<b>${rateTotal.toFixed(0)}%</b> KPI cùng kỳ).
+    Dự kiến cuối tháng <b>${fmtVnd(totalProjected)}</b>.
+    Dẫn đầu: <b>${best?best.am:'—'}</b> · Cần hỗ trợ: <b>${worst?worst.am:'—'}</b>.
+    ${!kpiCtyHasData ? '<br><span class="lbl-sub">⚠️ Chưa có KPI Cty trong sheet.</span>' : ''}
+  </div>`;
+  table += `</div>`;
+
+  const { recs: pnRecs, maxDate: pnMaxDate } = parsePhanNhomRecs(phanNhom);
+  const nhomSection = renderOverviewNhomSection(pnRecs, pnMaxDate);
+  const slkhInfo = slkhByNhomCurrentMonth(pnRecs, thang);
+  const slkhSection = renderSlkhSection(slkhInfo, thangLabel);
+  const chartSection = renderChartSection();
+  const hangSection = renderHangNangNheSection(dtThangRecs);
+
+  el.innerHTML = `
+  <div class="page-header"><div><div class="page-title">Tổng Quan Doanh Thu</div><div class="page-sub">Vùng TNT · Tháng ${thangLabel} · DT: <span class="unit-note">triệu đồng (tr)</span> · Volume: <span class="unit-note">đơn</span></div></div></div>
+  ${noDataBanner}
+  ${kpiCards}
+  ${table}
+  ${chartSection}
+  ${slkhSection}
+  ${nhomSection}
+  ${hangSection}
+  <div class="foot-note">Nguồn: "Kết Quả" · "KPI AM" · "DT-Tháng2025" · "DT-Tháng" · "PHÂN NHÓM KHÁCH HÀNG" · Đơn vị DT: triệu đồng.</div>`;
+  drawOverviewCharts(dtThangRecs);
+}
+
+/* ===================== 2) AM GIẢM DOANH THU SO VỚI NGÀY TRƯỚC ===================== */
+function renderDecline(){
+  const el = document.getElementById('decline');
+  const { dtNgay } = window._DATA;
+  if(!dtNgay || dtNgay.length<2){ el.innerHTML = '<div class="data-banner err">Không có dữ liệu sheet DT-Ngày.</div>'; return; }
+  const h = dtNgay[0];
+  const iAM = idxOf(h,'AM Chuẩn'), iDT = idxOf(h,'DoanhThu'), iNgay = idxOf(h,'Ngay');
+
+  const byAMDate = {}; // am -> {iso: sum}
+  const dateSet = new Set();
+  for(let i=1;i<dtNgay.length;i++){
+    const r = dtNgay[i]; if(!r[iAM]||!r[iNgay]) continue;
+    const iso = ddmmyyyy2iso(r[iNgay]);
+    dateSet.add(iso);
+    if(!byAMDate[r[iAM]]) byAMDate[r[iAM]]={};
+    byAMDate[r[iAM]][iso] = (byAMDate[r[iAM]][iso]||0) + parseVNNum(r[iDT]);
+  }
+  // Lấy 2 ngày gần nhất THỰC SỰ có trong sheet (không giả định liên tục theo lịch)
+  const distinctDates = [...dateSet].sort();
+  const maxIso = distinctDates[distinctDates.length-1] || '';
+  const isoPrev = distinctDates.length>=2 ? distinctDates[distinctDates.length-2] : '';
+
+  if(distinctDates.length < 2){
+    el.innerHTML = `
+    <div class="page-header"><div><div class="page-title">⚠️ AM Giảm Doanh Thu So Với Ngày Trước</div><div class="page-sub">So sánh doanh thu ngày gần nhất với ngày liền trước · <span class="unit-note">Đơn vị DT: triệu đồng</span></div></div></div>
+    <div class="data-banner">📅 Sheet "DT-Ngày" hiện chỉ có dữ liệu của <b>&nbsp;1 ngày (${isoShort(maxIso)})</b>. Chưa đủ dữ liệu để so sánh với ngày trước — mục này sẽ tự động hiển thị khi sheet có từ 2 ngày dữ liệu trở lên.</div>
+    <div class="foot-note">Nguồn: sheet "DT-Ngày" (gid=${GID.dtNgay}).</div>`;
+    return;
+  }
+
+  const allAM = Object.keys(byAMDate).sort();
+  const rows = allAM.map(am=>{
+    const cur = byAMDate[am][maxIso]||0;
+    const prev = byAMDate[am][isoPrev]||0;
+    const delta = cur - prev;
+    return {am, cur, prev, delta, pctD: prev? delta/prev*100 : (cur>0?100:0)};
+  });
+  const declined = rows.filter(r=>r.delta<0).sort((a,b)=>a.delta-b.delta);
+  const improved = rows.filter(r=>r.delta>=0).sort((a,b)=>b.delta-a.delta);
+
+  const dLatest = maxIso ? new Date(maxIso+'T00:00:00') : new Date();
+  const isStale = (new Date() - dLatest) / 86400000 > 3;
+
+  let banner = `<div class="data-banner">📅 Dữ liệu DT-Ngày mới nhất trong hệ thống: <b>&nbsp;${isoShort(maxIso)}</b>&nbsp;(so với ngày liền trước ${isoShort(isoPrev)}). ${isStale?'Dữ liệu này chưa cập nhật đến ngày hiện tại — báo cáo sẽ tự động dùng ngày mới nhất mỗi khi sheet "DT-Ngày" được bổ sung thêm.':''}</div>`;
+
+  let body = `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--red)">⚠️</div>AM Có Doanh Thu Giảm So Với Ngày Trước</div><span class="badge">${isoShort(maxIso)} vs ${isoShort(isoPrev)}</span></div>`;
+  if(!declined.length){
+    body += `<div class="section-note">✅ Không có AM nào giảm doanh thu so với ngày trước trong dữ liệu hiện có.</div>`;
+  } else {
+    body += `<div class="table-wrap"><table class="tbl-pro"><thead><tr><th style="width:48px">#</th><th>AM</th><th class="num">${isoShort(isoPrev)}</th><th class="num">${isoShort(maxIso)}</th><th class="num">Chênh lệch</th><th class="num">%</th></tr></thead><tbody>`;
+    declined.forEach((r,i)=>{
+      body += `<tr><td><span class="rank-num">${i+1}</span></td><td><span class="lbl-name">${r.am}</span></td><td class="num">${fmtVndCell(r.prev)}</td><td class="num">${fmtVndCell(r.cur)}</td>
+        <td class="num"><span class="trend-tag down">▼ ${fmtM(Math.abs(r.delta))} tr</span></td><td class="num"><span class="trend-tag down">${r.pctD.toFixed(0)}%</span></td></tr>`;
+    });
+    body += `</tbody></table></div>`;
+    const worst = declined[0];
+    body += `<div class="analysis-box"><b>${declined.length}/${rows.length}</b> AM giảm doanh thu. Giảm mạnh nhất: <b>${worst.am}</b> (▼ ${fmtVnd(Math.abs(worst.delta))}).</div>`;
+  }
+  body += `</div>`;
+
+  body += `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--green)">✅</div>AM Tăng / Ổn Định</div></div>
+  <div class="table-wrap"><table class="tbl-pro"><thead><tr><th style="width:48px">#</th><th>AM</th><th class="num">${isoShort(isoPrev)}</th><th class="num">${isoShort(maxIso)}</th><th class="num">Chênh lệch</th></tr></thead><tbody>`;
+  improved.forEach((r,i)=>{
+    body += `<tr><td><span class="rank-num">${i+1}</span></td><td><span class="lbl-name">${r.am}</span></td><td class="num">${fmtVndCell(r.prev)}</td><td class="num">${fmtVndCell(r.cur)}</td><td class="num"><span class="trend-tag down">▲ ${fmtM(r.delta)} tr</span></td></tr>`;
+  });
+  body += `</tbody></table></div></div>`;
+
+  el.innerHTML = `
+  <div class="page-header"><div><div class="page-title">AM Giảm Doanh Thu</div><div class="page-sub">So sánh ngày gần nhất vs ngày trước · <span class="unit-note">triệu đồng</span></div></div></div>
+  ${banner}
+  ${body}
+  <div class="foot-note">Nguồn: sheet "DT-Ngày" (gid=${GID.dtNgay}). Báo cáo luôn dùng ngày mới nhất có trong sheet — không cố định theo ngày hệ thống.</div>`;
+}
+
+/* ===================== 3) PHÂN NHÓM KHÁCH HÀNG THEO AM — 3 NGÀY THEO NGÀY ===================== */
+function renderSegment(){
+  const el = document.getElementById('segment');
+  const { phanNhom } = window._DATA;
+  if(!phanNhom || phanNhom.length<2){ el.innerHTML = '<div class="data-banner err">Không có dữ liệu sheet PHÂN NHÓM KHÁCH HÀNG.</div>'; return; }
+  const { recs, maxDate } = parsePhanNhomRecs(phanNhom);
+
+  const allDates = [...new Set(recs.map(r=>r.ngay))].sort();
+  const last3 = allDates.slice(-3);
+  const set3 = new Set(last3);
+  const ams = [...new Set(recs.filter(r=>r.am&&set3.has(r.ngay)).map(r=>r.am))].sort();
+  const dayHdr = last3.map(d=>`<th class="num">${isoShort2(d)}</th>`).join('');
+
+  let body = '';
+  ams.forEach((am,ai)=>{
+    const amRecs = recs.filter(r=>r.am===am&&set3.has(r.ngay));
+    body += `<div class="card am-block"><div class="am-title">${ai+1}. ${am}</div>
+    <div class="table-wrap"><table class="tbl-pro"><thead><tr>
+      <th>Nhóm</th>${dayHdr}<th class="num">Tổng 3N</th>
+    </tr></thead><tbody>`;
+    let totByDay = {}; last3.forEach(d=>{ totByDay[d]=0; });
+    let totAll = 0;
+    NHOM_LABELS.forEach(g=>{
+      let rowTot = 0;
+      const cells = last3.map(d=>{
+        const v = amRecs.filter(r=>r.grp===g&&r.ngay===d).reduce((s,r)=>s+r.dt,0);
+        totByDay[d]+=v; rowTot+=v;
+        return `<td class="num">${fmtVndCell(v)}</td>`;
+      }).join('');
+      totAll+=rowTot;
+      body += `<tr><td>${nhomTag(g)}</td>${cells}<td class="num">${fmtVndCell(rowTot)}</td></tr>`;
+    });
+    const totCells = last3.map(d=>`<td class="num">${fmtVndCell(totByDay[d])}</td>`).join('');
+    body += `<tr class="tot"><td>Tổng</td>${totCells}<td class="num">${fmtVndCell(totAll)}</td></tr>`;
+    body += `</tbody></table></div></div>`;
+  });
+
+  const isStale = maxDate && (new Date()-new Date(maxDate+'T00:00:00'))/86400000>5;
+  el.innerHTML = `
+  <div class="page-header"><div><div class="page-title">Phân Nhóm Khách Hàng</div><div class="page-sub">Theo AM · 3 ngày gần nhất · <span class="unit-note">triệu đồng</span></div></div></div>
+  <div class="data-banner">📅 Cập nhật: <b>${isoShort2(maxDate)}</b> · 3 ngày: <b>${last3.map(isoShort2).join(' · ')}</b>. ${isStale?'Dữ liệu chưa cập nhật đến hôm nay.':''}</div>
+  ${body||'<div class="data-banner">Không có dữ liệu 3 ngày gần nhất.</div>'}
+  <div class="foot-note">Nguồn: sheet "PHÂN NHÓM KHÁCH HÀNG" (gid=${GID.phanNhom}).</div>`;
+}
+
+/* ===================== 4) NHÓM A — PHÂN TÍCH KHÁCH HÀNG ===================== */
+function renderNhomA(){
+  const el = document.getElementById('nhomA');
+  const { khNhomA } = window._DATA;
+  if(!khNhomA || khNhomA.length<2){ el.innerHTML = '<div class="data-banner err">Không có dữ liệu sheet khách hàng nhóm A.</div>'; return; }
+  const h = khNhomA[0];
+  const iMa = idxOf(h,'MaKH'), iTen = idxOf(h,'TenKH'), iNgay = idxOf(h,'Ngay'), iVol = idxOf(h,'Volume');
+  const iAM = idxAMCol(h) >= 0 ? idxAMCol(h) : 22;
+  let iDT = idxOfNth(h,'% Doanh thu đạt được so với MTD',3);
+  if(iDT<0) iDT = 14;
+
+  const allDates = [];
+  for(let i=1;i<khNhomA.length;i++){
+    const ngay = (khNhomA[i][iNgay]||'').trim();
+    if(ngay) allDates.push(ngay);
+  }
+  const last3Months = getLastNMonths(allDates, 3);
+  const monthSet = new Set(last3Months);
+  const monthLabels = last3Months.map(formatThangLabel);
+
+  const byCust = {};
+  const dateSet = new Set();
+  for(let i=1;i<khNhomA.length;i++){
+    const r = khNhomA[i];
+    const ma = (r[iMa]||'').trim(), ten = (r[iTen]||'').trim(), am = (r[iAM]||'').trim();
+    const ngay = (r[iNgay]||'').trim();
+    if(!ma || !ngay) continue;
+    const mk = monthKeyFromIso(ngay);
+    if(!mk || !monthSet.has(mk)) continue;
+    const dt = parseVNNum(r[iDT]);
+    const vol = iVol>=0 ? parseVNNum(r[iVol]) : 0;
+    dateSet.add(ngay);
+    const key = ma;
+    if(!byCust[key]) byCust[key]={ma,ten,am,dates:{},vols:{},months:{}};
+    last3Months.forEach(m=>{ if(!byCust[key].months[m]) byCust[key].months[m]=0; });
+    byCust[key].ten = ten || byCust[key].ten;
+    byCust[key].am = am || byCust[key].am;
+    byCust[key].dates[ngay] = (byCust[key].dates[ngay]||0)+dt;
+    byCust[key].vols[ngay] = (byCust[key].vols[ngay]||0)+vol;
+    byCust[key].months[mk] = (byCust[key].months[mk]||0)+dt;
+  }
+
+  const distinctDates = [...dateSet].sort();
+  const maxIso = distinctDates[distinctDates.length-1]||'';
+  const isoPrev = distinctDates.length>=2 ? distinctDates[distinctDates.length-2] : '';
+  const last7 = distinctDates.slice(-7);
+  const prev7 = distinctDates.slice(-14,-7);
+
+  if(!last3Months.length){
+    el.innerHTML = `<div class="data-banner err">Không có dữ liệu khách hàng nhóm A trong phạm vi tháng.</div>`;
+    return;
+  }
+
+  if(distinctDates.length<2){
+    el.innerHTML = `
+    <div class="page-header"><div><div class="page-title">⭐ Nhóm A — Phân Tích Khách Hàng</div><div class="page-sub">3 tháng gần nhất: ${monthLabels.join(' · ')} · <span class="unit-note">Đơn vị DT: triệu đồng</span></div></div></div>
+    <div class="data-banner">📅 Chỉ có dữ liệu <b>1 ngày (${isoShort2(maxIso)})</b> trong 3 tháng gần nhất — cần từ 2 ngày trở lên để so sánh giảm doanh thu.</div>
+    <div class="foot-note">Nguồn: sheet "khách hàng nhóm A" (gid=${GID.khNhomA}).</div>`;
+    return;
+  }
+
+  const rows = Object.values(byCust).map(c=>{
+    const cur = c.dates[maxIso]||0;
+    const prev = c.dates[isoPrev]||0;
+    const delta = cur-prev;
+    const pctD = prev>0 ? delta/prev*100 : (cur>0?100:0);
+    let dt7=0, dtP7=0;
+    last7.forEach(d=>{ dt7+=c.dates[d]||0; });
+    prev7.forEach(d=>{ dtP7+=c.dates[d]||0; });
+    const pctW = dtP7>0 ? (dt7-dtP7)/dtP7*100 : (dt7>0?100:0);
+    const mVals = last3Months.map(m=>c.months[m]||0);
+    const noRev7 = dt7===0;
+    const drop10 = pctD<-10;
+    const steady = dt7>0 && prev>0 && Math.abs(pctD)<=10 && (dtP7===0 || Math.abs(pctW)<=10);
+    const dropWeek10 = pctW<-10;
+    const dropDay = prev>0 && cur<prev;
+    return { ...c, cur, prev, delta, pctD, pctW, dt7, dtP7, mVals, noRev7, drop10, dropWeek10, dropDay, steady, alert: drop10||noRev7 };
+  });
+
+  const totalKH = rows.length;
+  const countSteady = rows.filter(r=>r.steady).length;
+  const countDropWeek10 = rows.filter(r=>r.dropWeek10).length;
+  const countDropDay = rows.filter(r=>r.dropDay).length;
+  const countDrop10Day = rows.filter(r=>r.drop10).length;
+  const countNoRev7 = rows.filter(r=>r.noRev7).length;
+  const pctSteady = totalKH ? countSteady/totalKH*100 : 0;
+
+  const kpiCards = `
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="ic" style="background:var(--green-bg);color:var(--green)">✅</div>
+      <div class="lbl">KH Doanh Thu Đều (±10%)</div>
+      <div class="val"><span class="hero-amt">${fmt(countSteady)}</span><span class="hero-sub"> / ${fmt(totalKH)}</span></div>
+      <div class="cmp">Tỷ lệ ổn định: <b class="down">${pctSteady.toFixed(0)}%</b></div>
+    </div>
+    <div class="kpi-card">
+      <div class="ic" style="background:var(--yellow-bg);color:var(--yellow)">📉</div>
+      <div class="lbl">Giảm &gt;10% Theo Tuần</div>
+      <div class="val"><span class="hero-amt">${fmt(countDropWeek10)}</span><span class="hero-unit">KH</span></div>
+      <div class="sub">${isoShort2(last7[0])} → ${isoShort2(last7[last7.length-1])}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="ic" style="background:var(--red-bg);color:var(--red)">⚠️</div>
+      <div class="lbl">Giảm Ngày Mới Nhất</div>
+      <div class="val"><span class="hero-amt">${fmt(countDropDay)}</span><span class="hero-unit">KH</span></div>
+      <div class="cmp">Giảm &gt;10%: <b class="up">${countDrop10Day}</b> · Mất DT 7N: <b class="up">${countNoRev7}</b></div>
+    </div>
+  </div>`;
+
+  const drops = rows.filter(r=>r.drop10).sort((a,b)=>a.pctD-b.pctD);
+  const alerts = rows.filter(r=>r.alert).sort((a,b)=>{
+    if(a.noRev7!==b.noRev7) return a.noRev7?-1:1;
+    return a.pctD-b.pctD;
+  });
+
+  function rowClass(r){
+    if(r.noRev7) return 'row-danger';
+    if(r.drop10) return 'row-warn';
+    return '';
+  }
+  function alertLabel(r){
+    if(r.noRev7) return '<span class="alert-tag">Không DT 7N</span>';
+    if(r.drop10) return '<span class="alert-tag warn">Giảm &gt;10%</span>';
+    return '—';
+  }
+
+  const monthCols = last3Months.map(m=>`<th class="num">${formatThangLabel(m)}</th>`).join('');
+  const monthTrend = last3Months.length>=2 ? `<th class="num">Δ tháng</th>` : '';
+
+  let alertCard = `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--red)">🚨</div>Cảnh Báo Cần Chú Ý</div><span class="badge">${isoShort2(isoPrev)} → ${isoShort2(maxIso)}</span></div>`;
+  if(!alerts.length){
+    alertCard += `<div class="section-note">✅ Không có KH giảm &gt;10% hoặc mất doanh thu 7 ngày (${monthLabels.join(', ')}).</div>`;
+  } else {
+    alertCard += `<div class="table-wrap"><table class="tbl-pro"><thead><tr>
+      <th style="width:40px">#</th><th>Mã</th><th>Tên KH</th><th>AM</th><th class="num">${isoShort2(isoPrev)}</th><th class="num">${isoShort2(maxIso)}</th><th class="num">%</th><th class="num">7N</th><th class="num">Trend</th><th>Cảnh báo</th>
+    </tr></thead><tbody>`;
+    alerts.forEach((r,i)=>{
+      alertCard += `<tr class="${rowClass(r)}"><td>${i+1}</td><td>${r.ma}</td><td><span class="lbl-name">${r.ten}</span></td><td>${r.am}</td>
+        <td class="num">${fmtVndCell(r.prev)}</td><td class="num">${fmtVndCell(r.cur)}</td>
+        <td class="num"><span class="trend-tag ${r.pctD<0?'up':'down'}">${r.pctD.toFixed(0)}%</span></td>
+        <td class="num">${fmtVndCell(r.dt7)}</td><td class="num">${trendArrow(r.dt7,r.dtP7)}</td>
+        <td>${alertLabel(r)}</td></tr>`;
+    });
+    alertCard += `</tbody></table></div>`;
+    alertCard += `<div class="analysis-box"><b>${alerts.length}</b> KH cần chú ý · <b>${rows.filter(r=>r.noRev7).length}</b> mất DT 7N · <b>${drops.length}</b> giảm &gt;10%.</div>`;
+  }
+  alertCard += `</div>`;
+
+  let fullTable = `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">📋</div>Danh Sách Khách Hàng Nhóm A</div><span class="badge">${rows.length} KH</span></div>
+  <div class="table-wrap"><table class="tbl-pro"><thead><tr>
+    <th style="width:40px">#</th><th>Mã</th><th>Tên KH</th><th>AM</th>${monthCols}
+    <th class="num">Trước</th><th class="num">Mới nhất</th><th class="num">%</th><th class="num">7N</th><th class="num">Trend</th>${monthTrend}<th></th>
+  </tr></thead><tbody>`;
+  rows.sort((a,b)=>a.pctD-b.pctD).forEach((r,i)=>{
+    const mCells = r.mVals.map(v=>`<td class="num">${fmtVndCell(v)}</td>`).join('');
+    const mTrend = last3Months.length>=2
+      ? `<td class="num">${trendArrow(r.mVals[r.mVals.length-1], r.mVals[r.mVals.length-2])}</td>`
+      : '';
+    fullTable += `<tr class="${rowClass(r)}"><td>${i+1}</td><td>${r.ma}</td><td><span class="lbl-name">${r.ten}</span></td><td>${r.am}</td>${mCells}
+      <td class="num">${fmtVndCell(r.prev)}</td><td class="num">${fmtVndCell(r.cur)}</td>
+      <td class="num"><span class="trend-tag ${r.pctD<0?'up':'down'}">${r.pctD.toFixed(0)}%</span></td>
+      <td class="num">${fmtVndCell(r.dt7)}</td><td class="num">${trendArrow(r.dt7,r.dtP7)}</td>${mTrend}
+      <td>${alertLabel(r)}</td></tr>`;
+  });
+  fullTable += `</tbody></table></div></div>`;
+
+  const dLatest = maxIso ? new Date(maxIso+'T00:00:00') : new Date();
+  const isStale = (new Date()-dLatest)/86400000>3;
+
+  el.innerHTML = `
+  <div class="page-header"><div><div class="page-title">Nhóm A — Phân Tích KH</div><div class="page-sub">3 tháng gần nhất · <span class="unit-note">triệu đồng</span></div></div></div>
+  <div class="data-banner">📅 Phạm vi: <b>${monthLabels.join(' · ')}</b> · So sánh ngày <b>${isoShort2(isoPrev)} → ${isoShort2(maxIso)}</b> · Trend 7N: <b>${isoShort2(last7[0])} → ${isoShort2(last7[last7.length-1])}</b>. ${isStale?'Dữ liệu chưa cập nhật đến hôm nay.':''}</div>
+  ${kpiCards}
+  ${alertCard}
+  ${fullTable}
+  <div class="foot-note">Nguồn: sheet "khách hàng nhóm A" (gid=${GID.khNhomA}) · Lọc 3 tháng gần nhất có trong dữ liệu. Đỏ = không DT 7 ngày · Vàng = giảm &gt;10% vs ngày trước.</div>`;
+}
+function isoShort2(iso){
+  if(!iso) return '—';
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m? `${m[3]}/${m[2]}/${m[1]}` : iso;
+}
+
+/* ===================== EXPORT BÁO CÁO TUẦN → GOOGLE DOC ===================== */
+function docEsc(s){
+  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function pctWoWText(cur, prev){
+  if(!prev && !cur) return '—';
+  if(!prev) return 'Mới';
+  const d=(cur-prev)/prev*100;
+  return (d>=0?'+':'')+d.toFixed(1)+'%';
+}
+function weekLabelShort(w){ const p=(w||'').split('/'); return p.length>=2?'T'+p[1]+'/'+p[0]:w; }
+function sumPnDt(recs, pred){ return recs.filter(pred).reduce((s,r)=>s+r.dt,0); }
+function sumPnSlkh(recs, pred){ return recs.filter(pred).reduce((s,r)=>s+r.slkh,0); }
+function sumPnVol(recs, pred){ return recs.filter(pred).reduce((s,r)=>s+r.vol,0); }
+
+function buildWeeklyReportData(){
+  const { ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025 } = window._DATA;
+  const thang = currentThang();
+  const thangLabel = formatThangLabel(thang);
+  const dtThangRecs = reconcileDtWithKetQua(mergeDtThangRecs(dtThang2025, dtThang), ketQua, thang);
+  const { recs: pnRecs, maxDate: pnMaxDate } = parsePhanNhomRecs(phanNhom);
+  const { elapsed, totalDays } = getMonthProgress(dtNgay);
+
+  const mtdKetQua = sumKetQuaMonth(ketQua, thang);
+  const mtdLtcThang = dtThangRecs.filter(r=>thangEq(`${r.y}/${r.m}`, thang)).reduce((s,r)=>s+r.dt,0);
+  const mtdLtc = mtdLtcThang || mtdKetQua;
+
+  const hKPI = kpiAM[0];
+  const iAMk = idxOf(hKPI,'AM'), iKPIVung = idxOf(hKPI,'KPI Vùng'), iThangKPI = idxOf(hKPI,'Tháng');
+  const preferredKPI = thangCellPreferred(kpiAM.slice(1), iThangKPI, thang);
+  let targetThang = 0;
+  for(let i=1;i<kpiAM.length;i++){
+    const r = kpiAM[i]; if(!r[iAMk]) continue;
+    if(iThangKPI>=0 && r[iThangKPI] && !rowMatchesPreferredThang(r[iThangKPI], thang, preferredKPI)) continue;
+    targetThang += parseVNNum(r[iKPIVung]);
+  }
+  const kpiCungKy = kpiSamePeriod(targetThang, elapsed, totalDays);
+  const pctHoanThanh = pct(mtdLtc, targetThang);
+  const pctCungKy = pct(mtdLtc, kpiCungKy);
+
+  const monthPn = pnRecs.filter(r=>r.thang&&thangEq(r.thang, thang));
+  const weeks=[...new Set(monthPn.map(r=>r.tuan).filter(Boolean))].sort((a,b)=>weekSortKey(a)-weekSortKey(b));
+  const weekCur = weeks[weeks.length-1]||'';
+  const weekPrev = weeks.length>=2 ? weeks[weeks.length-2] : '';
+  const matchWk=(r,w)=>r.tuan===w;
+  const dtWeekAll = w=>sumPnDt(monthPn, r=>matchWk(r,w));
+  const dtWeekGiu = w=>sumPnDt(monthPn, r=>matchWk(r,w)&&NHOM_GIU_CU.includes(r.grp));
+  const dtWeekBanMoi = w=>sumPnDt(monthPn, r=>matchWk(r,w)&&r.grp==='G');
+  const mtdGiu = sumPnDt(monthPn, r=>NHOM_GIU_CU.includes(r.grp));
+  const mtdBanMoi = sumPnDt(monthPn, r=>r.grp==='G');
+  const slkhWeekG = w=>sumPnSlkh(monthPn, r=>matchWk(r,w)&&r.grp==='G');
+  const volWeekG = w=>sumPnVol(monthPn, r=>matchWk(r,w)&&r.grp==='G');
+  const slkhG = slkhWeekG(weekCur);
+  const volG = volWeekG(weekCur);
+  const slkhAvgG = slkhG ? Math.round(volG/slkhG) : 0;
+
+  const amBanMoi={};
+  monthPn.filter(r=>r.grp==='G'&&matchWk(r,weekCur)).forEach(r=>{ amBanMoi[r.am]=(amBanMoi[r.am]||0)+r.dt; });
+  const topAmBanMoi = Object.entries(amBanMoi).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  const amGiam={};
+  if(weekCur&&weekPrev){
+    const ams=[...new Set(monthPn.map(r=>r.am).filter(Boolean))];
+    ams.forEach(am=>{
+      const c=sumPnDt(monthPn,r=>r.am===am&&matchWk(r,weekCur));
+      const p=sumPnDt(monthPn,r=>r.am===am&&matchWk(r,weekPrev));
+      if(p&&c<p) amGiam[am]=((c-p)/p*100);
+    });
+  }
+  const topAmGiam = Object.entries(amGiam).sort((a,b)=>a[1]-b[1]).slice(0,5);
+
+  const nhomWeekGiu = NHOM_GIU_CU.map(g=>({ g, cur:sumPnDt(monthPn,r=>matchWk(r,weekCur)&&r.grp===g), prev:sumPnDt(monthPn,r=>matchWk(r,weekPrev)&&r.grp===g) }));
+
+  let nhomA = { total:0, coDon:0, giamHang:0, nguyCo:0, churnRows:[] };
+  if(khNhomA && khNhomA.length>1){
+    const h = khNhomA[0];
+    const iMa = idxOf(h,'MaKH'), iTen = idxOf(h,'TenKH'), iNgay = idxOf(h,'Ngay');
+    const iAMk = idxAMCol(h)>=0?idxAMCol(h):22;
+    let iDT = idxOfNth(h,'% Doanh thu đạt được so với MTD',3);
+    if(iDT<0) iDT = 14;
+    const byCust={}; const dateSet=new Set();
+    for(let i=1;i<khNhomA.length;i++){
+      const r=khNhomA[i]; const ma=(r[iMa]||'').trim(), ngay=(r[iNgay]||'').trim();
+      if(!ma||!ngay) continue;
+      const mk=monthKeyFromIso(ngay);
+      if(!mk||!thangEq(mk, thang)) continue;
+      dateSet.add(ngay);
+      if(!byCust[ma]) byCust[ma]={ma,ten:(r[iTen]||'').trim(),am:(r[iAMk]||'').trim(),dates:{}};
+      byCust[ma].ten=(r[iTen]||'').trim()||byCust[ma].ten;
+      byCust[ma].am=(r[iAMk]||'').trim()||byCust[ma].am;
+      byCust[ma].dates[ngay]=(byCust[ma].dates[ngay]||0)+parseVNNum(r[iDT]);
+    }
+    const distinctDates=[...dateSet].sort();
+    const maxIso=distinctDates[distinctDates.length-1]||'';
+    const isoPrev=distinctDates.length>=2?distinctDates[distinctDates.length-2]:'';
+    const last7=distinctDates.slice(-7);
+    const rows=Object.values(byCust).map(c=>{
+      const cur=c.dates[maxIso]||0, prev=c.dates[isoPrev]||0;
+      let dt7=0; last7.forEach(d=>{ dt7+=c.dates[d]||0; });
+      const pctD=prev>0?(cur-prev)/prev*100:(cur>0?100:0);
+      const noRev7=dt7===0, drop10=pctD<-10;
+      const dtAll=Object.values(c.dates).reduce((s,v)=>s+v,0);
+      const daysActive=Object.keys(c.dates).length;
+      const dtTbThang = daysActive ? dtAll : 0;
+      return {...c,cur,prev,pctD,dt7,noRev7,drop10,dtTbThang,maxIso};
+    });
+    nhomA.total=rows.length;
+    nhomA.coDon=rows.filter(r=>Object.values(r.dates).some(v=>v>0)).length;
+    nhomA.giamHang=rows.filter(r=>r.drop10).length;
+    nhomA.nguyCo=rows.filter(r=>r.noRev7||r.drop10).length;
+    nhomA.churnRows=rows.filter(r=>r.noRev7||r.drop10).sort((a,b)=>a.pctD-b.pctD).slice(0,15);
+  }
+
+  return {
+    vung:VUNG_NAME, thangLabel, weekCur, weekPrev,
+    weekLabel: weekCur ? weekLabelShort(weekCur) : '—',
+    dateStr: new Date().toISOString().slice(0,10),
+    pnMaxDate, elapsed, totalDays,
+    mtdLtc, targetThang, kpiCungKy, pctHoanThanh, pctCungKy,
+    wowLtc: pctWoWText(dtWeekAll(weekCur), dtWeekAll(weekPrev)),
+    mtdGiu, mtdBanMoi,
+    wowGiu: pctWoWText(dtWeekGiu(weekCur), dtWeekGiu(weekPrev)),
+    wowBanMoi: pctWoWText(dtWeekBanMoi(weekCur), dtWeekBanMoi(weekPrev)),
+    slkhG, volG, slkhAvgG, topAmBanMoi, topAmGiam, nhomWeekGiu, nhomA
+  };
+}
+
+function docRow4(label, actual, target, pctHT, wow){
+  return `<tr><td>${docEsc(label)}</td><td align="right">${docEsc(actual)}</td><td align="right">${docEsc(target)}</td><td align="right">${docEsc(pctHT)}</td><td align="right">${docEsc(wow)}</td></tr>`;
+}
+
+function renderWeeklyReportDocHtml(d){
+  const h = (label,val)=>docEsc(val||'—');
+  const banMoiAm = d.topAmBanMoi.length
+    ? d.topAmBanMoi.map(([am,v],i)=>`${i+1}. ${am}: ${fmtVnd(v)}`).join('; ')
+    : '[Chưa có dữ liệu tuần hiện tại]';
+  const giamAm = d.topAmGiam.length
+    ? d.topAmGiam.map(([am,p],i)=>`${i+1}. ${am}: ${p.toFixed(1)}%`).join('; ')
+    : '[Không phát hiện AM giảm mạnh tuần này]';
+  const nhomGiuTxt = d.nhomWeekGiu.map(x=>`Nhóm ${x.g}: ${fmtVnd(x.cur)} (${pctWoWText(x.cur,x.prev)} vs tuần trước)`).join(' · ');
+
+  let churnRows='';
+  if(d.nhomA.churnRows.length){
+    d.nhomA.churnRows.forEach((r,i)=>{
+      churnRows+=`<tr><td>${i+1}</td><td>${h('',r.ma)}</td><td>${h('',r.ten)}</td><td>${h('',r.am)}</td><td align="right">${h('',fmtVnd(r.dtTbThang))}</td><td>${h('',r.maxIso?isoShort2(r.maxIso):'—')}</td><td>A</td><td>[Điền lý do]</td><td>[Điền hành động]</td></tr>`;
+    });
+  } else {
+    churnRows=`<tr><td colspan="9" align="center"><i>Chưa có KH A cảnh báo trong tháng ${h('',d.thangLabel)}</i></td></tr>`;
+  }
+
+  return `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>Báo cáo KD ${h('',d.vung)}</title>
+<style>
+body{font-family:'Times New Roman',serif;font-size:12pt;line-height:1.45;color:#111}
+h1{font-size:16pt;text-align:center;text-transform:uppercase}
+h2{font-size:13pt;margin-top:18px;border-bottom:1px solid #333;padding-bottom:4px}
+h3{font-size:12pt;margin-top:14px;color:#333}
+table{border-collapse:collapse;width:100%;margin:10px 0 16px}
+th,td{border:1px solid #999;padding:6px 8px;font-size:11pt;vertical-align:top}
+th{background:#f0f4f8;font-weight:bold}
+.meta{color:#555;font-size:10.5pt;margin-bottom:16px}
+.note{background:#fffbeb;border:1px solid #f59e0b;padding:8px 10px;font-size:10.5pt;margin:8px 0}
+.placeholder{color:#666;font-style:italic}
+ul{margin:6px 0 6px 20px}
+</style></head><body>
+<h1>BÁO CÁO KẾT QUẢ KINH DOANH ${h('',d.weekLabel)} – ${h('',d.vung)}</h1>
+<p class="meta">Tháng ${h('',d.thangLabel)} · Cập nhật dữ liệu: ${h('',d.pnMaxDate?isoShort2(d.pnMaxDate):'—')} · Xuất lúc: ${new Date().toLocaleString('vi-VN')}<br>
+<small>Nguồn tự động: Kết Quả · KPI AM · DT-Tháng · PHÂN NHÓM KHÁCH HÀNG · khách hàng nhóm A · Đơn vị DT: triệu đồng</small></p>
+
+<h2>1. TỔNG QUAN KẾT QUẢ KINH DOANH</h2>
+<h3>1.1. Mức độ hoàn thành kế hoạch</h3>
+<table><thead><tr><th>Chỉ tiêu</th><th>Doanh thu Thực tế (MTD)</th><th>Target tháng</th><th>% Hoàn thành</th><th>% vs tuần trước</th></tr></thead><tbody>
+${docRow4('Tổng doanh thu LTC', fmtVnd(d.mtdLtc), fmtVnd(d.targetThang), d.pctHoanThanh.toFixed(1)+'%', d.wowLtc)}
+${docRow4('Tổng doanh thu GTC', 'Chưa có dữ liệu', '—', '—', '—')}
+${docRow4('Doanh thu giữ cũ (A/BCD/EF)', fmtVnd(d.mtdGiu), '—', '—', d.wowGiu)}
+${docRow4('Doanh thu bán mới (Nhóm G)', fmtVnd(d.mtdBanMoi), '—', '—', d.wowBanMoi)}
+</tbody></table>
+<p class="note">KPI cùng kỳ (${d.elapsed}/${d.totalDays} ngày): <b>${fmtVnd(d.kpiCungKy)}</b> · MTD đạt <b>${d.pctCungKy.toFixed(1)}%</b> KPI cùng kỳ.</p>
+
+<h3>1.2. Kết quả Giữ cũ</h3>
+<p><b>Nhận định chung:</b> <span class="placeholder">[AM vùng điền — gợi ý số liệu bên dưới]</span></p>
+<p><b>Số liệu gợi ý:</b></p>
+<ul>
+<li>Doanh thu giữ cũ MTD: <b>${fmtVnd(d.mtdGiu)}</b> · Tuần ${h('',d.weekLabel)}: ${pctWoWText(d.nhomWeekGiu.reduce((s,x)=>s+x.cur,0), d.nhomWeekGiu.reduce((s,x)=>s+x.prev,0))} vs tuần trước</li>
+<li>Chi tiết nhóm: ${nhomGiuTxt||'—'}</li>
+<li>AM giảm DT tuần (top): ${giamAm}</li>
+</ul>
+<ul>
+<li class="placeholder">Nhóm KH có nguy cơ rời bỏ? [Điền]</li>
+<li class="placeholder">Nguyên nhân chính tác động giữ cũ? [Điền]</li>
+</ul>
+
+<h3>1.3. Kết quả Bán mới</h3>
+<p><b>Nhận định chung:</b> <span class="placeholder">[AM vùng điền]</span></p>
+<ul>
+<li>SLKH bán mới tuần ${h('',d.weekLabel)} (nhóm G): <b>${fmt(d.slkhG)}</b> KH · Volume: <b>${fmt(d.volG)}</b> đơn · TB ~<b>${fmt(d.slkhAvgG)}</b> đơn/KH</li>
+<li>Doanh thu bán mới MTD: <b>${fmtVnd(d.mtdBanMoi)}</b></li>
+<li>AM bán mới tốt: ${banMoiAm}</li>
+<li class="placeholder">Vấn đề ảnh hưởng tiến độ bán mới? [Điền]</li>
+<li class="placeholder">DT bán mới dự kiến tuần tới? [Điền]</li>
+</ul>
+
+<h2>2. ĐIỂM NỔI BẬT TRONG TUẦN — Khách hàng nhóm A</h2>
+<table><thead><tr><th>Chỉ tiêu</th><th>Dữ liệu</th><th>So với tuần trước</th><th>Ghi chú</th></tr></thead><tbody>
+<tr><td>Tổng SL KH nhóm A (tháng hiện tại)</td><td align="right">${fmt(d.nhomA.total)}</td><td>—</td><td>Chưa có snapshot đầu tháng</td></tr>
+<tr><td>Số KH có lên đơn đến hiện tại</td><td align="right">${fmt(d.nhomA.coDon)}</td><td>—</td><td></td></tr>
+<tr><td>Số KH A dự kiến giảm hạng</td><td align="right">${fmt(d.nhomA.giamHang)}</td><td>—</td><td>Giảm &gt;10% vs ngày trước</td></tr>
+<tr><td>Số KH A nguy cơ rời bỏ</td><td align="right">${fmt(d.nhomA.nguyCo)}</td><td>—</td><td>Không DT 7N hoặc giảm &gt;10%</td></tr>
+<tr><td>Số KH tiềm năng lên hạng A</td><td align="right">—</td><td>—</td><td>Chưa có dữ liệu</td></tr>
+</tbody></table>
+<p><b>Nhận định chính:</b> <span class="placeholder">[AM vùng điền]</span></p>
+
+<h3>CHI TIẾT KH NHÓM A RỜI BỎ / CẢNH BÁO</h3>
+<p class="placeholder">Tổng quan nguyên nhân rời bỏ: [Điền — gợi ý từ danh sách bên dưới]</p>
+<table><thead><tr><th>STT</th><th>Client_ID</th><th>Tên KH</th><th>AM</th><th>DT TB/tháng</th><th>Ngày mới nhất</th><th>Hạng</th><th>Lý do</th><th>Hành động</th></tr></thead><tbody>
+${churnRows}
+</tbody></table>
+
+<h2>3. TỔNG HỢP CÁC VẤN ĐỀ — HÀNH ĐỘNG &amp; GIẢI PHÁP</h2>
+<h3>3.1. Các vấn đề chính trong tuần</h3>
+<table><thead><tr><th>STT</th><th>Nhóm vấn đề</th><th>Mô tả</th><th>Tác động</th><th>Ưu tiên</th><th>Tiến độ</th></tr></thead><tbody>
+<tr><td>1</td><td class="placeholder">[Giữ cũ/Bán mới/Vận hành/...]</td><td class="placeholder">[Mô tả]</td><td class="placeholder">[Tác động]</td><td class="placeholder">[Cao/TB/Thấp]</td><td class="placeholder">[Tiến độ]</td></tr>
+<tr><td>2</td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>3</td><td></td><td></td><td></td><td></td><td></td></tr>
+</tbody></table>
+
+<h3>3.2. Giải pháp &amp; kế hoạch tuần tới</h3>
+<table><thead><tr><th>STT</th><th>Giải pháp/KH</th><th>Đối tượng</th><th>Mục tiêu</th><th>Ngày triển khai</th><th>PIC</th><th>Cần hỗ trợ</th></tr></thead><tbody>
+<tr><td>1</td><td class="placeholder">[Giải pháp]</td><td class="placeholder">[Đối tượng]</td><td class="placeholder">[Mục tiêu]</td><td class="placeholder">[Ngày]</td><td class="placeholder">[PIC]</td><td class="placeholder">[Hỗ trợ]</td></tr>
+<tr><td>2</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>3</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</tbody></table>
+
+<p class="note">📄 <b>Cách mở bằng Google Docs:</b> Tải file .doc → Google Drive → Chuột phải → Mở bằng → Google Tài liệu. Hoặc File → Nhập → Tải lên trong Google Docs.</p>
+</body></html>`;
+}
+
+function exportWeeklyReportDoc(){
+  if(!loaded||!window._DATA.ketQua){
+    alert('Vui lòng bấm "Cập nhật dữ liệu" trước khi xuất báo cáo.');
+    return;
+  }
+  const btn=document.getElementById('exportDocBtn');
+  btn.disabled=true;
+  try{
+    const d=buildWeeklyReportData();
+    const html=renderWeeklyReportDocHtml(d);
+    const blob=new Blob(['\ufeff', html], {type:'application/msword;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const safeWeek=(d.weekCur||'tuan').replace(/\//g,'-');
+    a.href=url;
+    a.download=`BaoCao-KD-${d.vung.replace(/\s+/g,'')}-${safeWeek}-${d.dateStr}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  }catch(e){
+    alert('Lỗi xuất báo cáo: '+e.message);
+  }
+  btn.disabled=false;
+}
+
+/* ===================== INIT ===================== */
+loadAll();
+</script>
+</body>
+</html>

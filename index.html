@@ -273,12 +273,18 @@ function parsePhanNhomRecs(phanNhom){
   const recs=[]; let maxDate='';
   for(let i=1;i<phanNhom.length;i++){
     const r=phanNhom[i];
-    const grp=normNhom(r[iNhom]), ngay=(r[iNgay]||'').trim();
+    const grp=normNhom(r[iNhom]);
+    const ngay=normalizeNgayToIso(r[iNgay]);
     if(!grp||!ngay) continue;
     if(ngay>maxDate) maxDate=ngay;
     recs.push({grp,ngay,am:(r[iAM]||'').trim(),tinh:(r[iTinh]||'').trim(),dt:parseVNNum(r[iDT]),slkh:parseVNNum(r[iSLKH]),vol:parseVNNum(r[iVol]),tuan:(r[iTuan]||'').trim(),thang:monthKeyFromIso(ngay)});
   }
   return {recs,maxDate};
+}
+function nhomStaleBanner(maxDate){
+  if(!maxDate) return '<div class="data-banner err">⚠️ Chưa xác định được ngày mới nhất trong sheet PHÂN NHÓM KHÁCH HÀNG.</div>';
+  const stale=(new Date()-new Date(maxDate+'T00:00:00'))/86400000>3;
+  return `<div class="data-banner">📅 <b>Ngày mới nhất:</b> ${isoShort2(maxDate)}${stale?' · <span class="lbl-sub">Dữ liệu chưa cập nhật đến hôm nay — báo cáo hiển thị theo ngày mới nhất có trong sheet.</span>':''}</div>`;
 }
 function buildNhomCombinedPeriod(recs){
   const allDates=[...new Set(recs.map(r=>r.ngay))].sort();
@@ -433,14 +439,21 @@ function parseDtThangSheet(dtThang, yearOnly){
     const loai=normLoaiHang(r[iLoai]);
     const tinh=(r[iTinh]||'').trim();
     const cal=ts?calendarFromPeriod(ts.y, ts.p, layout):null;
-    if(!cal||!loai||!tinh||cal.y!==yearOnly) continue;
+    if(!cal||!loai||cal.y!==yearOnly) continue;
     if(isFutureMonth(cal.y, cal.m)) continue;
     recs.push({y:cal.y,m:cal.m,key:`${cal.y}/${cal.m}`,tinh,loai,dt:parseVNNum(r[iDT]),vol:Math.round(parseVNNum(r[iVol]))});
   }
   return recs;
 }
 function mergeDtThangRecs(dtThang2025, dtThang){
-  return [...parseDtThangSheet(dtThang2025, 2025), ...parseDtThangSheet(dtThang, 2026)];
+  const raw=[...parseDtThangSheet(dtThang2025, 2025), ...parseDtThangSheet(dtThang, 2026)];
+  const agg=new Map();
+  raw.forEach(r=>{
+    const k=`${r.y}|${r.m}|${r.loai}|${r.tinh}`;
+    if(!agg.has(k)) agg.set(k,{...r});
+    else{ const a=agg.get(k); a.dt+=r.dt; a.vol+=r.vol; }
+  });
+  return [...agg.values()];
 }
 function sumSheetDtMonth(sheet, thang){
   if(!sheet||sheet.length<2) return 0;
@@ -486,6 +499,56 @@ function countKhTiemNangFromTotalKH(totalKH, thang, elapsed, totalDays){
     return {...c, projected, tiemNang:projected>=NHOM_A_DT_NGUONG};
   }).filter(c=>c.tiemNang).sort((a,b)=>b.projected-a.projected);
   return {count:rows.length, rows};
+}
+function parseTotalKHMetrics(totalKH, thang){
+  if(!totalKH||totalKH.length<2) return null;
+  const h=totalKH[0];
+  const iMa=idxOf(h,'MaKH'), iNhom=idxOf(h,'Nhom'), iVung=idxOf(h,'Vung');
+  const iNgay=idxOf(h,'Ngay'), iDT=idxOf(h,'DT'), iTuan=idxOf(h,'Tuần'), iMtd=idxOf(h,'MTD');
+  const iNV=idxOf(h,'Nhanvien');
+  const byWeek={};
+  const mtdByMa={};
+  let maxNgay='';
+  for(let i=1;i<totalKH.length;i++){
+    const r=totalKH[i];
+    if(iVung>=0 && !isVungTnt(r[iVung])) continue;
+    const iso=parseVnNgay(r[iNgay]);
+    const mk=monthKeyFromIso(iso);
+    if(!mk||!thangEq(mk, thang)) continue;
+    if(iso>maxNgay) maxNgay=iso;
+    const wk=String(r[iTuan]||'').trim();
+    const grp=normNhom(r[iNhom]);
+    const dt=parseVNNum(r[iDT]);
+    const ma=(r[iMa]||'').trim();
+    if(wk){
+      if(!byWeek[wk]) byWeek[wk]={dt:0,dtGiu:0,dtBanMoi:0,khG:new Set(),byGrp:{A:0,BCD:0,EF:0,G:0},byAm:{},byAmAll:{}};
+      byWeek[wk].dt+=dt;
+      if(grp) byWeek[wk].byGrp[grp]=(byWeek[wk].byGrp[grp]||0)+dt;
+      if(NHOM_GIU_CU.includes(grp)) byWeek[wk].dtGiu+=dt;
+      const nv=(iNV>=0?(r[iNV]||'').trim():'');
+      if(nv) byWeek[wk].byAmAll[nv]=(byWeek[wk].byAmAll[nv]||0)+dt;
+      if(grp==='G'){
+        byWeek[wk].dtBanMoi+=dt;
+        if(ma) byWeek[wk].khG.add(ma);
+        if(nv) byWeek[wk].byAm[nv]=(byWeek[wk].byAm[nv]||0)+dt;
+      }
+    }
+    if(ma){
+      const mtd=parseMtdNum(r[iMtd]);
+      if(!mtdByMa[ma]||iso>=mtdByMa[ma].maxNgay){
+        mtdByMa[ma]={ma,grp,mtd,iso,maxNgay:iso};
+      }
+    }
+  }
+  const weeks=Object.keys(byWeek).map(w=>({w,sort:/^\d+$/.test(w)?+w:weekSortKey(w)})).sort((a,b)=>a.sort-b.sort);
+  const weekCur=weeks.length?weeks[weeks.length-1].w:'';
+  const weekPrev=weeks.length>=2?weeks[weeks.length-2].w:'';
+  let mtdGiu=0,mtdBanMoi=0;
+  Object.values(mtdByMa).forEach(c=>{
+    if(NHOM_GIU_CU.includes(c.grp)) mtdGiu+=c.mtd;
+    if(c.grp==='G') mtdBanMoi+=c.mtd;
+  });
+  return {byWeek, weekCur, weekPrev, maxNgay, mtdGiu, mtdBanMoi};
 }
 function reconcileDtWithKetQua(recs, ketQua, thang){
   const p=parseThang(thang);
@@ -697,6 +760,10 @@ function parseVnNgay(s){
   if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
   return ddmmyyyy2iso(s);
 }
+function normalizeNgayToIso(s){
+  const iso=parseVnNgay(s);
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso)?iso:'';
+}
 function parseMtdNum(s){
   if(s==null) return 0;
   s=String(s).trim();
@@ -825,13 +892,20 @@ function getMonthProgress(dtNgay){
 window._DATA = {};
 let loaded = false;
 
+async function fetchDtThang2026(){
+  try{
+    const s=await fetchSheet(SHEET.dtThang2026);
+    if(s&&s.length>1) return s;
+  }catch(e){}
+  return fetchGid(GID.dtThang);
+}
 async function loadAll(){
   const btn=document.getElementById('refreshBtn');
   btn.classList.add('spinning');
   Object.keys(window._charts).forEach(k=>destroyChart(k));
   try{
     const [ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH] = await Promise.all([
-      fetchGid(GID.ketQua), fetchGid(GID.kpiAM), fetchGid(GID.dtNgay), fetchGid(GID.phanNhom), fetchGid(GID.khNhomA), fetchSheet(SHEET.dtThang2026), fetchSheet(SHEET.dtThang2025), fetchSheet(SHEET.doanhThuGTC), fetchSheet(SHEET.totalKH)
+      fetchGid(GID.ketQua), fetchGid(GID.kpiAM), fetchGid(GID.dtNgay), fetchGid(GID.phanNhom), fetchGid(GID.khNhomA), fetchDtThang2026(), fetchSheet(SHEET.dtThang2025), fetchSheet(SHEET.doanhThuGTC), fetchSheet(SHEET.totalKH)
     ]);
     window._DATA = { ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH };
     loaded = true;
@@ -1118,8 +1192,9 @@ function renderSegment(){
 
   const isStale = maxDate && (new Date()-new Date(maxDate+'T00:00:00'))/86400000>5;
   el.innerHTML = `
-  <div class="page-header"><div><div class="page-title">Phân Nhóm Khách Hàng</div><div class="page-sub">Theo AM · 3 ngày gần nhất · <span class="unit-note">triệu đồng</span></div></div></div>
-  <div class="data-banner">📅 Cập nhật: <b>${isoShort2(maxDate)}</b> · 3 ngày: <b>${last3.map(isoShort2).join(' · ')}</b>. ${isStale?'Dữ liệu chưa cập nhật đến hôm nay.':''}</div>
+  <div class="page-header"><div><div class="page-title">Phân Nhóm Khách Hàng</div><div class="page-sub">Theo AM · 3 ngày gần nhất · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
+  ${nhomStaleBanner(maxDate)}
+  <div class="data-banner" style="margin-top:0">📊 3 ngày gần nhất: <b>${last3.map(isoShort2).join(' · ')||'—'}</b></div>
   ${body||'<div class="data-banner">Không có dữ liệu 3 ngày gần nhất.</div>'}
   <div class="foot-note">Nguồn: sheet "PHÂN NHÓM KHÁCH HÀNG" (gid=${GID.phanNhom}).</div>`;
 }
@@ -1130,10 +1205,9 @@ function renderNhomKH(){
   const { phanNhom } = window._DATA;
   if(!phanNhom || phanNhom.length<2){ el.innerHTML = '<div class="data-banner err">Không có dữ liệu sheet PHÂN NHÓM KHÁCH HÀNG.</div>'; return; }
   const { recs, maxDate } = parsePhanNhomRecs(phanNhom);
-  const isStale = maxDate && (new Date()-new Date(maxDate+'T00:00:00'))/86400000>5;
   el.innerHTML = `
-  <div class="page-header"><div><div class="page-title">Doanh Thu Theo Nhóm Khách Hàng</div><div class="page-sub">Tổng vùng &amp; theo AM · <span class="unit-note">triệu đồng</span></div></div></div>
-  <div class="data-banner">📅 Cập nhật: <b>${isoShort2(maxDate)}</b>. ${isStale?'Dữ liệu chưa cập nhật đến hôm nay.':''}</div>
+  <div class="page-header"><div><div class="page-title">Doanh Thu Theo Nhóm Khách Hàng</div><div class="page-sub">Tổng vùng &amp; theo AM · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
+  ${nhomStaleBanner(maxDate)}
   ${renderNhomKHCard(recs, maxDate)}
   <div class="foot-note">Nguồn: sheet "PHÂN NHÓM KHÁCH HÀNG" (gid=${GID.phanNhom}).</div>`;
 }
@@ -1144,10 +1218,9 @@ function renderDtTinh(){
   const { phanNhom } = window._DATA;
   if(!phanNhom || phanNhom.length<2){ el.innerHTML = '<div class="data-banner err">Không có dữ liệu sheet PHÂN NHÓM KHÁCH HÀNG.</div>'; return; }
   const { recs, maxDate } = parsePhanNhomRecs(phanNhom);
-  const isStale = maxDate && (new Date()-new Date(maxDate+'T00:00:00'))/86400000>5;
   el.innerHTML = `
-  <div class="page-header"><div><div class="page-title">Doanh Thu Khách Hàng Theo Tỉnh</div><div class="page-sub">Phân nhóm KH theo tỉnh · <span class="unit-note">triệu đồng</span></div></div></div>
-  <div class="data-banner">📅 Cập nhật: <b>${isoShort2(maxDate)}</b>. ${isStale?'Dữ liệu chưa cập nhật đến hôm nay.':''}</div>
+  <div class="page-header"><div><div class="page-title">Doanh Thu Khách Hàng Theo Tỉnh</div><div class="page-sub">Phân nhóm KH theo tỉnh · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
+  ${nhomStaleBanner(maxDate)}
   ${renderNhomTinhCard(recs, maxDate)}
   <div class="foot-note">Nguồn: sheet "PHÂN NHÓM KHÁCH HÀNG" (gid=${GID.phanNhom}).</div>`;
 }
@@ -1345,7 +1418,13 @@ function pctWoWText(cur, prev){
   const d=(cur-prev)/prev*100;
   return (d>=0?'+':'')+d.toFixed(1)+'%';
 }
-function weekLabelShort(w){ const p=(w||'').split('/'); return p.length>=2?'T'+p[1]+'/'+p[0]:w; }
+function weekLabelShort(w){
+  if(!w) return '—';
+  const p=(w||'').split('/');
+  if(p.length>=2) return 'T'+p[1]+'/'+p[0];
+  if(/^\d+$/.test(String(w).trim())) return 'Tuần '+w;
+  return w;
+}
 function sumPnDt(recs, pred){ return recs.filter(pred).reduce((s,r)=>s+r.dt,0); }
 function sumPnSlkh(recs, pred){ return recs.filter(pred).reduce((s,r)=>s+r.slkh,0); }
 function sumPnVol(recs, pred){ return recs.filter(pred).reduce((s,r)=>s+r.vol,0); }
@@ -1377,37 +1456,78 @@ function buildWeeklyReportData(){
   const pctCungKy = pct(mtdLtc, kpiCungKy);
 
   const monthPn = pnRecs.filter(r=>r.thang&&thangEq(r.thang, thang));
-  const weeks=[...new Set(monthPn.map(r=>r.tuan).filter(Boolean))].sort((a,b)=>weekSortKey(a)-weekSortKey(b));
-  const weekCur = weeks[weeks.length-1]||'';
-  const weekPrev = weeks.length>=2 ? weeks[weeks.length-2] : '';
-  const matchWk=(r,w)=>r.tuan===w;
-  const dtWeekAll = w=>sumPnDt(monthPn, r=>matchWk(r,w));
-  const dtWeekGiu = w=>sumPnDt(monthPn, r=>matchWk(r,w)&&NHOM_GIU_CU.includes(r.grp));
-  const dtWeekBanMoi = w=>sumPnDt(monthPn, r=>matchWk(r,w)&&r.grp==='G');
-  const mtdGiu = sumPnDt(monthPn, r=>NHOM_GIU_CU.includes(r.grp));
-  const mtdBanMoi = sumPnDt(monthPn, r=>r.grp==='G');
-  const slkhWeekG = w=>sumPnSlkh(monthPn, r=>matchWk(r,w)&&r.grp==='G');
-  const volWeekG = w=>sumPnVol(monthPn, r=>matchWk(r,w)&&r.grp==='G');
-  const slkhG = slkhWeekG(weekCur);
-  const volG = volWeekG(weekCur);
-  const slkhAvgG = slkhG ? Math.round(volG/slkhG) : 0;
-
-  const amBanMoi={};
-  monthPn.filter(r=>r.grp==='G'&&matchWk(r,weekCur)).forEach(r=>{ amBanMoi[r.am]=(amBanMoi[r.am]||0)+r.dt; });
-  const topAmBanMoi = Object.entries(amBanMoi).sort((a,b)=>b[1]-a[1]).slice(0,5);
-
-  const amGiam={};
-  if(weekCur&&weekPrev){
-    const ams=[...new Set(monthPn.map(r=>r.am).filter(Boolean))];
-    ams.forEach(am=>{
-      const c=sumPnDt(monthPn,r=>r.am===am&&matchWk(r,weekCur));
-      const p=sumPnDt(monthPn,r=>r.am===am&&matchWk(r,weekPrev));
-      if(p&&c<p) amGiam[am]=((c-p)/p*100);
-    });
+  const tkMetrics = parseTotalKHMetrics(totalKH, thang);
+  let weekCur='', weekPrev='', mtdGiu=0, mtdBanMoi=0;
+  let wowLtc='—', wowGiu='—', wowBanMoi='—', slkhG=0, volG=0;
+  if(tkMetrics && tkMetrics.weekCur){
+    weekCur=tkMetrics.weekCur;
+    weekPrev=tkMetrics.weekPrev;
+    const wCur=tkMetrics.byWeek[weekCur]||{};
+    const wPrev=tkMetrics.byWeek[weekPrev]||{};
+    wowLtc=pctWoWText(wCur.dt||0, wPrev.dt||0);
+    wowGiu=pctWoWText(wCur.dtGiu||0, wPrev.dtGiu||0);
+    wowBanMoi=pctWoWText(wCur.dtBanMoi||0, wPrev.dtBanMoi||0);
+    slkhG=wCur.khG?wCur.khG.size:0;
   }
-  const topAmGiam = Object.entries(amGiam).sort((a,b)=>a[1]-b[1]).slice(0,5);
+  if(tkMetrics){
+    mtdGiu=tkMetrics.mtdGiu||0;
+    mtdBanMoi=tkMetrics.mtdBanMoi||0;
+    if(tkMetrics.maxNgay && (!pnMaxDate || tkMetrics.maxNgay>pnMaxDate)) pnMaxDate=tkMetrics.maxNgay;
+  }
+  if(!weekCur){
+    const weeks=[...new Set(monthPn.map(r=>r.tuan).filter(Boolean))].sort((a,b)=>weekSortKey(a)-weekSortKey(b));
+    weekCur=weeks[weeks.length-1]||'';
+    weekPrev=weeks.length>=2?weeks[weeks.length-2]:'';
+    const matchWk=(r,w)=>r.tuan===w;
+    const dtWeekAll=w=>sumPnDt(monthPn,r=>matchWk(r,w));
+    const dtWeekGiu=w=>sumPnDt(monthPn,r=>matchWk(r,w)&&NHOM_GIU_CU.includes(r.grp));
+    const dtWeekBanMoi=w=>sumPnDt(monthPn,r=>matchWk(r,w)&&r.grp==='G');
+    wowLtc=pctWoWText(dtWeekAll(weekCur), dtWeekAll(weekPrev));
+    wowGiu=pctWoWText(dtWeekGiu(weekCur), dtWeekGiu(weekPrev));
+    wowBanMoi=pctWoWText(dtWeekBanMoi(weekCur), dtWeekBanMoi(weekPrev));
+    slkhG=sumPnSlkh(monthPn,r=>r.tuan===weekCur&&r.grp==='G');
+    volG=sumPnVol(monthPn,r=>r.tuan===weekCur&&r.grp==='G');
+    if(!mtdGiu) mtdGiu=sumPnDt(monthPn,r=>NHOM_GIU_CU.includes(r.grp));
+    if(!mtdBanMoi) mtdBanMoi=sumPnDt(monthPn,r=>r.grp==='G');
+  } else if(!volG){
+    volG=sumPnVol(monthPn,r=>r.tuan===weekCur&&r.grp==='G');
+  }
+  const slkhAvgG=slkhG?Math.round(volG/slkhG):0;
+  const matchWk=(r,w)=>r.tuan===w||(tkMetrics&&String(r.tuan)===String(w));
 
-  const nhomWeekGiu = NHOM_GIU_CU.map(g=>({ g, cur:sumPnDt(monthPn,r=>matchWk(r,weekCur)&&r.grp===g), prev:sumPnDt(monthPn,r=>matchWk(r,weekPrev)&&r.grp===g) }));
+  let topAmBanMoi=[], topAmGiam=[], nhomWeekGiu=[];
+  if(tkMetrics&&tkMetrics.weekCur){
+    const wCur=tkMetrics.byWeek[tkMetrics.weekCur]||{};
+    const wPrev=tkMetrics.byWeek[tkMetrics.weekPrev]||{};
+    topAmBanMoi=Object.entries(wCur.byAm||{}).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    nhomWeekGiu=NHOM_GIU_CU.map(g=>({g, cur:(wCur.byGrp||{})[g]||0, prev:(wPrev.byGrp||{})[g]||0}));
+    const amGiamTk={};
+    Object.keys({...(wCur.byAmAll||{}),...(wPrev.byAmAll||{})}).forEach(nv=>{
+      const c=(wCur.byAmAll||{})[nv]||0, p=(wPrev.byAmAll||{})[nv]||0;
+      if(p&&c<p) amGiamTk[nv]=((c-p)/p*100);
+    });
+    topAmGiam=Object.entries(amGiamTk).sort((a,b)=>a[1]-b[1]).slice(0,5);
+  }
+  if(!topAmBanMoi.length){
+    const amBanMoi={};
+    monthPn.filter(r=>r.grp==='G'&&matchWk(r,weekCur)).forEach(r=>{ amBanMoi[r.am]=(amBanMoi[r.am]||0)+r.dt; });
+    topAmBanMoi=Object.entries(amBanMoi).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  }
+  if(!topAmGiam.length){
+    const amGiam={};
+    if(weekCur&&weekPrev){
+      const ams=[...new Set(monthPn.map(r=>r.am).filter(Boolean))];
+      ams.forEach(am=>{
+        const c=sumPnDt(monthPn,r=>r.am===am&&matchWk(r,weekCur));
+        const p=sumPnDt(monthPn,r=>r.am===am&&matchWk(r,weekPrev));
+        if(p&&c<p) amGiam[am]=((c-p)/p*100);
+      });
+    }
+    topAmGiam=Object.entries(amGiam).sort((a,b)=>a[1]-b[1]).slice(0,5);
+  }
+  if(!nhomWeekGiu.length){
+    nhomWeekGiu=NHOM_GIU_CU.map(g=>({ g, cur:sumPnDt(monthPn,r=>matchWk(r,weekCur)&&r.grp===g), prev:sumPnDt(monthPn,r=>matchWk(r,weekPrev)&&r.grp===g) }));
+  }
 
   let nhomA = { total:0, coDon:0, giamHang:0, nguyCo:0, churnRows:[] };
   if(khNhomA && khNhomA.length>1){
@@ -1458,11 +1578,8 @@ function buildWeeklyReportData(){
     pnMaxDate, elapsed, totalDays,
     mtdLtc, mtdGtc, targetThang, kpiCungKy, pctHoanThanh, pctCungKy,
     pctHoanThanhGtc: pct(mtdGtc, targetThang),
-    wowLtc: pctWoWText(dtWeekAll(weekCur), dtWeekAll(weekPrev)),
-    wowGtc: '—',
-    mtdGiu, mtdBanMoi,
-    wowGiu: pctWoWText(dtWeekGiu(weekCur), dtWeekGiu(weekPrev)),
-    wowBanMoi: pctWoWText(dtWeekBanMoi(weekCur), dtWeekBanMoi(weekPrev)),
+    wowLtc, wowGtc: '—',
+    mtdGiu, mtdBanMoi, wowGiu, wowBanMoi,
     slkhG, volG, slkhAvgG, topAmBanMoi, topAmGiam, nhomWeekGiu, nhomA, tiemNang
   };
 }

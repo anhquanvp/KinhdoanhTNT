@@ -121,6 +121,17 @@ tr.row-grp-tot td{background:#F1F5F9!important;font-weight:600}
 .analysis-box{margin:0 22px 20px;padding:14px 18px;background:var(--blue-light);border-radius:10px;font-size:13px;line-height:1.7;color:var(--text-main);border:1px solid var(--blue-mid)}
 .analysis-box b{color:var(--blue-dark);font-weight:700}
 .section-note{padding:18px 22px;color:var(--text-sub);font-size:13px;line-height:1.55}
+.overview-split{display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--border-light)}
+.overview-half{padding:0 0 16px;border-right:1px solid var(--border-light)}
+.overview-half:last-child{border-right:none}
+.overview-half-hd{padding:12px 18px;font-size:12px;font-weight:700;border-bottom:1px solid var(--border-light);background:#FAFBFC}
+.overview-half-hd.good{color:var(--green)}
+.overview-half-hd.bad{color:var(--red)}
+table.tbl-pro.compact td,table.tbl-pro.compact th{padding:8px 12px;font-size:12px}
+.cust-list{line-height:1.8}
+.cust-chip{display:inline-block;font-size:11px;padding:2px 8px;margin:2px 4px 2px 0;border-radius:6px;background:var(--border-light);color:var(--text-main);font-weight:500}
+.cust-chip.warn{background:var(--yellow-bg);color:#92400E;border:1px solid #FDE68A}
+@media(max-width:900px){.overview-split{grid-template-columns:1fr}.overview-half{border-right:none;border-bottom:1px solid var(--border-light)}}
 .tabbar{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap}
 .tabbtn{padding:9px 14px;border:none;background:none;font-size:12.5px;font-weight:700;color:var(--text-sub);cursor:pointer;border-bottom:2.5px solid transparent}
 .tabbtn.active{color:var(--blue);border-bottom-color:var(--blue)}
@@ -244,6 +255,10 @@ function idxAMCol(header){
   });
   return amIdx;
 }
+function idxTotalKHAmChuan(header){
+  const i=idxOf(header,'AM Chuẩn');
+  return i>=0?i:(header.length>15?15:-1);
+}
 function normNhom(n){
   n=(n||'').trim().toUpperCase();
   if(!n) return null;
@@ -343,9 +358,10 @@ function parseKhNhomAWeekly(khNhomA, thang){
     isoDates.push(iso);
     const wk=isoWeekFromIsoDate(iso).key;
     const dt=parseVNNum(r[iDT]);
-    if(!byCust[ma]) byCust[ma]={ma,ten:(r[iTen]||'').trim(),am:(r[iAMk]||'').trim(),weeks:{}};
+    if(!byCust[ma]) byCust[ma]={ma,ten:(r[iTen]||'').trim(),am:(r[iAMk]||'').trim(),weeks:{},lastIso:''};
     byCust[ma].ten=(r[iTen]||'').trim()||byCust[ma].ten;
     byCust[ma].am=(r[iAMk]||'').trim()||byCust[ma].am;
+    if(iso>=byCust[ma].lastIso) byCust[ma].lastIso=iso;
     byCust[ma].weeks[wk]=(byCust[ma].weeks[wk]||0)+dt;
   }
   const weeks=sortedWeekKeys(isoDates.map(iso=>isoWeekFromIsoDate(iso).key));
@@ -363,7 +379,7 @@ function parseKhNhomAWeekly(khNhomA, thang){
     const alert=noRevWeek||drop30;
     const giamHang=drop30;
     const wasGiamPrev=weekPrev2&&dtPrev2>0&&dtPrev>0&&((dtPrev-dtPrev2)/dtPrev2)<=-30;
-    return {...c,dtMonth,dtCur,dtPrev,dtPrev2,pctW,noRevWeek,drop30,giamHang,alert,wasGiamPrev};
+    return {...c,dtMonth,dtCur,dtPrev,dtPrev2,pctW,noRevWeek,drop30,giamHang,alert,wasGiamPrev,lastIso:c.lastIso};
   });
   const coDonMonth=rows.filter(r=>r.dtMonth>0).length;
   const coDonWeekCur=rows.filter(r=>r.dtCur>0).length;
@@ -436,6 +452,169 @@ function renderOverviewWeekSection(breakdown, thangLabel, totalKPI){
   });
   html+=`</tbody></table></div>`;
   html+=`<div class="analysis-box">KPI tháng <b>${fmtVnd(totalKPI)}</b> · KPI cùng kỳ tuần = KPI tháng × (số ngày tuần ÷ số ngày tháng). Dự kiến tháng = (MTD lũy kế ÷ số ngày đã qua) × tổng ngày tháng.</div></div>`;
+  return html;
+}
+function buildKhAAlertByAm(khNhomA, thang){
+  const w=parseKhNhomAWeekly(khNhomA, thang);
+  if(!w||!w.churnRows.length) return {weekCur:w?.weekCur||'',weekPrev:w?.weekPrev||'',byAm:[],total:0};
+  const map={};
+  w.churnRows.forEach(r=>{
+    const am=(r.am||'').trim()||'—';
+    if(!map[am]) map[am]={am,customers:[]};
+    map[am].customers.push({
+      ten:r.ten,ma:r.ma,
+      tag:r.noRevWeek?'Không lên đơn':`Giảm ${Math.abs(r.pctW).toFixed(0)}%`,
+      dtCur:r.dtCur,dtPrev:r.dtPrev
+    });
+  });
+  return {weekCur:w.weekCur,weekPrev:w.weekPrev,byAm:Object.values(map).sort((a,b)=>b.customers.length-a.customers.length),total:w.churnRows.length};
+}
+function buildBanMoiDayCompare(totalKH, thang){
+  if(!totalKH||totalKH.length<2) return {isoN1:'',isoN2:'',rows:[],good:[],bad:[]};
+  const h=totalKH[0];
+  const iMa=idxOf(h,'MaKH'), iNhom=idxOf(h,'Nhom'), iVung=idxOf(h,'Vung');
+  const iNgay=idxOf(h,'Ngay'), iDT=idxOf(h,'DT'), iNV=idxOf(h,'Nhanvien');
+  const iAMName=idxTotalKHAmChuan(h);
+  const recs=[];
+  for(let i=1;i<totalKH.length;i++){
+    const r=totalKH[i];
+    if(iVung>=0&&!isVungTnt(r[iVung])) continue;
+    if(normNhom(r[iNhom])!=='G') continue;
+    const iso=parseVnNgay(r[iNgay]);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)) continue;
+    const mk=monthKeyFromIso(iso);
+    if(!mk||!thangEq(mk,thang)) continue;
+    const amKey=(iNV>=0?(r[iNV]||'').trim():'')||'—';
+    const amName=(iAMName>=0?(r[iAMName]||'').trim():'');
+    recs.push({
+      iso,
+      amKey,
+      am:amName||amKey,
+      ma:(r[iMa]||'').trim(),
+      dt:parseVNNum(r[iDT])
+    });
+  }
+  const dates=[...new Set(recs.map(r=>r.iso))].sort();
+  const isoN1=dates[dates.length-1]||'';
+  const isoN2=dates.length>=2?dates[dates.length-2]:'';
+  if(!isoN1||!isoN2) return {isoN1,isoN2,rows:[],good:[],bad:[]};
+  const byAM={};
+  recs.forEach(r=>{
+    if(r.iso!==isoN1&&r.iso!==isoN2) return;
+    if(!byAM[r.amKey]) byAM[r.amKey]={am:r.am,n1:0,n2:0,kh1:new Set(),kh2:new Set()};
+    else if(r.am&&r.am!=='—') byAM[r.amKey].am=r.am;
+    if(r.iso===isoN1){ byAM[r.amKey].n1+=r.dt; if(r.ma) byAM[r.amKey].kh1.add(r.ma); }
+    if(r.iso===isoN2){ byAM[r.amKey].n2+=r.dt; if(r.ma) byAM[r.amKey].kh2.add(r.ma); }
+  });
+  const rows=Object.values(byAM).map(x=>{
+    const delta=x.n1-x.n2;
+    const pctD=x.n2>0?delta/x.n2*100:(x.n1>0?100:0);
+    return {...x,slkh1:x.kh1.size,slkh2:x.kh2.size,delta,pctD};
+  }).filter(x=>x.n1>0||x.n2>0).sort((a,b)=>b.delta-a.delta);
+  return {
+    isoN1,isoN2,rows,
+    good:rows.filter(r=>r.delta>0).sort((a,b)=>b.pctD-a.pctD),
+    bad:rows.filter(r=>r.delta<0).sort((a,b)=>a.pctD-b.pctD)
+  };
+}
+function renderOverviewKhASection(alertData){
+  const wkL=alertData.weekCur?weekLabelShort(alertData.weekCur):'—';
+  const wkP=alertData.weekPrev?weekLabelShort(alertData.weekPrev):'—';
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--red)">⚠️</div>KH A — Giảm ≥30% / Không Lên Đơn vs Tuần Trước</div><span class="badge">${wkP} → ${wkL}</span></div>`;
+  if(!alertData.total){
+    html+=`<div class="section-note">✅ Không có KH A cảnh báo tuần ${wkL} (giảm ≥30% hoặc không DT tuần hiện tại).</div></div>`;
+    return html;
+  }
+  html+=`<div class="table-wrap"><table class="tbl-pro"><thead><tr><th style="width:48px">#</th><th>AM</th><th class="num">Số KH</th><th>Danh sách KH (Tên · trạng thái)</th></tr></thead><tbody>`;
+  alertData.byAm.forEach((g,i)=>{
+    const list=g.customers.map(c=>`<span class="cust-chip warn" title="${c.ma}">${c.ten||c.ma} · ${c.tag}</span>`).join(' ');
+    html+=`<tr class="row-warn"><td><span class="rank-num">${i+1}</span></td><td><span class="lbl-name">${g.am}</span></td><td class="num">${g.customers.length}</td><td class="cust-list">${list}</td></tr>`;
+  });
+  html+=`</tbody></table></div>`;
+  html+=`<div class="analysis-box"><b>${alertData.total}</b> KH A cảnh báo · nhóm theo AM phụ trách. Nguồn: sheet khách hàng nhóm A · cột <b>Ngay</b>.</div></div>`;
+  return html;
+}
+function renderOverviewBanMoiDaySection(bm){
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--green)">🆕</div>Bán Mới (Nhóm G) — Ngày N-1 vs N-2</div>`;
+  if(!bm.isoN1||!bm.isoN2){
+    html+=`<span class="badge">Chưa đủ 2 ngày</span></div><div class="section-note">Cần ít nhất 2 ngày dữ liệu nhóm G trong tháng (sheet ${SHEET.totalKH}).</div></div>`;
+    return html;
+  }
+  html+=`<span class="badge">${isoShort2(bm.isoN2)} → ${isoShort2(bm.isoN1)}</span></div>`;
+  html+=`<div class="overview-split">`;
+  const renderSide=(title,icon,list,cls)=>{
+    let s=`<div class="overview-half"><div class="overview-half-hd ${cls}">${icon} ${title} (${list.length})</div>`;
+    if(!list.length) s+=`<div class="section-note" style="padding:12px 16px">—</div>`;
+    else{
+      s+=`<div class="table-wrap"><table class="tbl-pro compact"><thead><tr><th>AM</th><th class="num">${isoShort2(bm.isoN2)}</th><th class="num">${isoShort2(bm.isoN1)}</th><th class="num">Δ</th><th class="num">%</th></tr></thead><tbody>`;
+      list.slice(0,8).forEach(r=>{
+        s+=`<tr><td><span class="lbl-name">${r.am}</span></td><td class="num">${fmtVndCell(r.n2)}</td><td class="num">${fmtVndCell(r.n1)}</td>
+          <td class="num"><span class="trend-tag ${r.delta>=0?'down':'up'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td>
+          <td class="num">${r.n2>0?r.pctD.toFixed(0)+'%':'—'}</td></tr>`;
+      });
+      s+=`</tbody></table></div>`;
+    }
+    return s+'</div>';
+  };
+  html+=renderSide('AM tốt (tăng DT)','▲',bm.good,'good');
+  html+=renderSide('AM tệ (giảm DT)','▼',bm.bad,'bad');
+  html+=`</div><div class="analysis-box">So sánh DT bán mới nhóm G theo AM (cột <b>AM Chuẩn</b> · P) · nguồn sheet <b>${SHEET.totalKH}</b> · ngày <b>${isoShort2(bm.isoN1)}</b> vs <b>${isoShort2(bm.isoN2)}</b>.</div></div>`;
+  return html;
+}
+function renderOverviewProjectionSection(rows, totalActual, totalKPI, totalProjected, projRateTotal, elapsed, totalDays, thangLabel){
+  const pctCls=p=>p>=100?'pct-g':p>=70?'pct-y':'pct-r';
+  const duThang=rows.filter(r=>r.kpi>0&&r.projRate>=100).sort((a,b)=>b.projRate-a.projRate);
+  const thieu=rows.filter(r=>r.kpi>0&&r.projRate<100).sort((a,b)=>a.projRate-b.projRate);
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--yellow)">📈</div>DT Thực Đạt — Dự Kiến Đủ Tháng</div><span class="badge">${thangLabel} · ${elapsed}/${totalDays} ngày</span></div>`;
+  html+=`<div class="kpi-grid" style="margin:16px 22px 0;padding:0">
+    <div class="kpi-card" style="margin:0"><div class="lbl">MTD thực đạt</div><div class="val">${fmtVndHero(totalActual)}</div></div>
+    <div class="kpi-card" style="margin:0"><div class="lbl">Dự kiến cuối tháng</div><div class="val">${fmtVndHero(totalProjected)}</div><div class="sub">MTD ÷ ${elapsed} × ${totalDays}</div></div>
+    <div class="kpi-card" style="margin:0"><div class="lbl">KPI tháng vùng</div><div class="val">${fmtVndHero(totalKPI)}</div>
+      <div class="cmp">Dự kiến/KPI: <b class="${projRateTotal>=100?'down':'up'}">${projRateTotal.toFixed(0)}%</b></div></div>
+  </div>`;
+  html+=`<div class="overview-split" style="margin-top:16px">`;
+  const renderAmList=(title,list,ok)=>{
+    let s=`<div class="overview-half"><div class="overview-half-hd ${ok?'good':'bad'}">${ok?'✅':'⚠️'} ${title} (${list.length})</div>`;
+    if(!list.length) s+=`<div class="section-note" style="padding:12px 16px">${ok?'Không có AM nào dự kiến đủ KPI tháng.':'Tất cả AM có KPI đều dự kiến đủ tháng.'}</div>`;
+    else{
+      s+=`<div class="table-wrap"><table class="tbl-pro compact"><thead><tr><th>AM</th><th class="num">MTD</th><th class="num">Dự kiến</th><th class="num">KPI tháng</th><th class="num">% DK/KPI</th></tr></thead><tbody>`;
+      list.forEach(r=>{
+        s+=`<tr><td><span class="lbl-name">${r.am}</span></td><td class="num">${fmtVndCell(r.actual)}</td><td class="num">${fmtVndCell(r.projected)}</td><td class="num">${fmtVndCell(r.kpi)}</td>
+          <td class="num"><span class="pct-pill ${pctCls(r.projRate)}">${r.projRate.toFixed(0)}%</span></td></tr>`;
+      });
+      s+=`</tbody></table></div>`;
+    }
+    return s+'</div>';
+  };
+  html+=renderAmList('Dự kiến đủ KPI tháng',duThang,true);
+  html+=renderAmList('Dự kiến chưa đủ KPI tháng',thieu,false);
+  html+=`</div></div>`;
+  return html;
+}
+function renderOverviewKpiCmSection(rows, elapsed, totalDays, thangLabel){
+  const withKpi=rows.filter(r=>r.kpi>0);
+  const dat=withKpi.filter(r=>r.ratePeriod>=100).sort((a,b)=>b.ratePeriod-a.ratePeriod);
+  const khongDat=withKpi.filter(r=>r.ratePeriod<100).sort((a,b)=>a.ratePeriod-b.ratePeriod);
+  const pctCls=p=>p>=100?'pct-g':p>=70?'pct-y':'pct-r';
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">🎯</div>KPI Tháng Hiện Tại — AM Đạt / Không Đạt</div><span class="badge">${thangLabel} · KPI cùng kỳ ${elapsed}/${totalDays} ngày</span></div>`;
+  html+=`<div class="overview-split">`;
+  const side=(title,list,ok)=>{
+    let s=`<div class="overview-half"><div class="overview-half-hd ${ok?'good':'bad'}">${ok?'✅':'❌'} ${title} (${list.length})</div>`;
+    if(!list.length) s+=`<div class="section-note" style="padding:12px 16px">—</div>`;
+    else{
+      s+=`<div class="table-wrap"><table class="tbl-pro compact"><thead><tr><th>AM</th><th class="num">MTD</th><th class="num">KPI cùng kỳ</th><th class="num">% Đạt</th><th class="num">KPI tháng</th></tr></thead><tbody>`;
+      list.forEach(r=>{
+        s+=`<tr class="${ok?'':'row-warn'}"><td><span class="lbl-name">${r.am}</span></td><td class="num">${fmtVndCell(r.actual)}</td><td class="num">${fmtVndCell(r.kpiPeriod)}</td>
+          <td class="num"><span class="pct-pill ${pctCls(r.ratePeriod)}">${r.ratePeriod.toFixed(0)}%</span></td><td class="num">${fmtVndCell(r.kpi)}</td></tr>`;
+      });
+      s+=`</tbody></table></div>`;
+    }
+    return s+'</div>';
+  };
+  html+=side('Đạt KPI cùng kỳ',dat,true);
+  html+=side('Chưa đạt KPI cùng kỳ',khongDat,false);
+  html+=`</div>`;
+  html+=`<div class="analysis-box">KPI cùng kỳ = KPI tháng (sheet KPI AM) × ${elapsed}/${totalDays}. Nguồn KPI: sheet <b>KPI AM</b> · Thực đạt: sheet <b>Kết Quả</b>.</div></div>`;
   return html;
 }
 function idxTinhCol(header){ const i=idxOf(header,'Tỉnh Chuẩn'); return i>=0?i:16; }
@@ -1265,7 +1444,7 @@ function showPage(p){
 /* ===================== 1) TỔNG QUAN ===================== */
 function renderOverview(){
   const el = document.getElementById('overview');
-  const { ketQua, kpiAM, dtNgay, phanNhom, dtThang, dtThang2025 } = window._DATA;
+  const { ketQua, kpiAM, dtNgay, phanNhom, dtThang, dtThang2025, khNhomA, totalKH } = window._DATA;
   const thang = currentThang();
   const thangLabel = formatThangLabel(thang);
   const dtThangRecs = reconcileDtWithKetQua(mergeDtThangRecs(dtThang2025, dtThang), ketQua, thang);
@@ -1325,6 +1504,10 @@ function renderOverview(){
   const dtByDate = buildDtNgayByDate(dtNgay, thang);
   const weekBreakdown = buildMonthWeekBreakdown(dtByDate, thang, totalKPI, totalDays);
   const weekSection = renderOverviewWeekSection(weekBreakdown, thangLabel, totalKPI);
+  const khASection = renderOverviewKhASection(buildKhAAlertByAm(khNhomA, thang));
+  const banMoiDaySection = renderOverviewBanMoiDaySection(buildBanMoiDayCompare(totalKH, thang));
+  const projectionSection = renderOverviewProjectionSection(rows, totalActual, totalKPI, totalProjected, projRateTotal, elapsed, totalDays, thangLabel);
+  const kpiCmSection = renderOverviewKpiCmSection(rows, elapsed, totalDays, thangLabel);
   const kpiCards = `
   <div class="kpi-grid">
     <div class="kpi-card">
@@ -1406,6 +1589,10 @@ function renderOverview(){
   ${noDataBanner}
   ${kpiCards}
   ${weekSection}
+  ${khASection}
+  ${banMoiDaySection}
+  ${projectionSection}
+  ${kpiCmSection}
   ${table}
   ${chartSection}
   ${slkhSection}
@@ -1677,6 +1864,73 @@ function sumPnDt(recs, pred){ return recs.filter(pred).reduce((s,r)=>s+r.dt,0); 
 function sumPnSlkh(recs, pred){ return recs.filter(pred).reduce((s,r)=>s+r.slkh,0); }
 function sumPnVol(recs, pred){ return recs.filter(pred).reduce((s,r)=>s+r.vol,0); }
 
+function buildWeeklyReportNarratives(d){
+  const wk=d.weekLabel||'—';
+  const giuWeekCur=(d.nhomWeekGiu||[]).reduce((s,x)=>s+x.cur,0);
+  const giuWeekPrev=(d.nhomWeekGiu||[]).reduce((s,x)=>s+x.prev,0);
+  const giuWow=pctWoWText(giuWeekCur,giuWeekPrev);
+  const nhomGiam=(d.nhomWeekGiu||[]).filter(x=>x.prev>0&&x.cur<x.prev).map(x=>`Nhóm ${x.g} ${pctWoWText(x.cur,x.prev)}`);
+  const kpiNote=d.pctCungKy>=100?'đạt KPI cùng kỳ':d.pctCungKy>=70?'chậm hơn KPI cùng kỳ':'chưa đạt KPI cùng kỳ';
+  const nhanDinhGiuCu=`Tuần ${wk}, DT giữ cũ MTD <b>${fmtVnd(d.mtdGiu)}</b> · DT tuần ${fmtVnd(giuWeekCur)} (${giuWow} vs tuần trước). Vùng ${kpiNote} — MTD LTC <b>${fmtVnd(d.mtdLtc)}</b> đạt <b>${d.pctCungKy.toFixed(0)}%</b> KPI cùng kỳ (${d.elapsed}/${d.totalDays} ngày), dự kiến tháng <b>${d.weekBreakdown&&d.weekBreakdown.length?fmtVnd(d.weekBreakdown[d.weekBreakdown.length-1].projectedMonth):fmtVnd(d.mtdLtc/d.elapsed*d.totalDays)}</b> (${d.weekBreakdown&&d.weekBreakdown.length?d.weekBreakdown[d.weekBreakdown.length-1].pctProj.toFixed(0):pct(d.mtdLtc/d.elapsed*d.totalDays,d.targetThang).toFixed(0)}% target).`;
+  const nguyCoRoiBo=d.nhomA.nguyCo>0
+    ?`<b>${d.nhomA.nguyCo}</b> KH nhóm A cảnh báo tuần ${wk} (${d.nhomA.wowNguyCo} vs tuần trước): không có DT tuần hiện tại hoặc giảm ≥30% so với tuần trước.`
+    :`Không phát hiện KH A nguy cơ rời bỏ tuần ${wk}.`;
+  const nhomGiamDt=nhomGiam.length
+    ?`Các nhóm giảm DT tuần: ${nhomGiam.join('; ')}.`
+    :'Không có nhóm A/BCD/EF giảm DT so với tuần trước.';
+  const amGiamTxt=(d.topAmGiam||[]).length
+    ?`AM giảm DT tuần: ${d.topAmGiam.slice(0,3).map(([am,p])=>`${am} (${p.toFixed(0)}%)`).join(', ')}.`
+    :'';
+  const nguyenNhanGiuCu=[amGiamTxt,d.nhomA.giamHang>0?`${d.nhomA.giamHang} KH A giảm ≥30% DT tuần.`:'']
+    .filter(Boolean).join(' ')||'Chưa có tín hiệu giảm mạnh tập trung; tiếp tục theo dõi sát tuần tới.';
+  const nhanDinhBanMoi=`Tuần ${wk}: <b>${fmt(d.slkhG)}</b> KH bán mới (nhóm G), volume <b>${fmt(d.volG)}</b> đơn (TB ~${fmt(d.slkhAvgG)} đơn/KH). DT bán mới MTD <b>${fmtVnd(d.mtdBanMoi)}</b>, ${d.wowBanMoi} vs tuần trước.${(d.topAmBanMoi||[]).length?` AM nổi bật: ${d.topAmBanMoi.slice(0,3).map(([am,v])=>`${am} (${fmtVnd(v)})`).join(', ')}.`:' Chưa có AM bán mới nổi bật tuần này.'}`;
+  const wowBanNum=parseFloat(String(d.wowBanMoi||'').replace(/[^0-9.\-+]/g,''));
+  const vanDeBanMoi=!d.slkhG&&!d.mtdBanMoi
+    ?'Chưa có KH bán mới phát sinh tuần này — cần rà soát pipeline, nguồn shop và hỗ trợ AM khu vực.'
+    :!isNaN(wowBanNum)&&wowBanNum<-5
+    ?`DT bán mới giảm ${d.wowBanMoi} tuần này — cần tăng cường prospecting, onboarding KH mới và hỗ trợ AM khu vực yếu.`
+    :`Tiến độ bán mới ${d.wowBanMoi||'ổn định'} tuần này — duy trì và nhân rộng mô hình từ AM top.`;
+  const dtBanMoiDuKien=d.elapsed&&d.mtdBanMoi
+    ?`Dự kiến ~${fmtVnd(d.mtdBanMoi/d.elapsed*7)} DT bán mới tuần tới (ước tính theo TB ngày MTD).`
+    :'Chưa đủ dữ liệu MTD để ước tính tuần tới.';
+  const wkA=d.nhomA.weekCur?weekLabelShort(d.nhomA.weekCur):wk;
+  const nhanDinhNhomA=`Tháng ${d.thangLabel}: <b>${d.nhomA.coDon}/${d.nhomA.total}</b> KH A có lên đơn. Tuần ${wkA}: <b>${d.nhomA.nguyCo}</b> KH cảnh báo (${d.nhomA.wowNguyCo}), <b>${d.nhomA.giamHang}</b> KH dự kiến giảm hạng (${d.nhomA.wowGiamHang}), <b>${d.tiemNang.count}</b> KH BCD/EF tiềm năng lên A (DT dự kiến ≥45 tr).`;
+  const churn=d.nhomA.churnRows||[];
+  const noRev=churn.filter(r=>r.noRevWeek).length;
+  const drop30=churn.filter(r=>r.drop30).length;
+  const tinhHinhNhomA=churn.length
+    ?`Tuần ${wkA}: ${d.nhomA.coDon}/${d.nhomA.total} KH A có lên đơn MTD; ${d.nhomA.nguyCo} KH cảnh báo (${d.nhomA.wowNguyCo} vs tuần trước).`
+    :`Tuần ${wkA}: ${d.nhomA.coDon}/${d.nhomA.total} KH A có lên đơn MTD; không phát sinh cảnh báo rời bỏ.`;
+  const vanDeNhomA=churn.length
+    ?`${noRev} KH ngưng phát sinh DT tuần hiện tại; ${drop30} KH giảm DT ≥30% so với tuần trước. AM liên quan: ${[...new Set(churn.map(r=>r.am).filter(Boolean))].slice(0,6).join(', ')||'—'}.`
+    :'Không phát hiện vấn đề lớn với nhóm KH A trong tuần.';
+  const tongQuanNguyenNhan=churn.length
+    ?`Tuần ${wkA}: <b>${churn.length}</b> KH cảnh báo — <b>${noRev}</b> KH không DT tuần hiện tại (${Math.round(noRev/churn.length*100)}%), <b>${drop30}</b> KH giảm ≥30% (${Math.round(drop30/churn.length*100)}%). AM liên quan: ${[...new Set(churn.map(r=>r.am).filter(Boolean))].slice(0,6).join(', ')||'—'}.`
+    :'Không có KH A rời bỏ/cảnh báo trong tuần.';
+  const vanDe=[];
+  if(d.nhomA.nguyCo>0) vanDe.push({nhom:'Giữ cũ',moTa:`${d.nhomA.nguyCo} KH A nguy cơ rời bỏ/cảnh báo tuần ${wkA}`,tacDong:'Ảnh hưởng DT giữ cũ và retention nhóm A',uuTien:'Cao',tienDo:'Đang rà soát danh sách — xem mục 2'});
+  if((d.topAmGiam||[]).length) vanDe.push({nhom:'Giữ cũ',moTa:`AM giảm DT tuần: ${d.topAmGiam.slice(0,3).map(([am,p])=>`${am} (${p.toFixed(0)}%)`).join(', ')}`,tacDong:'Giảm DT vùng so với tuần trước',uuTien:'Cao',tienDo:'Chưa xử lý — cần coaching AM'});
+  if(d.pctCungKy<70) vanDe.push({nhom:'Giữ cũ/Vận hành',moTa:`MTD đạt ${d.pctCungKy.toFixed(0)}% KPI cùng kỳ (${d.elapsed}/${d.totalDays} ngày)`,tacDong:`Nguy cơ không đạt target tháng ${fmtVnd(d.targetThang)}`,uuTien:'Cao',tienDo:'Theo dõi hàng ngày'});
+  if((!d.slkhG||(!isNaN(wowBanNum)&&wowBanNum<-5))&&vanDe.length<3) vanDe.push({nhom:'Bán mới',moTa:`Bán mới tuần ${d.wowBanMoi||'—'} · ${fmt(d.slkhG)} KH mới · ${fmt(d.volG)} đơn`,tacDong:'Chậm tiến độ bán mới',uuTien:'Trung bình',tienDo:'Đang triển khai'});
+  const giaiPhap=[];
+  if(churn.length) giaiPhap.push({gp:'Chăm sóc & liên hệ KH A cảnh báo',doiTuong:`${churn.length} KH A (${[...new Set(churn.map(r=>r.am))].slice(0,3).join(', ')})`,mucTieu:'Khôi phục DT tuần tới, giữ hạng A',ngay:'Tuần tới',pic:'AM phụ trách',hoTro:'CSKH / chính sách giá nếu cần'});
+  if((d.topAmGiam||[]).length) giaiPhap.push({gp:'Coaching AM giảm DT tuần',doiTuong:d.topAmGiam.slice(0,3).map(([a])=>a).join(', '),mucTieu:'Cải thiện DT ≥20% tuần tới',ngay:'Tuần tới',pic:'QLV / AM vùng',hoTro:'Phân tích nguyên nhân, hỗ trợ KH trọng điểm'});
+  if(d.tiemNang.count>0) giaiPhap.push({gp:'Chăm sóc KH tiềm năng lên hạng A',doiTuong:`${d.tiemNang.count} KH BCD/EF`,mucTieu:'DT dự kiến cuối tháng ≥45 tr',ngay:'Tuần tới',pic:'AM',hoTro:'—'});
+  return {nhanDinhGiuCu,nguyCoRoiBo,nhomGiamDt,nguyenNhanGiuCu,nhanDinhBanMoi,vanDeBanMoi,dtBanMoiDuKien,nhanDinhNhomA,tinhHinhNhomA,vanDeNhomA,tongQuanNguyenNhan,vanDe,giaiPhap};
+}
+function suggestChurnLyDo(r, wkLbl){
+  if(r.noRevWeek) return `Không phát sinh doanh thu tuần ${wkLbl}`;
+  return `Doanh thu giảm ${Math.abs(r.pctW||0).toFixed(0)}% so với tuần trước`;
+}
+function suggestChurnNgayNgung(r, wkLbl){
+  if(r.noRevWeek) return r.lastIso ? isoShort2(r.lastIso) : `Tuần ${wkLbl}`;
+  return r.lastIso ? isoShort2(r.lastIso) : '—';
+}
+function suggestChurnAction(r){
+  if(r.noRevWeek) return `AM ${r.am||'—'} liên hệ KH trong 48h, xác minh lý do ngưng đơn và đề xuất CSKH/khuyến mại phù hợp.`;
+  return `AM ${r.am||'—'} phân tích nguyên nhân giảm ${Math.abs(r.pctW||0).toFixed(0)}%, lập kế hoạch chăm sóc KH tuần tới.`;
+}
+
 function buildWeeklyReportData(){
   const { ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH } = window._DATA;
   const thang = currentThang();
@@ -1801,8 +2055,8 @@ function buildWeeklyReportData(){
   const weekBreakdown = buildMonthWeekBreakdown(dtByDate, thang, targetThang, totalDays);
 
   const tiemNang = countKhTiemNangFromTotalKH(totalKH, thang, elapsed, totalDays);
-
-  return {
+  const amWeekDecline = buildAmWeekDecline(dtNgay, thang, 20);
+  const base = {
     vung:VUNG_NAME, thangLabel, weekCur, weekPrev,
     weekLabel: weekCur ? weekLabelShort(weekCur) : '—',
     nhomAWeekLabel: nhomA.weekCur ? weekLabelShort(nhomA.weekCur) : (weekCur ? weekLabelShort(weekCur) : '—'),
@@ -1812,128 +2066,200 @@ function buildWeeklyReportData(){
     pctHoanThanhGtc: pct(mtdGtc, targetThang),
     wowLtc, wowGtc: '—',
     mtdGiu, mtdBanMoi, wowGiu, wowBanMoi,
-    slkhG, volG, slkhAvgG, topAmBanMoi, topAmGiam, nhomWeekGiu, nhomA, tiemNang, weekBreakdown
+    slkhG, volG, slkhAvgG, topAmBanMoi, topAmGiam, nhomWeekGiu, nhomA, tiemNang, weekBreakdown, amWeekDecline
   };
+  base.narratives = buildWeeklyReportNarratives(base);
+  return base;
 }
 
 function docRow4(label, actual, target, pctHT, wow){
   return `<tr><td>${docEsc(label)}</td><td align="right">${docEsc(actual)}</td><td align="right">${docEsc(target)}</td><td align="right">${docEsc(pctHT)}</td><td align="right">${docEsc(wow)}</td></tr>`;
 }
+function docRowNhomA(label, data, wow, note){
+  return `<tr><td>${docEsc(label)}</td><td align="center">${docEsc(data)}</td><td align="center">${docEsc(wow)}</td><td>${docEsc(note||'')}</td></tr>`;
+}
+function docPadRows(htmlRows, cols, minRows){
+  let out=htmlRows;
+  const n=(htmlRows.match(/<tr/g)||[]).length;
+  for(let i=n;i<minRows;i++) out+=`<tr>${'<td>&nbsp;</td>'.repeat(cols)}</tr>`;
+  return out;
+}
 
 function renderWeeklyReportDocHtml(d){
-  const h = (label,val)=>docEsc(val||'—');
-  const banMoiAm = d.topAmBanMoi.length
-    ? d.topAmBanMoi.map(([am,v],i)=>`${i+1}. ${am}: ${fmtVnd(v)}`).join('; ')
-    : '[Chưa có dữ liệu tuần hiện tại]';
-  const giamAm = d.topAmGiam.length
-    ? d.topAmGiam.map(([am,p],i)=>`${i+1}. ${am}: ${p.toFixed(1)}%`).join('; ')
-    : '[Không phát hiện AM giảm mạnh tuần này]';
-  const nhomGiuTxt = d.nhomWeekGiu.map(x=>`Nhóm ${x.g}: ${fmtVnd(x.cur)} (${pctWoWText(x.cur,x.prev)} vs tuần trước)`).join(' · ');
-
-  let churnRows='';
+  const h = (label,val)=>docEsc(val||'');
+  const n = d.narratives || buildWeeklyReportNarratives(d);
+  const stripHtml = s => String(s||'').replace(/<\/?b>/g,'');
   const wkLbl = d.nhomA.weekCur ? weekLabelShort(d.nhomA.weekCur) : d.nhomAWeekLabel;
   const wkPrevLbl = d.nhomA.weekPrev ? weekLabelShort(d.nhomA.weekPrev) : '—';
-  if(d.nhomA.churnRows.length){
-    d.nhomA.churnRows.forEach((r,i)=>{
-      const reason = r.noRevWeek ? `Không DT tuần ${wkLbl}` : `Giảm ${Math.abs(r.pctW).toFixed(0)}% vs tuần trước`;
-      churnRows+=`<tr><td>${i+1}</td><td>${h('',r.ma)}</td><td>${h('',r.ten)}</td><td>${h('',r.am)}</td><td align="right">${h('',fmtVnd(r.dtCur))}</td><td align="right">${h('',fmtVnd(r.dtPrev))}</td><td>${h('',reason)}</td><td>A</td><td>[Điền lý do]</td><td>[Điền hành động]</td></tr>`;
-    });
-  } else {
-    churnRows=`<tr><td colspan="10" align="center"><i>Chưa có KH A cảnh báo tuần ${h('',wkLbl)} (tháng ${h('',d.thangLabel)})</i></td></tr>`;
-  }
+  const churn = d.nhomA.churnRows || [];
+  const banMoiTot = d.topAmBanMoi.length
+    ? d.topAmBanMoi.map(([am,v],i)=>`${i+1}. ${am}: ${fmtVnd(v)}`).join('; ')
+    : 'Chưa có dữ liệu tuần hiện tại';
+  const banMoiYeu = (d.topAmGiam||[]).length
+    ? d.topAmGiam.slice(0,5).map(([am,p],i)=>`${i+1}. ${am}: ${p.toFixed(1)}%`).join('; ')
+    : 'Không phát hiện AM giảm mạnh tuần bán mới';
 
-  let weekBreakdownRows='';
-  (d.weekBreakdown||[]).forEach(w=>{
-    weekBreakdownRows+=`<tr><td>${h('',w.label)}</td><td align="right">${w.dayCount}</td><td align="right">${h('',fmtVnd(w.dt))}</td><td align="right">${h('',fmtVnd(w.kpiWeek))}</td><td align="right">${w.pctWeek.toFixed(1)}%</td><td align="right">${h('',fmtVnd(w.cumDt))}</td><td align="right">${h('',fmtVnd(w.projectedMonth))}</td><td align="right">${w.pctProj.toFixed(1)}%</td></tr>`;
-  });
+  let churnRows='';
+  if(churn.length){
+    churn.forEach((r,i)=>{
+      churnRows+=`<tr>
+        <td align="center">${i+1}</td>
+        <td>${h('',r.ma)}</td>
+        <td>${h('',r.ten)}</td>
+        <td>${h('',r.am)}</td>
+        <td align="right">${h('',fmtVnd(r.dtMonth))}</td>
+        <td align="center">${h('',suggestChurnNgayNgung(r,wkLbl))}</td>
+        <td align="center">A</td>
+        <td>${h('',suggestChurnLyDo(r,wkLbl))}</td>
+        <td>${h('',suggestChurnAction(r))}</td>
+      </tr>`;
+    });
+  }
+  churnRows=docPadRows(churnRows,9,3);
+
+  const vanDeRows=(n.vanDe||[]).slice(0,3);
+  while(vanDeRows.length<3) vanDeRows.push(null);
+  const vanDeHtml=vanDeRows.map((v,i)=>{
+    if(!v) return `<tr><td align="center">${i+1}</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>`;
+    return `<tr><td align="center">${i+1}</td><td>${h('',v.nhom)}</td><td>${h('',v.moTa)}</td><td>${h('',v.tacDong)}</td><td>${h('',v.uuTien)}</td><td>${h('',v.tienDo)}</td></tr>`;
+  }).join('');
+
+  const giaiPhapRows=(n.giaiPhap||[]).slice(0,3);
+  while(giaiPhapRows.length<3) giaiPhapRows.push(null);
+  const giaiPhapHtml=giaiPhapRows.map((g,i)=>{
+    if(!g) return `<tr><td align="center">${i+1}</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>`;
+    return `<tr><td align="center">${i+1}</td><td>${h('',g.gp)}</td><td>${h('',g.doiTuong)}</td><td>${h('',g.mucTieu)}</td><td>${h('',g.ngay)}</td><td>${h('',g.pic)}</td><td>${h('',g.hoTro)}</td></tr>`;
+  }).join('');
 
   return `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="utf-8"><title>Báo cáo KD ${h('',d.vung)}</title>
 <style>
-body{font-family:'Times New Roman',serif;font-size:12pt;line-height:1.45;color:#111}
-h1{font-size:16pt;text-align:center;text-transform:uppercase}
-h2{font-size:13pt;margin-top:18px;border-bottom:1px solid #333;padding-bottom:4px}
-h3{font-size:12pt;margin-top:14px;color:#333}
-table{border-collapse:collapse;width:100%;margin:10px 0 16px}
-th,td{border:1px solid #999;padding:6px 8px;font-size:11pt;vertical-align:top}
-th{background:#f0f4f8;font-weight:bold}
-.meta{color:#555;font-size:10.5pt;margin-bottom:16px}
-.note{background:#fffbeb;border:1px solid #f59e0b;padding:8px 10px;font-size:10.5pt;margin:8px 0}
-.placeholder{color:#666;font-style:italic}
-ul{margin:6px 0 6px 20px}
+@page{size:A4;margin:2cm}
+body{font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.5;color:#000;margin:0}
+h1{font-size:14pt;text-align:center;text-transform:uppercase;font-weight:bold;margin:0 0 8px}
+hr{border:none;border-top:1px solid #000;margin:12px 0 18px}
+h2{font-size:12pt;font-weight:bold;margin:16px 0 8px;text-transform:uppercase}
+h3{font-size:12pt;font-weight:bold;margin:14px 0 6px}
+p{margin:6px 0;line-height:1.5}
+table.doc{border-collapse:collapse;width:100%;margin:8px 0 14px;border:1px solid #000}
+table.doc th,table.doc td{border:1px solid #000;padding:5px 7px;font-size:11pt;vertical-align:middle}
+table.doc th{background:#fff;font-weight:bold;text-align:center}
+ul.doc{margin:4px 0 10px 22px;padding:0}
+ul.doc li{margin:4px 0}
+.fill{color:#000}
+.meta{font-size:10pt;color:#444;margin-bottom:12px}
 </style></head><body>
+
 <h1>BÁO CÁO KẾT QUẢ KINH DOANH ${h('',d.weekLabel)} – ${h('',d.vung)}</h1>
-<p class="meta">Tháng ${h('',d.thangLabel)} · Cập nhật dữ liệu: ${h('',d.pnMaxDate?isoShort2(d.pnMaxDate):'—')} · Xuất lúc: ${new Date().toLocaleString('vi-VN')}<br>
-<small>Nguồn tự động: Kết Quả · KPI AM · ${SHEET.dtThang2026} · ${SHEET.doanhThuGTC} · PHÂN NHÓM KHÁCH HÀNG · ${SHEET.totalKH} · khách hàng nhóm A · Đơn vị DT: triệu đồng</small></p>
+<hr>
+<p class="meta">Tháng ${h('',d.thangLabel)} · Cập nhật: ${h('',d.pnMaxDate?isoShort2(d.pnMaxDate):'—')} · Xuất: ${new Date().toLocaleString('vi-VN')} · Đơn vị DT: triệu đồng</p>
 
 <h2>1. TỔNG QUAN KẾT QUẢ KINH DOANH</h2>
+
 <h3>1.1. Mức độ hoàn thành kế hoạch</h3>
-<table><thead><tr><th>Chỉ tiêu</th><th>Doanh thu Thực tế (MTD)</th><th>Target tháng</th><th>% Hoàn thành</th><th>% vs tuần trước</th></tr></thead><tbody>
+<table class="doc">
+<thead><tr>
+  <th>Chỉ tiêu</th>
+  <th>Doanh thu Thực tế (MTD)</th>
+  <th>Target tháng</th>
+  <th>% Hoàn thành target</th>
+  <th>% Tăng/giảm so với tuần trước</th>
+</tr></thead><tbody>
 ${docRow4('Tổng doanh thu LTC', fmtVnd(d.mtdLtc), fmtVnd(d.targetThang), d.pctHoanThanh.toFixed(1)+'%', d.wowLtc)}
-${docRow4('Tổng doanh thu GTC', d.mtdGtc?fmtVnd(d.mtdGtc):'Chưa có dữ liệu', fmtVnd(d.targetThang), d.mtdGtc?d.pctHoanThanhGtc.toFixed(1)+'%':'—', d.wowGtc)}
-${docRow4('Doanh thu giữ cũ (A/BCD/EF)', fmtVnd(d.mtdGiu), '—', '—', d.wowGiu)}
-${docRow4('Doanh thu bán mới (Nhóm G)', fmtVnd(d.mtdBanMoi), '—', '—', d.wowBanMoi)}
+${docRow4('Tổng doanh thu GTC', d.mtdGtc?fmtVnd(d.mtdGtc):'—', fmtVnd(d.targetThang), d.mtdGtc?d.pctHoanThanhGtc.toFixed(1)+'%':'—', d.wowGtc)}
+${docRow4('Doanh thu giữ cũ (Doanh thu KH duy trì/ thăng hạng tháng N so với tháng N-1)', fmtVnd(d.mtdGiu), '—', '—', d.wowGiu)}
+${docRow4('Doanh thu bán mới (Doanh thu KH mới trong tháng N)', fmtVnd(d.mtdBanMoi), '—', '—', d.wowBanMoi)}
 </tbody></table>
-<p class="note">KPI cùng kỳ (${d.elapsed}/${d.totalDays} ngày): <b>${fmtVnd(d.kpiCungKy)}</b> · MTD đạt <b>${d.pctCungKy.toFixed(1)}%</b> KPI cùng kỳ.</p>
-${weekBreakdownRows?`<h3>1.1b. Tiến độ theo tuần (Ngay → ISO tuần)</h3>
-<table><thead><tr><th>Tuần</th><th>Số ngày</th><th>DT tuần</th><th>KPI cùng kỳ</th><th>% Đạt tuần</th><th>MTD lũy kế</th><th>Dự kiến tháng</th><th>% Dự kiến/KPI</th></tr></thead><tbody>${weekBreakdownRows}</tbody></table>`:''}
 
 <h3>1.2. Kết quả Giữ cũ</h3>
-<p><b>Nhận định chung:</b> <span class="placeholder">[AM vùng điền — gợi ý số liệu bên dưới]</span></p>
-<p><b>Số liệu gợi ý:</b></p>
-<ul>
-<li>Doanh thu giữ cũ MTD: <b>${fmtVnd(d.mtdGiu)}</b> · Tuần ${h('',d.weekLabel)}: ${pctWoWText(d.nhomWeekGiu.reduce((s,x)=>s+x.cur,0), d.nhomWeekGiu.reduce((s,x)=>s+x.prev,0))} vs tuần trước</li>
-<li>Chi tiết nhóm: ${nhomGiuTxt||'—'}</li>
-<li>AM giảm DT tuần (top): ${giamAm}</li>
-</ul>
-<ul>
-<li class="placeholder">Nhóm KH có nguy cơ rời bỏ? [Điền]</li>
-<li class="placeholder">Nguyên nhân chính tác động giữ cũ? [Điền]</li>
+<p><b>Nhận định chung:</b><br><span class="fill">${h('',stripHtml(n.nhanDinhGiuCu))}</span></p>
+<p><b>Số liệu &amp; Các điểm nổi bật:</b></p>
+<ul class="doc">
+<li><b>Nhóm khách hàng có nguy cơ rời bỏ?</b> <span class="fill">${h('',stripHtml(n.nguyCoRoiBo))}</span></li>
+<li><b>Nhóm khách hàng có dấu hiệu giảm doanh thu?</b> <span class="fill">${h('',n.nhomGiamDt)}</span></li>
+<li><b>Nguyên nhân chính tác động đến kết quả giữ cũ trong tuần?</b> <span class="fill">${h('',n.nguyenNhanGiuCu)}</span></li>
 </ul>
 
 <h3>1.3. Kết quả Bán mới</h3>
-<p><b>Nhận định chung:</b> <span class="placeholder">[AM vùng điền]</span></p>
-<ul>
-<li>SLKH bán mới tuần ${h('',d.weekLabel)} (nhóm G): <b>${fmt(d.slkhG)}</b> KH · Volume: <b>${fmt(d.volG)}</b> đơn · TB ~<b>${fmt(d.slkhAvgG)}</b> đơn/KH</li>
-<li>Doanh thu bán mới MTD: <b>${fmtVnd(d.mtdBanMoi)}</b></li>
-<li>AM bán mới tốt: ${banMoiAm}</li>
-<li class="placeholder">Vấn đề ảnh hưởng tiến độ bán mới? [Điền]</li>
-<li class="placeholder">DT bán mới dự kiến tuần tới? [Điền]</li>
+<p><b>Nhận định chung:</b><br><span class="fill">${h('',stripHtml(n.nhanDinhBanMoi))}</span></p>
+<p><b>Số liệu &amp; Các điểm nổi bật:</b></p>
+<ul class="doc">
+<li><b>Số lượng khách hàng bán mới phát sinh trong tuần (kèm sản lượng trung bình)?</b> <span class="fill">${fmt(d.slkhG)} KH · Volume ${fmt(d.volG)} đơn · TB ~${fmt(d.slkhAvgG)} đơn/KH (tuần ${h('',d.weekLabel)}).</span></li>
+<li><b>Khu vực/ AM có kết quả bán mới tốt?</b> <span class="fill">${h('',banMoiTot)}</span></li>
+<li><b>Khu vực/ AM có kết quả bán mới chưa đạt tiến độ?</b> <span class="fill">${h('',banMoiYeu)}</span></li>
+<li><b>Các vấn đề đang ảnh hưởng đến tiến độ bán mới tại Vùng?</b> <span class="fill">${h('',n.vanDeBanMoi)}</span></li>
+<li><b>Khách hàng/ Doanh thu bán mới dự kiến phát sinh trong tuần tới?</b> <span class="fill">${h('',n.dtBanMoiDuKien)}</span></li>
 </ul>
 
 <h2>2. ĐIỂM NỔI BẬT TRONG TUẦN — Khách hàng nhóm A</h2>
-<p class="note">So sánh tuần <b>${h('',wkLbl)}</b> vs <b>${h('',wkPrevLbl)}</b> · Tính từ cột <b>Ngay</b> (ISO tuần).</p>
-<table><thead><tr><th>Chỉ tiêu</th><th>Dữ liệu</th><th>So với tuần trước</th><th>Ghi chú</th></tr></thead><tbody>
-<tr><td>Tổng SL KH nhóm A (tháng hiện tại)</td><td align="right">${fmt(d.nhomA.total)}</td><td>—</td><td>Danh sách KH A có dòng Ngay trong tháng ${h('',d.thangLabel)}</td></tr>
-<tr><td>Số KH có lên đơn đến hiện tại</td><td align="right">${fmt(d.nhomA.coDon)}</td><td align="right">${h('',d.nhomA.wowCoDon)}</td><td>MTD tháng · WoW = KH có DT tuần hiện tại vs tuần trước</td></tr>
-<tr><td>Số KH A dự kiến giảm hạng</td><td align="right">${fmt(d.nhomA.giamHang)}</td><td align="right">${h('',d.nhomA.wowGiamHang)}</td><td>DT tuần hiện tại giảm ≥30% so với tuần trước</td></tr>
-<tr><td>Số KH A nguy cơ rời bỏ</td><td align="right">${fmt(d.nhomA.nguyCo)}</td><td align="right">${h('',d.nhomA.wowNguyCo)}</td><td>Không DT tuần hiện tại hoặc giảm ≥30% vs tuần trước</td></tr>
-<tr><td>Số KH tiềm năng lên hạng A</td><td align="right">${fmt(d.tiemNang.count)}</td><td>—</td><td>${SHEET.totalKH} · BCD/EF · DT dự kiến ≥ 45 tr</td></tr>
+<table class="doc">
+<thead><tr>
+  <th>Chỉ tiêu</th>
+  <th>Dữ liệu</th>
+  <th>So sánh tăng/giảm với tuần trước</th>
+  <th>Ghi chú (nếu có)</th>
+</tr></thead><tbody>
+${docRowNhomA('Tổng số lượng KH nhóm A đầu tháng', fmt(d.nhomA.total), '—', `Tháng ${d.thangLabel}`)}
+${docRowNhomA('Số KH có lên đơn đến hiện tại', fmt(d.nhomA.coDon), d.nhomA.wowCoDon, 'MTD tháng hiện tại')}
+${docRowNhomA('1. Số KH A dự kiến giảm hạng', fmt(d.nhomA.giamHang), d.nhomA.wowGiamHang, 'DT tuần hiện tại giảm ≥30% vs tuần trước')}
+${docRowNhomA('2. Số KH A nguy cơ rời bỏ (không có DT LTC đến hiện tại)', fmt(d.nhomA.nguyCo), d.nhomA.wowNguyCo, `Tuần ${wkLbl} vs ${wkPrevLbl}`)}
+${docRowNhomA('Số KH tiềm năng lên hạng A', fmt(d.tiemNang.count), '—', `${SHEET.totalKH} · BCD/EF · DT dự kiến ≥ 45 tr`)}
 </tbody></table>
-<p><b>Nhận định chính:</b> <span class="placeholder">[AM vùng điền]</span></p>
 
-<h3>CHI TIẾT KH NHÓM A RỜI BỎ / CẢNH BÁO</h3>
-<p class="placeholder">Tổng quan nguyên nhân rời bỏ: [Điền — gợi ý từ danh sách bên dưới]</p>
-<table><thead><tr><th>STT</th><th>Client_ID</th><th>Tên KH</th><th>AM</th><th>DT tuần hiện tại</th><th>DT tuần trước</th><th>Nguyên nhân gợi ý</th><th>Hạng</th><th>Lý do</th><th>Hành động</th></tr></thead><tbody>
+<p><b>Nhận định chính:</b><br><span class="fill">${h('',stripHtml(n.nhanDinhNhomA))}</span></p>
+<ul class="doc">
+<li><b>Tình hình nhóm KH A tại Vùng trong tuần?</b> <span class="fill">${h('',n.tinhHinhNhomA||stripHtml(n.nhanDinhNhomA))}</span></li>
+<li><b>Các vấn đề mà nhóm KH A đang gặp phải tại Vùng?</b> <span class="fill">${h('',n.vanDeNhomA||'')}</span></li>
+</ul>
+
+<h3>CHI TIẾT KH NHÓM A RỜI BỎ</h3>
+<p><b>Tổng quan nguyên nhân rời bỏ:</b></p>
+<ul class="doc"><li><span class="fill">${h('',stripHtml(n.tongQuanNguyenNhan))}</span></li></ul>
+<p><b>Danh sách khách hàng rời bỏ trong tuần:</b></p>
+<table class="doc">
+<thead><tr>
+  <th>STT</th>
+  <th>Client_ID</th>
+  <th>Tên KH</th>
+  <th>AM phụ trách</th>
+  <th>Doanh thu bình quân theo tháng</th>
+  <th>Ngày ngưng lên đơn</th>
+  <th>Phân hạng KH trước khi rời bỏ</th>
+  <th>Lý do rời bỏ</th>
+  <th>Hành động/ hướng xử lý</th>
+</tr></thead><tbody>
 ${churnRows}
 </tbody></table>
 
 <h2>3. TỔNG HỢP CÁC VẤN ĐỀ — HÀNH ĐỘNG &amp; GIẢI PHÁP</h2>
+
 <h3>3.1. Các vấn đề chính trong tuần</h3>
-<table><thead><tr><th>STT</th><th>Nhóm vấn đề</th><th>Mô tả</th><th>Tác động</th><th>Ưu tiên</th><th>Tiến độ</th></tr></thead><tbody>
-<tr><td>1</td><td class="placeholder">[Giữ cũ/Bán mới/Vận hành/...]</td><td class="placeholder">[Mô tả]</td><td class="placeholder">[Tác động]</td><td class="placeholder">[Cao/TB/Thấp]</td><td class="placeholder">[Tiến độ]</td></tr>
-<tr><td>2</td><td></td><td></td><td></td><td></td><td></td></tr>
-<tr><td>3</td><td></td><td></td><td></td><td></td><td></td></tr>
+<table class="doc">
+<thead><tr>
+  <th>STT</th>
+  <th>Nhóm vấn đề chính</th>
+  <th>Mô tả vấn đề</th>
+  <th>Tác động đến KH</th>
+  <th>Mức độ ưu tiên xử lý</th>
+  <th>Tiến độ xử lý</th>
+</tr></thead><tbody>
+${vanDeHtml}
 </tbody></table>
 
 <h3>3.2. Giải pháp &amp; kế hoạch tuần tới</h3>
-<table><thead><tr><th>STT</th><th>Giải pháp/KH</th><th>Đối tượng</th><th>Mục tiêu</th><th>Ngày triển khai</th><th>PIC</th><th>Cần hỗ trợ</th></tr></thead><tbody>
-<tr><td>1</td><td class="placeholder">[Giải pháp]</td><td class="placeholder">[Đối tượng]</td><td class="placeholder">[Mục tiêu]</td><td class="placeholder">[Ngày]</td><td class="placeholder">[PIC]</td><td class="placeholder">[Hỗ trợ]</td></tr>
-<tr><td>2</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-<tr><td>3</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<table class="doc">
+<thead><tr>
+  <th>STT</th>
+  <th>Giải pháp/Kế hoạch</th>
+  <th>Đối tượng</th>
+  <th>Mục tiêu tác động</th>
+  <th>Ngày triển khai</th>
+  <th>PIC</th>
+  <th>Cần hỗ trợ</th>
+</tr></thead><tbody>
+${giaiPhapHtml}
 </tbody></table>
 
-<p class="note">📄 <b>Cách mở bằng Google Docs:</b> Tải file .doc → Google Drive → Chuột phải → Mở bằng → Google Tài liệu. Hoặc File → Nhập → Tải lên trong Google Docs.</p>
 </body></html>`;
 }
 

@@ -151,6 +151,8 @@ tr.row-grp-tot td{background:#F1F5F9!important;font-weight:600}
   <button class="nav-item active" data-page="overview" onclick="showPage('overview')"><span class="icon">📌</span> Tổng Quan</button>
   <button class="nav-item" data-page="decline" onclick="showPage('decline')"><span class="icon">⚠️</span> AM Giảm Doanh Thu</button>
   <button class="nav-item" data-page="segment" onclick="showPage('segment')"><span class="icon">👥</span> Phân Nhóm Khách Hàng</button>
+  <button class="nav-item" data-page="nhomKH" onclick="showPage('nhomKH')"><span class="icon">👥</span> DT Theo Nhóm KH</button>
+  <button class="nav-item" data-page="dtTinh" onclick="showPage('dtTinh')"><span class="icon">🗺️</span> DT Theo Tỉnh</button>
   <button class="nav-item" data-page="nhomA" onclick="showPage('nhomA')"><span class="icon">⭐</span> Nhóm A</button>
   <button class="refresh-btn" id="refreshBtn" onclick="refreshAll()"><span class="spin">🔄</span> Cập nhật dữ liệu</button>
   <button class="export-btn" id="exportDocBtn" onclick="exportWeeklyReportDoc()" disabled>📄 Xuất báo cáo tuần (.doc)</button>
@@ -161,6 +163,8 @@ tr.row-grp-tot td{background:#F1F5F9!important;font-weight:600}
   <div id="overview" class="page"></div>
   <div id="decline" class="page" style="display:none"></div>
   <div id="segment" class="page" style="display:none"></div>
+  <div id="nhomKH" class="page" style="display:none"></div>
+  <div id="dtTinh" class="page" style="display:none"></div>
   <div id="nhomA" class="page" style="display:none"></div>
 </div>
 
@@ -176,7 +180,8 @@ const GID = {
   khNhomA: '1648814630'     // khách hàng nhóm A — chi tiết khách hàng
 };
 const SHEET = {
-  dtThang2025: 'DT-Tháng2025'  // Doanh thu 2025 cố định — fetch theo tên sheet
+  dtThang2025: 'DT-Tháng2025',  // Doanh thu 2025 — fetch theo tên sheet
+  dtThang2026: 'DT Tháng'       // Doanh thu 2026 — fetch theo tên sheet
 };
 const VUNG_NAME = 'Vùng TNT';
 const NHOM_GIU_CU = ['A','BCD','EF'];
@@ -277,7 +282,7 @@ function buildNhomCombinedPeriod(recs){
   const last3d=allDates.slice(-3), prev3d=allDates.slice(-6,-3);
   const allWeeks=[...new Set(recs.map(r=>r.tuan).filter(Boolean))].sort((a,b)=>weekSortKey(a)-weekSortKey(b));
   const last3w=allWeeks.slice(-3), prev3w=allWeeks.slice(-6,-3);
-  const allMonths=[...new Set(recs.map(r=>r.thang).filter(Boolean))].sort((a,b)=>monthSortKey(a)-monthSortKey(b));
+  const allMonths=uniqueMonthsSorted(recs.map(r=>r.thang));
   const last2m=allMonths.slice(-2), prev2m=allMonths.slice(-4,-2);
   return {last3d,prev3d,last3w,prev3w,last2m,prev2m};
 }
@@ -313,7 +318,7 @@ function renderNhomCombinedTable(recs, per, dimKey, dimLabel){
     ${nm?`<th class="grp-hdr num" colspan="${nm}">2 tháng gần nhất</th>`:''}<th class="grp-hdr num" rowspan="2">Δ</th></tr>
     <tr>${dHdr}${wHdr}${mHdr}</tr>
   </thead><tbody>`;
-  const matchDay=(r,b)=>r.ngay===b, matchWeek=(r,b)=>r.tuan===b, matchMonth=(r,b)=>r.thang===b;
+  const matchDay=(r,b)=>r.ngay===b, matchWeek=(r,b)=>r.tuan===b, matchMonth=(r,b)=>thangEq(r.thang,b);
   dims.forEach(dim=>{
     const dKey=dimKey||null, dVal=dimKey?dim:'';
     NHOM_LABELS.forEach((g,gi)=>{
@@ -342,18 +347,28 @@ function renderNhomCombinedTable(recs, per, dimKey, dimLabel){
   html+=`</tbody></table></div>`;
   return html;
 }
-function renderOverviewNhomSection(recs, maxDate){
-  if(!recs.length) return '';
+function nhomPeriodBanner(per){
+  return `3N: ${per.last3d.map(isoShort2).join(' · ')||'—'} · 3T: ${per.last3w.map(w=>'T.'+(w.split('/').pop()||w)).join(' · ')||'—'} · 2T: ${per.last2m.map(formatThangLabel).join(' · ')||'—'}`;
+}
+function renderNhomKHCard(recs, maxDate){
+  if(!recs.length) return '<div class="section-note">Chưa có dữ liệu.</div>';
   const per=buildNhomCombinedPeriod(recs);
-  const badge=`3N: ${per.last3d.map(isoShort2).join(' · ')||'—'} · 3T: ${per.last3w.map(w=>'T.'+(w.split('/').pop()||w)).join(' · ')||'—'} · 2T: ${per.last2m.map(formatThangLabel).join(' · ')||'—'}`;
   let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">👥</div>Doanh Thu Theo Nhóm Khách Hàng</div><span class="badge">${isoShort2(maxDate)}</span></div>
-  <div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📊 ${badge} · Δ = so với kỳ liền trước · Đơn vị: triệu đồng</div>`;
+  <div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📊 ${nhomPeriodBanner(per)} · Δ = so với kỳ liền trước · Đơn vị: triệu đồng</div>`;
   html+=`<div class="am-title">Tổng Hợp Toàn Vùng TNT</div>`;
   html+=renderNhomCombinedTable(recs,per,null,'Vùng');
-  html+=`<div class="am-title" style="font-size:11px;background:var(--card);color:var(--text-sub)">Theo Tỉnh · Ngày + Tuần + Tháng liền một bảng</div>`;
-  html+=renderNhomCombinedTable(recs,per,'tinh','Tỉnh');
   html+=`<div class="am-title" style="font-size:11px;background:var(--card);color:var(--text-sub)">Theo AM · Ngày + Tuần + Tháng liền một bảng</div>`;
   html+=renderNhomCombinedTable(recs,per,'am','AM');
+  html+=`</div>`;
+  return html;
+}
+function renderNhomTinhCard(recs, maxDate){
+  if(!recs.length) return '<div class="section-note">Chưa có dữ liệu.</div>';
+  const per=buildNhomCombinedPeriod(recs);
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">🗺️</div>Doanh Thu Khách Hàng Theo Tỉnh</div><span class="badge">${isoShort2(maxDate)}</span></div>
+  <div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📊 ${nhomPeriodBanner(per)} · Δ = so với kỳ liền trước · Đơn vị: triệu đồng</div>`;
+  html+=`<div class="am-title">Theo Tỉnh · Ngày + Tuần + Tháng liền một bảng</div>`;
+  html+=renderNhomCombinedTable(recs,per,'tinh','Tỉnh');
   html+=`</div>`;
   return html;
 }
@@ -507,7 +522,7 @@ function drawOverviewCharts(recs){
 function renderChartSection(){
   return `<div class="chart-grid">
     <div class="chart-box"><div class="chart-title">Doanh Thu Theo Tháng</div><div class="chart-sub">So sánh 2025 vs 2026 · triệu đồng</div><div class="chart-wrap"><canvas id="cDtYoY"></canvas></div></div>
-    <div class="chart-box"><div class="chart-title">Hàng Nặng / Hàng Nhẹ Theo Tháng</div><div class="chart-sub">4 đường theo loại hàng · triệu đồng</div><div class="chart-wrap"><canvas id="cLoaiHang"></canvas></div></div>
+    <div class="chart-box"><div class="chart-title">Hàng Nặng / Hàng Nhẹ Theo Tháng</div><div class="chart-sub">2025: ${SHEET.dtThang2025} · 2026: ${SHEET.dtThang2026} · triệu đồng</div><div class="chart-wrap"><canvas id="cLoaiHang"></canvas></div></div>
   </div>`;
 }
 function slkhByNhomCurrentMonth(recs, thang){
@@ -534,7 +549,7 @@ function renderSlkhSection(slkhInfo, thangLabel){
 function renderHangNangNheSection(recs){
   if(!recs.length) return '';
   const years=[2025,2026];
-  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">📦</div>Doanh Thu Hàng Nặng / Hàng Nhẹ Theo Tỉnh</div><span class="badge">2025: DT-Tháng2025 · 2026: DT-Tháng</span></div>`;
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">📦</div>Doanh Thu Hàng Nặng / Hàng Nhẹ Theo Tỉnh</div><span class="badge">2025: ${SHEET.dtThang2025} · 2026: ${SHEET.dtThang2026}</span></div>`;
   years.forEach(y=>{
     const yrRecs=recs.filter(r=>r.y===y);
     if(!yrRecs.length) return;
@@ -638,14 +653,28 @@ function currentThang(){
   return `${now.getFullYear()}/${now.getMonth()+1}`;
 }
 function parseThang(s){
-  s=(s||'').trim();
-  const m=s.match(/^(\d{4})\/(\d{1,2})$/);
+  s=(s||'').trim().replace(/\s+/g,'');
+  const m=s.match(/^(\d{4})[\/\-](\d{1,2})$/);
   if(!m) return null;
   return { y:+m[1], m:+m[2] };
+}
+function monthKeyNorm(s){
+  const p=parseThang(s);
+  return p ? `${p.y}/${p.m}` : null;
 }
 function thangEq(a,b){
   const pa=parseThang(a), pb=parseThang(b);
   return pa && pb && pa.y===pb.y && pa.m===pb.m;
+}
+function uniqueMonthsSorted(monthKeys){
+  const seen=new Map();
+  monthKeys.filter(Boolean).forEach(t=>{
+    const p=parseThang(t);
+    if(!p) return;
+    const sk=p.y*100+p.m;
+    if(!seen.has(sk)) seen.set(sk, `${p.y}/${p.m}`);
+  });
+  return [...seen.values()].sort((a,b)=>monthSortKey(a)-monthSortKey(b));
 }
 function canonicalThangKey(y,m){
   return `${y}/${String(m).padStart(2,'0')}`;
@@ -666,9 +695,7 @@ function thangCellPreferred(rows, iThang, thang){
 }
 function rowMatchesPreferredThang(cell, thang, preferred){
   if(!cell) return true;
-  const t=cell.trim();
-  if(preferred) return t===preferred;
-  return thangEq(t, thang);
+  return thangEq(cell.trim(), thang);
 }
 function sumKetQuaMonth(ketQua, thang){
   if(!ketQua||ketQua.length<2) return 0;
@@ -697,9 +724,7 @@ function monthSortKey(s){
   return p ? p.y*100+p.m : 0;
 }
 function getLastNMonths(dateIsos,n=3){
-  const months=[...new Set(dateIsos.map(monthKeyFromIso).filter(Boolean))]
-    .sort((a,b)=>monthSortKey(a)-monthSortKey(b));
-  return months.slice(-n);
+  return uniqueMonthsSorted(dateIsos.map(monthKeyFromIso).filter(Boolean)).slice(-n);
 }
 function daysInMonth(y,m){ return new Date(y, m, 0).getDate(); }
 function kpiSamePeriod(kpiFull, elapsed, totalDays){
@@ -740,7 +765,7 @@ async function loadAll(){
   Object.keys(window._charts).forEach(k=>destroyChart(k));
   try{
     const [ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025] = await Promise.all([
-      fetchGid(GID.ketQua), fetchGid(GID.kpiAM), fetchGid(GID.dtNgay), fetchGid(GID.phanNhom), fetchGid(GID.khNhomA), fetchGid(GID.dtThang), fetchSheet(SHEET.dtThang2025)
+      fetchGid(GID.ketQua), fetchGid(GID.kpiAM), fetchGid(GID.dtNgay), fetchGid(GID.phanNhom), fetchGid(GID.khNhomA), fetchSheet(SHEET.dtThang2026), fetchSheet(SHEET.dtThang2025)
     ]);
     window._DATA = { ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025 };
     loaded = true;
@@ -749,9 +774,11 @@ async function loadAll(){
     renderOverview();
     renderDecline();
     renderSegment();
+    renderNhomKH();
+    renderDtTinh();
     renderNhomA();
   }catch(e){
-    ['overview','decline','segment','nhomA'].forEach(id=>{
+    ['overview','decline','segment','nhomKH','dtTinh','nhomA'].forEach(id=>{
       document.getElementById(id).innerHTML = `<div class="data-banner err">⚠️ Lỗi tải dữ liệu từ Google Sheet: ${e.message}. Kiểm tra quyền chia sẻ (Anyone with link) hoặc thử Cập nhật lại.</div>`;
     });
   }
@@ -894,8 +921,7 @@ function renderOverview(){
   </div>`;
   table += `</div>`;
 
-  const { recs: pnRecs, maxDate: pnMaxDate } = parsePhanNhomRecs(phanNhom);
-  const nhomSection = renderOverviewNhomSection(pnRecs, pnMaxDate);
+  const { recs: pnRecs } = parsePhanNhomRecs(phanNhom);
   const slkhInfo = slkhByNhomCurrentMonth(pnRecs, thang);
   const slkhSection = renderSlkhSection(slkhInfo, thangLabel);
   const chartSection = renderChartSection();
@@ -908,9 +934,8 @@ function renderOverview(){
   ${table}
   ${chartSection}
   ${slkhSection}
-  ${nhomSection}
   ${hangSection}
-  <div class="foot-note">Nguồn: "Kết Quả" · "KPI AM" · "DT-Tháng2025" · "DT-Tháng" · "PHÂN NHÓM KHÁCH HÀNG" · Đơn vị DT: triệu đồng.</div>`;
+  <div class="foot-note">Nguồn: "Kết Quả" · "KPI AM" · "${SHEET.dtThang2025}" · "${SHEET.dtThang2026}" · Đơn vị DT: triệu đồng.</div>`;
   drawOverviewCharts(dtThangRecs);
 }
 
@@ -1030,6 +1055,34 @@ function renderSegment(){
   <div class="page-header"><div><div class="page-title">Phân Nhóm Khách Hàng</div><div class="page-sub">Theo AM · 3 ngày gần nhất · <span class="unit-note">triệu đồng</span></div></div></div>
   <div class="data-banner">📅 Cập nhật: <b>${isoShort2(maxDate)}</b> · 3 ngày: <b>${last3.map(isoShort2).join(' · ')}</b>. ${isStale?'Dữ liệu chưa cập nhật đến hôm nay.':''}</div>
   ${body||'<div class="data-banner">Không có dữ liệu 3 ngày gần nhất.</div>'}
+  <div class="foot-note">Nguồn: sheet "PHÂN NHÓM KHÁCH HÀNG" (gid=${GID.phanNhom}).</div>`;
+}
+
+/* ===================== 3b) DOANH THU THEO NHÓM KHÁCH HÀNG ===================== */
+function renderNhomKH(){
+  const el = document.getElementById('nhomKH');
+  const { phanNhom } = window._DATA;
+  if(!phanNhom || phanNhom.length<2){ el.innerHTML = '<div class="data-banner err">Không có dữ liệu sheet PHÂN NHÓM KHÁCH HÀNG.</div>'; return; }
+  const { recs, maxDate } = parsePhanNhomRecs(phanNhom);
+  const isStale = maxDate && (new Date()-new Date(maxDate+'T00:00:00'))/86400000>5;
+  el.innerHTML = `
+  <div class="page-header"><div><div class="page-title">Doanh Thu Theo Nhóm Khách Hàng</div><div class="page-sub">Tổng vùng &amp; theo AM · <span class="unit-note">triệu đồng</span></div></div></div>
+  <div class="data-banner">📅 Cập nhật: <b>${isoShort2(maxDate)}</b>. ${isStale?'Dữ liệu chưa cập nhật đến hôm nay.':''}</div>
+  ${renderNhomKHCard(recs, maxDate)}
+  <div class="foot-note">Nguồn: sheet "PHÂN NHÓM KHÁCH HÀNG" (gid=${GID.phanNhom}).</div>`;
+}
+
+/* ===================== 3c) DOANH THU KHÁCH HÀNG THEO TỈNH ===================== */
+function renderDtTinh(){
+  const el = document.getElementById('dtTinh');
+  const { phanNhom } = window._DATA;
+  if(!phanNhom || phanNhom.length<2){ el.innerHTML = '<div class="data-banner err">Không có dữ liệu sheet PHÂN NHÓM KHÁCH HÀNG.</div>'; return; }
+  const { recs, maxDate } = parsePhanNhomRecs(phanNhom);
+  const isStale = maxDate && (new Date()-new Date(maxDate+'T00:00:00'))/86400000>5;
+  el.innerHTML = `
+  <div class="page-header"><div><div class="page-title">Doanh Thu Khách Hàng Theo Tỉnh</div><div class="page-sub">Phân nhóm KH theo tỉnh · <span class="unit-note">triệu đồng</span></div></div></div>
+  <div class="data-banner">📅 Cập nhật: <b>${isoShort2(maxDate)}</b>. ${isStale?'Dữ liệu chưa cập nhật đến hôm nay.':''}</div>
+  ${renderNhomTinhCard(recs, maxDate)}
   <div class="foot-note">Nguồn: sheet "PHÂN NHÓM KHÁCH HÀNG" (gid=${GID.phanNhom}).</div>`;
 }
 

@@ -135,12 +135,52 @@ tr.row-grp-tot td{background:#F1F5F9!important;font-weight:600}
 .rank-num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;background:#F1F5F9;color:var(--text-sub);font-size:11px;font-weight:700}
 .rank-num.top3{background:var(--blue-light);color:var(--blue-dark)}
 @media(max-width:900px){.sidebar{display:none}.main{margin-left:0;padding:20px 16px 48px}}
+/* Auth gate — cùng cơ chế với TNT_Vanhanh2026 */
+body.auth-locked #report-app{display:none!important}
+#authGate{position:fixed;inset:0;z-index:100000;background:linear-gradient(135deg,#0F172A 0%,#1E293B 55%,#1D4ED8 100%);display:flex;align-items:center;justify-content:center;padding:24px}
+body.auth-locked #authGate{display:flex}
+body:not(.auth-locked) #authGate{display:none}
+.auth-card{background:#fff;border-radius:16px;padding:36px 32px;width:100%;max-width:420px;box-shadow:var(--shadow-md);text-align:center}
+.auth-card .eyebrow{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;font-weight:700}
+.auth-card h2{font-size:20px;font-weight:800;color:var(--blue);margin-bottom:8px}
+.auth-card .sub{font-size:13px;color:var(--text-sub);line-height:1.65;margin-bottom:24px}
+.auth-card button{width:100%;padding:13px;border:none;border-radius:10px;background:var(--blue);color:#fff;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;font-family:inherit;transition:background .15s}
+.auth-card button:hover{background:var(--blue-dark)}
+#authMsg{font-size:12.5px;color:var(--red);margin-top:16px;line-height:1.5;min-height:18px}
+.auth-hint{margin-top:16px;font-size:11px;color:var(--text-muted);line-height:1.5}
+#sessionBar{display:none;background:var(--blue-light);border-bottom:1px solid var(--blue-mid);padding:7px 32px;font-size:12px;color:var(--text-sub);align-items:center;justify-content:space-between;gap:12px;position:fixed;top:0;left:0;right:0;z-index:110}
+#sessionBar.on{display:flex}
+body.auth-unlocked #sessionBar.on~.sidebar{top:36px;height:calc(100vh - 36px)}
+body.auth-unlocked #sessionBar.on~.main{margin-top:36px}
+#sessionBar strong{color:var(--blue-dark)}
+.btn-logout{background:#fff;border:1px solid var(--border);border-radius:8px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:inherit;color:var(--text-sub)}
+.btn-logout:hover{border-color:var(--red);color:var(--red)}
 </style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 </head>
-<body>
+<body class="auth-locked">
 
+<div id="authGate">
+  <div class="auth-card">
+    <div class="eyebrow">Vùng TNT · Báo cáo nội bộ GHN</div>
+    <h2>Đăng nhập để xem báo cáo</h2>
+    <p class="sub">Trang này chỉ dành cho nhân sự GHN.<br>Vui lòng đăng nhập bằng email <b>@ghn.vn</b> hoặc <b>@giaohangnhanh.vn</b>.</p>
+    <button type="button" id="authBtn">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303C33.654 32.657 29.083 36 24 36c-5.52 0-10-4.48-10-10s4.48-10 10-10c2.52 0 4.85.93 6.63 2.47l5.66-5.66C34.27 10.18 29.38 8 24 8 14.06 8 6 16.06 6 26s8.06 18 18 18 18-8.06 18-18c0-1.22-.12-2.41-.34-3.57z"/><path fill="#FF3D00" d="M6 26h8v-8H6v8z"/><path fill="#4CAF50" d="M6 14l6.22 4.56C13.62 15.18 18.52 12 24 12c2.52 0 4.85.93 6.63 2.47l5.66-5.66C34.27 10.18 29.38 8 24 8 14.06 8 6 16.06 6 26h8c0-5.52 4.48-10 10-10z"/><path fill="#1976D2" d="M24 44c5.17 0 9.86-2.01 13.41-5.29l-6.19-5.04C29.08 35.43 26.65 36 24 36c-5.08 0-9.35-3.43-10.84-8.07L6.96 32.7C10.45 39.03 16.69 44 24 44z"/></svg>
+      Đăng nhập bằng Google
+    </button>
+    <div id="authMsg"></div>
+    <p class="auth-hint">Bạn chưa được cấp quyền, hãy liên hệ AM Vùng TNT.</p>
+  </div>
+</div>
+
+<div id="report-app">
+<div id="sessionBar">
+  <span>🔒 Đã đăng nhập: <strong id="authUserEmail"></strong></span>
+  <button type="button" class="btn-logout" id="authLogoutBtn">Đăng xuất</button>
+</div>
 <div class="sidebar">
   <div class="logo-area">
     <div class="logo-title">📦 GHN — Vùng TNT</div>
@@ -167,6 +207,7 @@ tr.row-grp-tot td{background:#F1F5F9!important;font-weight:600}
   <div id="dtTinh" class="page" style="display:none"></div>
   <div id="nhomA" class="page" style="display:none"></div>
 </div>
+</div><!-- /#report-app -->
 
 <script>
 /* ===================== CONFIG ===================== */
@@ -1772,8 +1813,139 @@ function exportWeeklyReportDoc(){
   btn.disabled=false;
 }
 
+/* ===================== AUTH (TNT_Vanhanh2026) ===================== */
+const AUTH_CLIENT_ID='903166235909-foh0qf1886pbfv5u6pj0qp60rm6ekmqh.apps.googleusercontent.com';
+const AUTH_DOMAINS=['ghn.vn','giaohangnhanh.vn'];
+const AUTH_SCOPE='openid email';
+const AUTH_SESSION_KEY='tnt_kd_auth_session';
+window._authToken=null;
+window._authEmail='';
+let _tokenClient=null, _authStarted=false;
+
+function authDomainOK(email){
+  const d=((email||'').split('@')[1]||'').toLowerCase();
+  return AUTH_DOMAINS.includes(d);
+}
+function authSetMsg(t){
+  const el=document.getElementById('authMsg');
+  if(el) el.textContent=t||'';
+}
+function lockReport(){
+  document.body.classList.add('auth-locked');
+  document.body.classList.remove('auth-unlocked');
+  const bar=document.getElementById('sessionBar');
+  if(bar) bar.classList.remove('on');
+}
+function unlockReport(email){
+  window._authEmail=email||'';
+  document.body.classList.remove('auth-locked');
+  document.body.classList.add('auth-unlocked');
+  const bar=document.getElementById('sessionBar');
+  const emailEl=document.getElementById('authUserEmail');
+  if(bar) bar.classList.add('on');
+  if(emailEl) emailEl.textContent=window._authEmail;
+  authSetMsg('');
+}
+function saveAuthSession(token, email){
+  window._authToken=token;
+  window._authEmail=email;
+  try{ localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({token,email,ts:Date.now()})); }catch(e){}
+}
+function clearAuthSession(){
+  window._authToken=null;
+  window._authEmail='';
+  try{ localStorage.removeItem(AUTH_SESSION_KEY); }catch(e){}
+}
+function getAccessToken(interactive){
+  return new Promise((resolve,reject)=>{
+    if(!_tokenClient){ reject(new Error('auth chưa sẵn sàng')); return; }
+    _tokenClient.callback=(resp)=>{
+      if(resp&&resp.access_token){ window._authToken=resp.access_token; resolve(resp.access_token); }
+      else reject(new Error((resp&&resp.error)||'no_token'));
+    };
+    try{ _tokenClient.requestAccessToken({prompt: interactive?'':'none'}); }
+    catch(e){ reject(e); }
+  });
+}
+async function fetchAuthUserEmail(token){
+  const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+token}});
+  if(!r.ok) throw new Error('Không đọc được thông tin Google');
+  const u=await r.json();
+  return (u.email||'').trim();
+}
+async function doLogin(){
+  authSetMsg('Đang đăng nhập…');
+  try{
+    const token=await getAccessToken(true);
+    const email=await fetchAuthUserEmail(token);
+    if(!authDomainOK(email)){
+      window._authToken=null;
+      authSetMsg('Email '+email+' không thuộc @ghn.vn / @giaohangnhanh.vn — bạn không có quyền xem báo cáo.');
+      return;
+    }
+    saveAuthSession(token, email);
+    unlockReport(email);
+    if(!loaded) loadAll();
+  }catch(e){
+    authSetMsg('Chưa đăng nhập được. Vui lòng thử lại.');
+  }
+}
+function doLogout(){
+  clearAuthSession();
+  lockReport();
+  loaded=false;
+  window._DATA={};
+  Object.keys(window._charts).forEach(k=>destroyChart(k));
+  ['overview','decline','segment','nhomKH','dtTinh','nhomA'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.innerHTML='';
+  });
+  document.getElementById('lastUpdate').textContent='Chưa tải dữ liệu';
+  document.getElementById('exportDocBtn').disabled=true;
+}
+async function restoreAuthSession(){
+  let saved=null;
+  try{ saved=JSON.parse(localStorage.getItem(AUTH_SESSION_KEY)||'null'); }catch(e){}
+  if(!saved||!saved.token) return false;
+  try{
+    const token=await getAccessToken(false);
+    const email=await fetchAuthUserEmail(token);
+    if(!authDomainOK(email)){
+      clearAuthSession();
+      authSetMsg('Phiên hết hạn hoặc email không được phép.');
+      return false;
+    }
+    saveAuthSession(token, email);
+    unlockReport(email);
+    return true;
+  }catch(e){
+    clearAuthSession();
+    return false;
+  }
+}
+async function initAuth(){
+  if(_authStarted) return;
+  if(!(window.google&&google.accounts&&google.accounts.oauth2)){
+    setTimeout(initAuth, 300);
+    return;
+  }
+  _authStarted=true;
+  _tokenClient=google.accounts.oauth2.initTokenClient({
+    client_id: AUTH_CLIENT_ID,
+    scope: AUTH_SCOPE,
+    callback: ()=>{}
+  });
+  const btn=document.getElementById('authBtn');
+  if(btn) btn.onclick=doLogin;
+  const logoutBtn=document.getElementById('authLogoutBtn');
+  if(logoutBtn) logoutBtn.onclick=doLogout;
+  lockReport();
+  const ok=await restoreAuthSession();
+  if(ok) loadAll();
+}
+
 /* ===================== INIT ===================== */
-loadAll();
+initAuth();
 </script>
 </body>
 </html>

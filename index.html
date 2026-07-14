@@ -1330,21 +1330,19 @@ function thangCellPreferred(rows, iThang, thang){
   return null;
 }
 function rowMatchesPreferredThang(cell, thang, preferred){
+  // Luôn so theo y/m đã chuẩn hóa — cộng cả 2026/7 và 2026/07
   if(!cell) return true;
-  const t=cell.trim();
-  if(preferred) return t===preferred;
-  return thangEq(t, thang);
+  return thangEq(cell.trim(), thang);
 }
 function sumKetQuaMonth(ketQua, thang){
   if(!ketQua||ketQua.length<2) return 0;
   const h=ketQua[0];
   const iAM=idxOf(h,'AM Chuẩn'), iDT=idxOf(h,'DoanhThu'), iThang=idxOf(h,'Thang');
-  const preferred=thangCellPreferred(ketQua.slice(1), iThang, thang);
   let total=0;
   for(let i=1;i<ketQua.length;i++){
     const r=ketQua[i];
     if(!r[iAM]) continue;
-    if(iThang>=0&&r[iThang]&&!rowMatchesPreferredThang(r[iThang], thang, preferred)) continue;
+    if(iThang>=0&&r[iThang]&&!rowMatchesPreferredThang(r[iThang], thang, null)) continue;
     total+=parseVNNum(r[iDT]);
   }
   return total;
@@ -1484,11 +1482,10 @@ function renderOverview(){
   // --- DT thực tế theo AM (Kết Quả) — chỉ tháng hiện tại ---
   const hKQ = ketQua[0];
   const iAM = idxOf(hKQ,'AM Chuẩn'), iDT = idxOf(hKQ,'DoanhThu'), iVol = idxOf(hKQ,'Volume'), iThangKQ = idxOf(hKQ,'Thang');
-  const preferredKQ = thangCellPreferred(ketQua.slice(1), iThangKQ, thang);
   const actualByAM = {}, volByAM = {};
   for(let i=1;i<ketQua.length;i++){
     const r = ketQua[i]; if(!r[iAM]) continue;
-    if(iThangKQ>=0 && r[iThangKQ] && !rowMatchesPreferredThang(r[iThangKQ], thang, preferredKQ)) continue;
+    if(iThangKQ>=0 && r[iThangKQ] && !rowMatchesPreferredThang(r[iThangKQ], thang, null)) continue;
     actualByAM[r[iAM]] = (actualByAM[r[iAM]]||0) + parseVNNum(r[iDT]);
     if(iVol>=0) volByAM[r[iAM]] = (volByAM[r[iAM]]||0) + Math.round(parseVNNum(r[iVol]));
   }
@@ -1502,19 +1499,28 @@ function renderOverview(){
   const iAMk = idxOf(hKPI,'AM'), iKPIVung = idxOf(hKPI,'KPI Vùng'), iThangKPI = idxOf(hKPI,'Tháng');
   let iKPICm = idxOf(hKPI,'KPI CM');
   if(iKPICm<0) iKPICm = idxOf(hKPI,'KPI Cty');
-  const preferredKPI = thangCellPreferred(kpiAM.slice(1), iThangKPI, thang);
   const kpiVungByAM = {}, kpiCmByAM = {};
   let kpiCmHasData=false, totalKpiCm=0, totalKpiVung=0;
   for(let i=1;i<kpiAM.length;i++){
     const r = kpiAM[i]; if(!r[iAMk]) continue;
-    if(iThangKPI>=0 && r[iThangKPI] && !rowMatchesPreferredThang(r[iThangKPI], thang, preferredKPI)) continue;
+    if(iThangKPI>=0 && r[iThangKPI] && !rowMatchesPreferredThang(r[iThangKPI], thang, null)) continue;
     const am=r[iAMk];
     const vung=parseVNNum(r[iKPIVung]);
     const cm=iKPICm>=0?parseVNNum(r[iKPICm]):0;
-    kpiVungByAM[am]=vung;
-    totalKpiVung+=vung;
-    kpiCmByAM[am]=cm;
-    if(cm){ kpiCmHasData=true; totalKpiCm+=cm; }
+    // Tránh nhân đôi KPI nếu cùng AM có cả 2026/7 và 2026/07 cùng giá trị
+    if(!(am in kpiVungByAM) || vung>kpiVungByAM[am]){
+      if(am in kpiVungByAM) totalKpiVung-=kpiVungByAM[am];
+      kpiVungByAM[am]=vung;
+      totalKpiVung+=vung;
+    }
+    if(cm){
+      kpiCmHasData=true;
+      if(!(am in kpiCmByAM) || cm>kpiCmByAM[am]){
+        if(am in kpiCmByAM) totalKpiCm-=kpiCmByAM[am];
+        kpiCmByAM[am]=cm;
+        totalKpiCm+=cm;
+      }
+    } else if(!(am in kpiCmByAM)) kpiCmByAM[am]=0;
   }
 
   const allAM = [...new Set([...Object.keys(actualByAM), ...Object.keys(kpiVungByAM), ...Object.keys(kpiCmByAM), ...Object.keys(volByAM)])].sort();
@@ -2003,12 +2009,17 @@ function buildWeeklyReportData(){
 
   const hKPI = kpiAM[0];
   const iAMk = idxOf(hKPI,'AM'), iKPIVung = idxOf(hKPI,'KPI Vùng'), iThangKPI = idxOf(hKPI,'Tháng');
-  const preferredKPI = thangCellPreferred(kpiAM.slice(1), iThangKPI, thang);
   let targetThang = 0;
+  const targetByAM={};
   for(let i=1;i<kpiAM.length;i++){
     const r = kpiAM[i]; if(!r[iAMk]) continue;
-    if(iThangKPI>=0 && r[iThangKPI] && !rowMatchesPreferredThang(r[iThangKPI], thang, preferredKPI)) continue;
-    targetThang += parseVNNum(r[iKPIVung]);
+    if(iThangKPI>=0 && r[iThangKPI] && !rowMatchesPreferredThang(r[iThangKPI], thang, null)) continue;
+    const am=r[iAMk], v=parseVNNum(r[iKPIVung]);
+    if(!(am in targetByAM) || v>targetByAM[am]){
+      if(am in targetByAM) targetThang-=targetByAM[am];
+      targetByAM[am]=v;
+      targetThang+=v;
+    }
   }
   const kpiCungKy = kpiSamePeriod(targetThang, elapsed, totalDays);
   const pctHoanThanh = pct(mtdLtc, targetThang);

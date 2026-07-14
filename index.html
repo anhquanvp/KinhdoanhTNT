@@ -345,28 +345,6 @@ function isoShiftDays(iso, delta){
   const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
 }
-function mondayOfIsoWeek(iso){
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(iso||'')) return '';
-  const d=new Date(iso+'T12:00:00');
-  const day=d.getDay()||7;
-  d.setDate(d.getDate()-(day-1));
-  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dayN=String(d.getDate()).padStart(2,'0');
-  return `${y}-${m}-${dayN}`;
-}
-function isoEachDay(from, to){
-  if(!from||!to||from>to) return [];
-  const out=[];
-  for(let d=from;d<=to;d=isoShiftDays(d,1)) out.push(d);
-  return out;
-}
-function analysisQuick(inner){
-  return `<div class="analysis-box"><b>Nhận định nhanh:</b> ${inner}</div>`;
-}
-function idxNgayChuanHoa(header){
-  const exact=idxOf(header,'Ngày chuẩn hóa');
-  if(exact>=0) return exact;
-  return header.findIndex(h=>/chu[aẩ]n\s*h[oó]a/i.test((h||'').trim()));
-}
 function weekdayVi(iso){
   if(!iso) return '—';
   return ['CN','T2','T3','T4','T5','T6','T7'][new Date(iso+'T12:00:00').getDay()];
@@ -446,51 +424,36 @@ function parseKhNhomAWeekly(khNhomA, thang){
   };
 }
 function buildAmWeekDecline(dtNgay, thang, thresholdPct){
-  const empty={weekCur:'',weekPrev:'',rows:[],all:[],daysUsed:0,spanDates:[],spanPrev:[]};
-  if(!dtNgay||dtNgay.length<2) return empty;
+  if(!dtNgay||dtNgay.length<2) return {weekCur:'',weekPrev:'',rows:[]};
   const h=dtNgay[0], iAM=idxOf(h,'AM Chuẩn'), iDT=idxOf(h,'DoanhThu'), iNgay=idxOf(h,'Ngay');
-  const thangPrevM=thang?prevThang(thang):null;
-  const byAMDate={};
+  const byAMWeek={};
   const weekKeys=[];
   for(let i=1;i<dtNgay.length;i++){
     const r=dtNgay[i];
     if(!r[iAM]||!r[iNgay]) continue;
     const iso=normalizeNgayToIso(r[iNgay]);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)) continue;
-    if(thang){
-      const mk=monthKeyFromIso(iso);
-      if(!mk) continue;
-      if(!thangEq(mk,thang) && !(thangPrevM && thangEq(mk,thangPrevM))) continue;
-    }
+    const mk=monthKeyFromIso(iso);
+    if(thang&&(!mk||!thangEq(mk,thang))) continue;
     const wk=isoWeekFromIsoDate(iso).key;
     weekKeys.push(wk);
-    if(!byAMDate[r[iAM]]) byAMDate[r[iAM]]={};
-    byAMDate[r[iAM]][iso]=(byAMDate[r[iAM]][iso]||0)+parseVNNum(r[iDT]);
+    if(!byAMWeek[r[iAM]]) byAMWeek[r[iAM]]={};
+    byAMWeek[r[iAM]][wk]=(byAMWeek[r[iAM]][wk]||0)+parseVNNum(r[iDT]);
   }
   const weeks=sortedWeekKeys(weekKeys);
   const weekCur=weeks[weeks.length-1]||'';
   const weekPrev=weeks.length>=2?weeks[weeks.length-2]:'';
-  if(!weekCur||!weekPrev) return {...empty,weekCur,weekPrev};
-
-  // Cùng kỳ: T2 → ngày mới nhất tuần hiện tại, so với cùng các thứ ở tuần trước (−7 ngày)
-  const datesInCur=[...new Set(Object.values(byAMDate).flatMap(m=>Object.keys(m)))
-    .filter(iso=>isoWeekFromIsoDate(iso).key===weekCur)].sort();
-  if(!datesInCur.length) return {...empty,weekCur,weekPrev};
-  const maxCur=datesInCur[datesInCur.length-1];
-  const monCur=mondayOfIsoWeek(maxCur);
-  const spanDates=isoEachDay(monCur, maxCur);
-  const spanPrev=spanDates.map(d=>isoShiftDays(d,-7));
-  const sumDays=(am, days)=>days.reduce((s,iso)=>s+((byAMDate[am]&&byAMDate[am][iso])||0),0);
-
   const thr=thresholdPct||20;
-  const all=Object.keys(byAMDate).map(am=>{
-    const cur=sumDays(am, spanDates);
-    const prev=sumDays(am, spanPrev);
+  const rows=Object.keys(byAMWeek).map(am=>{
+    const cur=byAMWeek[am][weekCur]||0;
+    const prev=byAMWeek[am][weekPrev]||0;
     const pctW=prev>0?(cur-prev)/prev*100:(cur>0?100:0);
     return {am,cur,prev,pctW,delta:cur-prev};
-  });
-  const rows=all.filter(r=>r.prev>0&&r.pctW<=-thr).sort((a,b)=>a.pctW-b.pctW);
-  return {weekCur,weekPrev,rows,all,daysUsed:spanDates.length,spanDates,spanPrev};
+  }).filter(r=>r.prev>0&&r.pctW<=-thr).sort((a,b)=>a.pctW-b.pctW);
+  return {weekCur,weekPrev,rows,all:Object.keys(byAMWeek).map(am=>({
+    am,cur:byAMWeek[am][weekCur]||0,prev:byAMWeek[am][weekPrev]||0,
+    pctW:(byAMWeek[am][weekPrev]||0)>0?((byAMWeek[am][weekCur]||0)-(byAMWeek[am][weekPrev]||0))/(byAMWeek[am][weekPrev])*100:0
+  }))};
 }
 function renderOverviewWeekSection(breakdown, thangLabel, totalKPI){
   if(!breakdown||!breakdown.length) return '';
@@ -506,8 +469,7 @@ function renderOverviewWeekSection(breakdown, thangLabel, totalKPI){
       <td class="num">${fmtVndCell(w.projectedMonth)}</td><td class="num">${pctCell(w.pctProj)}</td></tr>`;
   });
   html+=`</tbody></table></div>`;
-  html+=analysisQuick(`KPI tháng <b>${fmtVnd(totalKPI)}</b> · KPI cùng kỳ tuần = KPI tháng × (số ngày tuần ÷ số ngày tháng). Dự kiến tháng = (MTD lũy kế ÷ số ngày đã qua) × tổng ngày tháng.`);
-  html+=`</div>`;
+  html+=`<div class="analysis-box">KPI tháng <b>${fmtVnd(totalKPI)}</b> · KPI cùng kỳ tuần = KPI tháng × (số ngày tuần ÷ số ngày tháng). Dự kiến tháng = (MTD lũy kế ÷ số ngày đã qua) × tổng ngày tháng.</div></div>`;
   return html;
 }
 function buildKhAAlertByAm(khNhomA, thang){
@@ -534,9 +496,7 @@ function buildBanMoiDayCompare(totalKH, thang){
   if(!totalKH||totalKH.length<2) return {isoN1:'',isoN2:'',rows:[],good:[],bad:[]};
   const h=totalKH[0];
   const iMa=idxOf(h,'MaKH'), iNhom=idxOf(h,'Nhom'), iVung=idxOf(h,'Vung');
-  let iNgay=idxNgayChuanHoa(h);
-  if(iNgay<0) iNgay=idxOf(h,'Ngay');
-  const iDT=idxOf(h,'DT'), iNV=idxOf(h,'Nhanvien');
+  const iNgay=idxOf(h,'Ngay'), iDT=idxOf(h,'DT'), iNV=idxOf(h,'Nhanvien');
   const iAMName=idxTotalKHAmChuan(h);
   const recs=[];
   for(let i=1;i<totalKH.length;i++){
@@ -596,8 +556,7 @@ function renderOverviewKhASection(alertData){
     html+=`<tr class="row-warn"><td><span class="rank-num">${i+1}</span></td><td><span class="lbl-name">${g.am}</span></td><td class="num">${g.customers.length}</td><td class="cust-list">${list}</td></tr>`;
   });
   html+=`</tbody></table></div>`;
-  html+=analysisQuick(`<b>${alertData.total}</b> KH A cảnh báo · so <b>${wd}</b> tuần này vs <b>${wd}</b> tuần trước · nhóm theo AM. Nguồn: sheet khách hàng nhóm A · cột <b>Ngay</b>.`);
-  html+=`</div>`;
+  html+=`<div class="analysis-box"><b>${alertData.total}</b> KH A cảnh báo · so <b>${wd}</b> tuần này vs <b>${wd}</b> tuần trước · nhóm theo AM. Nguồn: sheet khách hàng nhóm A · cột <b>Ngay</b>.</div></div>`;
   return html;
 }
 function renderOverviewBanMoiDaySection(bm){
@@ -624,7 +583,7 @@ function renderOverviewBanMoiDaySection(bm){
   };
   html+=renderSide('AM tốt (tăng DT)','▲',bm.good,'good');
   html+=renderSide('AM tệ (giảm DT)','▼',bm.bad,'bad');
-  html+=`</div>${analysisQuick(`So sánh DT bán mới nhóm G theo AM (cột <b>AM Chuẩn</b>) · nguồn sheet <b>${SHEET.totalKH}</b> · ngày <b>${isoShort2(bm.isoN1)}</b> vs <b>${isoShort2(bm.isoN2)}</b>.`)}</div>`;
+  html+=`</div><div class="analysis-box">So sánh DT bán mới nhóm G theo AM (cột <b>AM Chuẩn</b> · P) · nguồn sheet <b>${SHEET.totalKH}</b> · ngày <b>${isoShort2(bm.isoN1)}</b> vs <b>${isoShort2(bm.isoN2)}</b>.</div></div>`;
   return html;
 }
 function renderOverviewProjectionSection(rows, totalActual, totalKPI, totalProjected, projRateTotal, elapsed, totalDays, thangLabel){
@@ -654,38 +613,31 @@ function renderOverviewProjectionSection(rows, totalActual, totalKPI, totalProje
   };
   html+=renderAmList('Dự kiến đủ KPI Vùng',duThang,true);
   html+=renderAmList('Dự kiến chưa đủ KPI Vùng',thieu,false);
-  html+=`</div>${analysisQuick(`So sánh theo <b>KPI Vùng</b> (sheet KPI AM). Dự kiến = MTD ÷ ${elapsed} × ${totalDays}.`)}</div>`;
+  html+=`</div><div class="analysis-box">So sánh theo <b>KPI Vùng</b> (sheet KPI AM). Dự kiến = MTD ÷ ${elapsed} × ${totalDays}.</div></div>`;
   return html;
 }
-function renderOverviewKpiCmSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc){
+function renderOverviewKpiCmSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod){
   const withKpi=rows.filter(r=>r.kpiCm>0);
   const dat=withKpi.filter(r=>r.rateCmPeriod>=100).sort((a,b)=>b.rateCmPeriod-a.rateCmPeriod);
   const khongDat=withKpi.filter(r=>r.rateCmPeriod<100).sort((a,b)=>a.rateCmPeriod-b.rateCmPeriod);
   const pctCls=p=>p>=100?'pct-g':p>=70?'pct-y':'pct-r';
-  const totalActual=rows.reduce((s,r)=>s+r.actual,0);
-  const rateTotal=pct(totalActual, totalKpiCmPeriod);
-  const rateGtcTotal=pct(totalGtc||0, totalKpiCmPeriod);
-  const hasGtc=(totalGtc||0)>0 || rows.some(r=>(r.gtc||0)>0);
+  const rateTotal=pct(rows.reduce((s,r)=>s+r.actual,0), totalKpiCmPeriod);
   let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">🎯</div>KPI Tháng Hiện Tại — AM Đạt / Không Đạt</div><span class="badge">${thangLabel} · KPI CM · ${elapsed}/${totalDays} ngày</span></div>`;
   html+=`<div class="kpi-grid" style="margin:16px 22px 0;padding:0">
     <div class="kpi-card" style="margin:0"><div class="lbl">KPI CM tháng</div><div class="val">${fmtVndHero(totalKpiCm)}</div></div>
     <div class="kpi-card" style="margin:0"><div class="lbl">KPI CM cùng kỳ</div><div class="val">${fmtVndHero(totalKpiCmPeriod)}</div><div class="sub">KPI CM × ${elapsed}/${totalDays}</div></div>
-    <div class="kpi-card" style="margin:0"><div class="lbl">% Đạt KPI CM (KQ)</div><div class="val"><span class="hero-amt">${rateTotal.toFixed(0)}</span><span class="hero-unit">%</span></div>
+    <div class="kpi-card" style="margin:0"><div class="lbl">% Đạt KPI CM cùng kỳ</div><div class="val"><span class="hero-amt">${rateTotal.toFixed(0)}</span><span class="hero-unit">%</span></div>
       <div class="cmp">AM đạt: <b class="down">${dat.length}</b> · Chưa đạt: <b class="up">${khongDat.length}</b></div></div>
-    <div class="kpi-card" style="margin:0"><div class="lbl">DT GTC MTD</div><div class="val">${hasGtc?fmtVndHero(totalGtc||0):'—'}</div>
-      <div class="sub">${hasGtc?`% GTC / KPI CM CK: <b class="${rateGtcTotal>=100?'down':'up'}">${rateGtcTotal.toFixed(0)}%</b>`:'Chưa có DoanhThu-GTC'}</div></div>
   </div>`;
   html+=`<div class="overview-split" style="margin-top:16px">`;
   const side=(title,list,ok)=>{
     let s=`<div class="overview-half"><div class="overview-half-hd ${ok?'good':'bad'}">${ok?'✅':'❌'} ${title} (${list.length})</div>`;
     if(!list.length) s+=`<div class="section-note" style="padding:12px 16px">—</div>`;
     else{
-      s+=`<div class="table-wrap"><table class="tbl-pro compact"><thead><tr><th>AM</th><th class="num">MTD KQ</th><th class="num">DT GTC</th><th class="num">KPI CM CK</th><th class="num">% KQ</th><th class="num">% GTC</th><th class="num">KPI CM tháng</th></tr></thead><tbody>`;
+      s+=`<div class="table-wrap"><table class="tbl-pro compact"><thead><tr><th>AM</th><th class="num">MTD</th><th class="num">KPI CM cùng kỳ</th><th class="num">% Đạt</th><th class="num">KPI CM tháng</th></tr></thead><tbody>`;
       list.forEach(r=>{
-        s+=`<tr class="${ok?'':'row-warn'}"><td><span class="lbl-name">${r.am}</span></td><td class="num">${fmtVndCell(r.actual)}</td><td class="num">${r.gtc?fmtVndCell(r.gtc):'<span class="empty-val">—</span>'}</td><td class="num">${fmtVndCell(r.kpiCmPeriod)}</td>
-          <td class="num"><span class="pct-pill ${pctCls(r.rateCmPeriod)}">${r.rateCmPeriod.toFixed(0)}%</span></td>
-          <td class="num">${r.kpiCmPeriod?`<span class="pct-pill ${pctCls(r.rateGtcCmPeriod)}">${r.rateGtcCmPeriod.toFixed(0)}%</span>`:'—'}</td>
-          <td class="num">${fmtVndCell(r.kpiCm)}</td></tr>`;
+        s+=`<tr class="${ok?'':'row-warn'}"><td><span class="lbl-name">${r.am}</span></td><td class="num">${fmtVndCell(r.actual)}</td><td class="num">${fmtVndCell(r.kpiCmPeriod)}</td>
+          <td class="num"><span class="pct-pill ${pctCls(r.rateCmPeriod)}">${r.rateCmPeriod.toFixed(0)}%</span></td><td class="num">${fmtVndCell(r.kpiCm)}</td></tr>`;
       });
       s+=`</tbody></table></div>`;
     }
@@ -694,8 +646,7 @@ function renderOverviewKpiCmSection(rows, elapsed, totalDays, thangLabel, totalK
   html+=side('Đạt KPI CM cùng kỳ',dat,true);
   html+=side('Chưa đạt KPI CM cùng kỳ',khongDat,false);
   html+=`</div>`;
-  html+=analysisQuick(`So sánh theo <b>KPI CM</b> (sheet KPI AM). KPI cùng kỳ = KPI CM tháng × ${elapsed}/${totalDays}. MTD KQ: sheet <b>Kết Quả</b> · DT GTC: sheet <b>${SHEET.doanhThuGTC}</b> (AM Chuẩn).`);
-  html+=`</div>`;
+  html+=`<div class="analysis-box">So sánh theo <b>KPI CM</b> (sheet KPI AM). KPI cùng kỳ = KPI CM tháng × ${elapsed}/${totalDays}. Thực đạt: sheet <b>Kết Quả</b>.</div></div>`;
   return html;
 }
 function idxTinhCol(header){ const i=idxOf(header,'Tỉnh Chuẩn'); return i>=0?i:16; }
@@ -716,45 +667,15 @@ function parsePhanNhomRecs(phanNhom){
   }
   return {recs,maxDate};
 }
-/** Doanh thu theo nhóm KH từ sheet TotalKH — ưu tiên cột Ngày chuẩn hóa (vd. 12/07/2026). */
-function parseTotalKHNhomRecs(totalKH){
-  if(!totalKH||totalKH.length<2) return {recs:[],maxDate:''};
-  const h=totalKH[0];
-  const iNhom=idxOf(h,'Nhom'), iDT=idxOf(h,'DT'), iVung=idxOf(h,'Vung');
-  let iNgay=idxNgayChuanHoa(h);
-  if(iNgay<0) iNgay=idxOf(h,'Ngay');
-  const iAM=idxOf(h,'AM Chuẩn'), iTinh=idxOf(h,'Tỉnh Chuẩn');
-  const recs=[]; let maxDate='';
-  for(let i=1;i<totalKH.length;i++){
-    const r=totalKH[i];
-    if(iVung>=0 && (r[iVung]||'').trim() && !isVungTnt(r[iVung])) continue;
-    const grp=normNhom(r[iNhom]);
-    const ngay=normalizeNgayToIso(r[iNgay]);
-    if(!grp||!ngay) continue;
-    if(ngay>maxDate) maxDate=ngay;
-    const wk=isoWeekFromIsoDate(ngay).key;
-    recs.push({
-      grp, ngay,
-      am:(iAM>=0?(r[iAM]||'').trim():''),
-      tinh:(iTinh>=0?(r[iTinh]||'').trim():''),
-      dt:parseVNNum(r[iDT]),
-      slkh:0, vol:0,
-      tuan:wk,
-      thang:monthKeyFromIso(ngay)
-    });
-  }
-  return {recs,maxDate};
-}
-function nhomStaleBanner(maxDate, sheetName){
-  const src=sheetName||SHEET.totalKH;
-  if(!maxDate) return `<div class="data-banner err">⚠️ Chưa xác định được ngày mới nhất trong sheet ${src}.</div>`;
+function nhomStaleBanner(maxDate){
+  if(!maxDate) return '<div class="data-banner err">⚠️ Chưa xác định được ngày mới nhất trong sheet PHÂN NHÓM KHÁCH HÀNG.</div>';
   const stale=(new Date()-new Date(maxDate+'T00:00:00'))/86400000>3;
   return `<div class="data-banner">📅 <b>Ngày mới nhất:</b> ${isoShort2(maxDate)}${stale?' · <span class="lbl-sub">Dữ liệu chưa cập nhật đến hôm nay — báo cáo hiển thị theo ngày mới nhất có trong sheet.</span>':''}</div>`;
 }
 function buildNhomCombinedPeriod(recs){
   const allDates=[...new Set(recs.map(r=>r.ngay))].sort();
   const last3d=allDates.slice(-3), prev3d=allDates.slice(-6,-3);
-  const allWeeks=[...new Set(recs.map(r=>r.tuan).filter(Boolean))].sort((a,b)=>weekSortKeyIso(a)-weekSortKeyIso(b));
+  const allWeeks=[...new Set(recs.map(r=>r.tuan).filter(Boolean))].sort((a,b)=>weekSortKey(a)-weekSortKey(b));
   const last3w=allWeeks.slice(-3), prev3w=allWeeks.slice(-6,-3);
   const allMonths=uniqueMonthsSorted(recs.map(r=>r.thang));
   const last2m=allMonths.slice(-2), prev2m=allMonths.slice(-4,-2);
@@ -827,33 +748,22 @@ function nhomPeriodBanner(per){
 function renderNhomKHCard(recs, maxDate){
   if(!recs.length) return '<div class="section-note">Chưa có dữ liệu.</div>';
   const per=buildNhomCombinedPeriod(recs);
-  const totCur=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,(r,b)=>r.ngay===b,per.last3d),0);
-  const totPrev=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,(r,b)=>r.ngay===b,per.prev3d),0);
-  const dPct=totPrev>0?((totCur-totPrev)/totPrev*100):0;
   let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">👥</div>Doanh Thu Theo Nhóm Khách Hàng</div><span class="badge">${isoShort2(maxDate)}</span></div>
   <div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📊 ${nhomPeriodBanner(per)} · Δ = so với kỳ liền trước · Đơn vị: triệu đồng</div>`;
   html+=`<div class="am-title">Tổng Hợp Toàn Vùng TNT</div>`;
   html+=renderNhomCombinedTable(recs,per,null,'Vùng');
   html+=`<div class="am-title" style="font-size:11px;background:var(--card);color:var(--text-sub)">Theo AM · Ngày + Tuần + Tháng liền một bảng</div>`;
   html+=renderNhomCombinedTable(recs,per,'am','AM');
-  html+=analysisQuick(`3 ngày gần nhất <b>${per.last3d.map(isoShort2).join(' · ')||'—'}</b>: vùng đạt <b>${fmtVnd(totCur)}</b> (${dPct>=0?'+':''}${dPct.toFixed(0)}% vs 3 ngày trước). Nguồn: sheet <b>${SHEET.totalKH}</b> · cột <b>Ngày chuẩn hóa</b>.`);
   html+=`</div>`;
   return html;
 }
 function renderNhomTinhCard(recs, maxDate){
   if(!recs.length) return '<div class="section-note">Chưa có dữ liệu.</div>';
   const per=buildNhomCombinedPeriod(recs);
-  const byTinh={};
-  recs.filter(r=>per.last3d.includes(r.ngay)).forEach(r=>{
-    const t=r.tinh||'—';
-    byTinh[t]=(byTinh[t]||0)+r.dt;
-  });
-  const topTinh=Object.entries(byTinh).sort((a,b)=>b[1]-a[1])[0];
   let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">🗺️</div>Doanh Thu Khách Hàng Theo Tỉnh</div><span class="badge">${isoShort2(maxDate)}</span></div>
   <div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📊 ${nhomPeriodBanner(per)} · Δ = so với kỳ liền trước · Đơn vị: triệu đồng</div>`;
   html+=`<div class="am-title">Theo Tỉnh · Ngày + Tuần + Tháng liền một bảng</div>`;
   html+=renderNhomCombinedTable(recs,per,'tinh','Tỉnh');
-  html+=analysisQuick(`3 ngày gần nhất <b>${per.last3d.map(isoShort2).join(' · ')||'—'}</b>. Tỉnh dẫn đầu: <b>${topTinh?topTinh[0]:'—'}</b>${topTinh?` (${fmtVnd(topTinh[1])})`:''}. Nguồn: sheet <b>${SHEET.totalKH}</b> · cột <b>Ngày chuẩn hóa</b>.`);
   html+=`</div>`;
   return html;
 }
@@ -989,39 +899,11 @@ function sumSheetDtMonth(sheet, thang){
   }
   return total;
 }
-/** Doanh thu GTC theo AM Chuẩn (sheet DoanhThu-GTC), gộp dual format tháng. */
-function sumGtcByAM(sheet, thang){
-  if(!sheet||sheet.length<2) return {};
-  const h=sheet[0];
-  const iThang=idxOf(h,'Thang'), iDT=idxOf(h,'DoanhThu');
-  const iAmC=idxOf(h,'AM Chuẩn'), iAM=idxOf(h,'AM'), iVung=idxOf(h,'Vung');
-  if(iThang<0||iDT<0) return {};
-  const by={};
-  for(let i=1;i<sheet.length;i++){
-    const r=sheet[i];
-    const cell=(r[iThang]||'').trim();
-    if(cell && !rowMatchesPreferredThang(cell, thang, null)) continue;
-    if(iVung>=0 && (r[iVung]||'').trim() && !isVungTnt(r[iVung])) continue;
-    let am=(iAmC>=0?(r[iAmC]||''):'').trim();
-    if(!am && iAM>=0){
-      const raw=(r[iAM]||'').trim();
-      if(raw.includes(',')) continue;
-      const dash=raw.indexOf('-');
-      am=dash>=0?raw.slice(dash+1).trim():raw;
-    }
-    if(!am) continue;
-    by[am]=(by[am]||0)+parseVNNum(r[iDT]);
-  }
-  return by;
-}
 function countKhTiemNangFromTotalKH(totalKH, thang, elapsed, totalDays){
   if(!totalKH||totalKH.length<2||!elapsed||!totalDays) return {count:0, rows:[]};
   const h=totalKH[0];
   const iMa=idxOf(h,'MaKH'), iTen=idxOf(h,'TenKH'), iNhom=idxOf(h,'Nhom');
-  const iVung=idxOf(h,'Vung');
-  let iNgay=idxNgayChuanHoa(h);
-  if(iNgay<0) iNgay=idxOf(h,'Ngay');
-  const iMtd=idxOf(h,'MTD');
+  const iVung=idxOf(h,'Vung'), iNgay=idxOf(h,'Ngay'), iMtd=idxOf(h,'MTD');
   const iNV=idxOf(h,'Nhanvien');
   const byCust={};
   for(let i=1;i<totalKH.length;i++){
@@ -1052,9 +934,7 @@ function parseTotalKHMetrics(totalKH, thang){
   if(!totalKH||totalKH.length<2) return null;
   const h=totalKH[0];
   const iMa=idxOf(h,'MaKH'), iNhom=idxOf(h,'Nhom'), iVung=idxOf(h,'Vung');
-  let iNgay=idxNgayChuanHoa(h);
-  if(iNgay<0) iNgay=idxOf(h,'Ngay');
-  const iDT=idxOf(h,'DT'), iTuan=idxOf(h,'Tuần'), iMtd=idxOf(h,'MTD');
+  const iNgay=idxOf(h,'Ngay'), iDT=idxOf(h,'DT'), iTuan=idxOf(h,'Tuần'), iMtd=idxOf(h,'MTD');
   const iNV=idxOf(h,'Nhanvien');
   const byWeek={};
   const mtdByMa={};
@@ -1241,7 +1121,6 @@ function slkhByNhomCurrentMonth(recs, thang){
 }
 function renderSlkhSection(slkhInfo, thangLabel){
   let slkhBody='';
-  let insight='';
   if(!slkhInfo){
     slkhBody=`<div class="section-note">Chưa có dữ liệu PHÂN NHÓM cho tháng <b>${thangLabel}</b>.</div>`;
   } else {
@@ -1249,16 +1128,13 @@ function renderSlkhSection(slkhInfo, thangLabel){
     slkhBody=`<div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📅 SLKH tại ngày mới nhất: <b>${isoShort2(slkhInfo.latestDate)}</b></div>
     <div class="table-wrap"><table class="tbl-pro"><thead><tr><th>Nhóm KH</th>${NHOM_LABELS.map(g=>`<th class="num">${g}</th>`).join('')}<th class="num">Tổng</th></tr></thead>
     <tbody><tr><td><span class="lbl-name">Số lượng KH</span></td>${cells}<td class="num"><span class="v-num">${fmt(slkhInfo.total)}</span></td></tr></tbody></table></div>`;
-    const topG=NHOM_LABELS.slice().sort((a,b)=>(slkhInfo.byGrp[b]||0)-(slkhInfo.byGrp[a]||0))[0];
-    insight=analysisQuick(`Tổng <b>${fmt(slkhInfo.total)}</b> KH · nhóm lớn nhất: <b>${topG}</b> (${fmt(slkhInfo.byGrp[topG]||0)} KH) tại ngày ${isoShort2(slkhInfo.latestDate)}.`);
   }
-  return `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">👥</div>Số Lượng Khách Hàng Theo Nhóm</div><span class="badge">Tháng ${thangLabel}</span></div>${slkhBody}${insight}</div>`;
+  return `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">👥</div>Số Lượng Khách Hàng Theo Nhóm</div><span class="badge">Tháng ${thangLabel}</span></div>${slkhBody}</div>`;
 }
 function renderHangNangNheSection(recs){
   if(!recs.length) return '';
   const years=[2025,2026];
   let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">📦</div>Doanh Thu Hàng Nặng / Hàng Nhẹ Theo Tỉnh</div><span class="badge">2025: ${SHEET.dtThang2025} · 2026: ${SHEET.dtThang2026}</span></div>`;
-  let lastYInsight='';
   years.forEach(y=>{
     const yrRecs=recs.filter(r=>r.y===y);
     if(!yrRecs.length) return;
@@ -1290,10 +1166,7 @@ function renderHangNangNheSection(recs){
     const gNhe=yrRecs.filter(r=>r.loai==='nhe').reduce((s,r)=>s+r.dt,0);
     html+=`<tr class="tot"><td class="col-sticky">TỔNG ${y}</td>${totCells}<td class="num">${fmtVndCell(gNang)}</td><td class="num">${fmtVndCell(gNhe)}</td></tr>`;
     html+=`</tbody></table></div>`;
-    const share=gNang+gNhe>0?(gNang/(gNang+gNhe)*100):0;
-    lastYInsight=`Năm ${y}: Nặng <b>${fmtVnd(gNang)}</b> (${share.toFixed(0)}%) · Nhẹ <b>${fmtVnd(gNhe)}</b>.`;
   });
-  if(lastYInsight) html+=analysisQuick(lastYInsight);
   html+=`</div>`;
   return html;
 }
@@ -1601,7 +1474,7 @@ function showPage(p){
 /* ===================== 1) TỔNG QUAN ===================== */
 function renderOverview(){
   const el = document.getElementById('overview');
-  const { ketQua, kpiAM, dtNgay, phanNhom, dtThang, dtThang2025, khNhomA, totalKH, dtGtc } = window._DATA;
+  const { ketQua, kpiAM, dtNgay, phanNhom, dtThang, dtThang2025, khNhomA, totalKH } = window._DATA;
   const thang = currentThang();
   const thangLabel = formatThangLabel(thang);
   const dtThangRecs = reconcileDtWithKetQua(mergeDtThangRecs(dtThang2025, dtThang), ketQua, thang);
@@ -1617,8 +1490,6 @@ function renderOverview(){
     if(iVol>=0) volByAM[r[iAM]] = (volByAM[r[iAM]]||0) + Math.round(parseVNNum(r[iVol]));
   }
   const totalVol = Object.values(volByAM).reduce((s,v)=>s+v,0);
-  const gtcByAM = sumGtcByAM(dtGtc, thang);
-  const totalGtc = Object.values(gtcByAM).reduce((s,v)=>s+v,0);
 
   const monthProgress = getMonthProgress(dtNgay);
   const { elapsed, totalDays, pctTime, maxDataDay } = monthProgress;
@@ -1652,12 +1523,11 @@ function renderOverview(){
     } else if(!(am in kpiCmByAM)) kpiCmByAM[am]=0;
   }
 
-  const allAM = [...new Set([...Object.keys(actualByAM), ...Object.keys(kpiVungByAM), ...Object.keys(kpiCmByAM), ...Object.keys(volByAM), ...Object.keys(gtcByAM)])].sort();
+  const allAM = [...new Set([...Object.keys(actualByAM), ...Object.keys(kpiVungByAM), ...Object.keys(kpiCmByAM), ...Object.keys(volByAM)])].sort();
   let totalActual=0, totalKPIPeriod=0, totalProjected=0, totalKpiCmPeriod=0;
   const rows = allAM.map(am=>{
     const actual = actualByAM[am]||0;
     const vol = volByAM[am]||0;
-    const gtc = gtcByAM[am]||0;
     const kpiVung = kpiVungByAM[am]||0;
     const kpiCm = kpiCmByAM[am]||0;
     const kpiVungPeriod = kpiSamePeriod(kpiVung, elapsed, totalDays);
@@ -1665,11 +1535,10 @@ function renderOverview(){
     const projected = actual/elapsed*totalDays;
     totalActual+=actual; totalKPIPeriod+=kpiVungPeriod; totalProjected+=projected; totalKpiCmPeriod+=kpiCmPeriod;
     return {
-      am, actual, vol, gtc,
+      am, actual, vol,
       kpi: kpiVung, kpiPeriod: kpiVungPeriod, ratePeriod: pct(actual, kpiVungPeriod),
       kpiVung, kpiVungPeriod, projRateVung: pct(projected, kpiVung),
       kpiCm, kpiCmPeriod, rateCmPeriod: pct(actual, kpiCmPeriod),
-      rateGtcCmPeriod: pct(gtc, kpiCmPeriod),
       projected, projRate: pct(projected, kpiVung)
     };
   }).sort((a,b)=>b.actual-a.actual);
@@ -1689,7 +1558,7 @@ function renderOverview(){
   const khASection = renderOverviewKhASection(buildKhAAlertByAm(khNhomA, thang));
   const banMoiDaySection = renderOverviewBanMoiDaySection(buildBanMoiDayCompare(totalKH, thang));
   const projectionSection = renderOverviewProjectionSection(rows, totalActual, totalKpiVung, totalProjected, projRateTotal, elapsed, totalDays, thangLabel);
-  const kpiCmSection = renderOverviewKpiCmSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc);
+  const kpiCmSection = renderOverviewKpiCmSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod);
   const kpiCards = `
   <div class="kpi-grid">
     <div class="kpi-card">
@@ -1730,29 +1599,26 @@ function renderOverview(){
 
   let table = `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">📊</div>Doanh Thu Theo AM</div><span class="badge">Tháng ${thangLabel} · ${elapsed}/${totalDays} ngày</span></div>
   <div class="table-wrap"><table class="tbl-pro"><thead><tr>
-    <th style="width:48px">#</th><th>AM</th><th class="num">MTD</th><th class="num">DT GTC</th><th class="num">Volume MTD</th><th class="num">KPI Vùng CK</th><th class="num">% Đạt Vùng</th><th class="num">KPI Vùng</th><th class="num">KPI CM CK</th><th class="num">% Đạt CM</th><th class="num">% GTC/CM</th><th class="num">Dự kiến</th><th class="num">% DK/Vùng</th>
+    <th style="width:48px">#</th><th>AM</th><th class="num">MTD</th><th class="num">Volume MTD</th><th class="num">KPI Vùng CK</th><th class="num">% Đạt Vùng</th><th class="num">KPI Vùng</th><th class="num">KPI CM CK</th><th class="num">% Đạt CM</th><th class="num">Dự kiến</th><th class="num">% DK/Vùng</th>
   </tr></thead><tbody>`;
   rows.forEach((r,i)=>{
     table += `<tr><td><span class="rank-num${i<3?' top3':''}">${i+1}</span></td><td><span class="lbl-name">${r.am}</span></td>
       <td class="num">${fmtVndCell(r.actual)}</td>
-      <td class="num">${r.gtc?fmtVndCell(r.gtc):'<span class="empty-val">—</span>'}</td>
       <td class="num">${fmtVolCell(r.vol)}</td>
       <td class="num">${r.kpiVungPeriod?fmtVndCell(r.kpiVungPeriod):'<span class="empty-val">—</span>'}</td>
       <td class="num">${pctCell(r.ratePeriod)}</td>
       <td class="num">${r.kpiVung?fmtVndCell(r.kpiVung):'<span class="empty-val">—</span>'}</td>
       <td class="num">${r.kpiCmPeriod?fmtVndCell(r.kpiCmPeriod):'<span class="empty-val">—</span>'}</td>
       <td class="num">${r.kpiCm?pctCell(r.rateCmPeriod):'<span class="empty-val">—</span>'}</td>
-      <td class="num">${r.kpiCm?pctCell(r.rateGtcCmPeriod):'<span class="empty-val">—</span>'}</td>
       <td class="num">${fmtVndCell(r.projected)}</td>
       <td class="num">${r.kpiVung?pctCell(r.projRateVung):'<span class="empty-val">—</span>'}</td>
     </tr>`;
   });
   table += `<tr class="tot"><td></td><td>TỔNG VÙNG TNT</td>
-    <td class="num">${fmtVndCell(totalActual)}</td><td class="num">${fmtVndCell(totalGtc)}</td><td class="num">${fmtVolCell(totalVol)}</td><td class="num">${fmtVndCell(totalKPIPeriod)}</td>
+    <td class="num">${fmtVndCell(totalActual)}</td><td class="num">${fmtVolCell(totalVol)}</td><td class="num">${fmtVndCell(totalKPIPeriod)}</td>
     <td class="num"><span class="pct-pill ${pctClass(rateTotal)}">${rateTotal.toFixed(0)}%</span></td>
     <td class="num">${fmtVndCell(totalKpiVung)}</td><td class="num">${fmtVndCell(totalKpiCmPeriod)}</td>
     <td class="num">${kpiCmHasData?`<span class="pct-pill ${pctClass(pct(totalActual,totalKpiCmPeriod))}">${pct(totalActual,totalKpiCmPeriod).toFixed(0)}%</span>`:'—'}</td>
-    <td class="num">${kpiCmHasData?`<span class="pct-pill ${pctClass(pct(totalGtc,totalKpiCmPeriod))}">${pct(totalGtc,totalKpiCmPeriod).toFixed(0)}%</span>`:'—'}</td>
     <td class="num">${fmtVndCell(totalProjected)}</td>
     <td class="num"><span class="pct-pill ${pctClass(projRateTotal)}">${projRateTotal.toFixed(0)}%</span></td></tr>`;
   table += `</tbody></table></div>`;
@@ -1761,14 +1627,13 @@ function renderOverview(){
     || rows.slice().sort((a,b)=>a.ratePeriod-b.ratePeriod)[0];
   const best = rows.filter(r=>r.kpiCm>0).slice().sort((a,b)=>b.rateCmPeriod-a.rateCmPeriod)[0]
     || rows.slice().sort((a,b)=>b.ratePeriod-a.ratePeriod)[0];
-  table += analysisQuick(`
-    Qua ${elapsed}/${totalDays} ngày, vùng đạt <b>${fmtVnd(totalActual)}</b>
+  table += `<div class="analysis-box">
+    <b>Nhận định nhanh:</b> Qua ${elapsed}/${totalDays} ngày, vùng đạt <b>${fmtVnd(totalActual)}</b>
     (<b>${rateTotal.toFixed(0)}%</b> KPI Vùng cùng kỳ · <b>${kpiCmHasData?pct(totalActual,totalKpiCmPeriod).toFixed(0)+'%':'—'}</b> KPI CM cùng kỳ).
-    GTC MTD <b>${fmtVnd(totalGtc)}</b> (${kpiCmHasData?pct(totalGtc,totalKpiCmPeriod).toFixed(0)+'%':'—'} KPI CM CK).
     Dự kiến cuối tháng <b>${fmtVnd(totalProjected)}</b> (${projRateTotal.toFixed(0)}% KPI Vùng).
     Dẫn đầu: <b>${best?best.am:'—'}</b> · Cần hỗ trợ: <b>${worst?worst.am:'—'}</b>.
     ${!kpiCmHasData ? '<br><span class="lbl-sub">⚠️ Chưa có cột KPI CM trong sheet KPI AM.</span>' : ''}
-  `);
+  </div>`;
   table += `</div>`;
 
   const { recs: pnRecs } = parsePhanNhomRecs(phanNhom);
@@ -1790,22 +1655,22 @@ function renderOverview(){
   ${chartSection}
   ${slkhSection}
   ${hangSection}
-  <div class="foot-note">Nguồn: "Kết Quả" · "KPI AM" · "${SHEET.doanhThuGTC}" · "${SHEET.dtThang2025}" · "${SHEET.dtThang2026}" · Đơn vị DT: triệu đồng.</div>`;
+  <div class="foot-note">Nguồn: "Kết Quả" · "KPI AM" · "${SHEET.dtThang2025}" · "${SHEET.dtThang2026}" · Đơn vị DT: triệu đồng.</div>`;
   drawOverviewCharts(dtThangRecs, monthProgress);
 }
 
-/* ===================== 2) AM GIẢM DOANH THU — CÙNG KỲ TUẦN ===================== */
+/* ===================== 2) AM GIẢM DOANH THU — TUẦN HIỆN TẠI VS TUẦN TRƯỚC ===================== */
 function renderDecline(){
   const el = document.getElementById('decline');
   const { dtNgay } = window._DATA;
   if(!dtNgay || dtNgay.length<2){ el.innerHTML = '<div class="data-banner err">Không có dữ liệu sheet DT-Ngày.</div>'; return; }
   const thang = currentThang();
   const thangLabel = formatThangLabel(thang);
-  const { weekCur, weekPrev, rows, all, daysUsed, spanDates, spanPrev } = buildAmWeekDecline(dtNgay, thang, 20);
+  const { weekCur, weekPrev, rows, all } = buildAmWeekDecline(dtNgay, thang, 20);
 
   if(!weekCur || !weekPrev){
     el.innerHTML = `
-    <div class="page-header"><div><div class="page-title">AM Giảm Doanh Thu</div><div class="page-sub">So sánh cùng kỳ tuần hiện tại vs tuần trước · <span class="unit-note">triệu đồng</span></div></div></div>
+    <div class="page-header"><div><div class="page-title">AM Giảm Doanh Thu</div><div class="page-sub">So sánh tuần hiện tại vs tuần trước · <span class="unit-note">triệu đồng</span></div></div></div>
     <div class="data-banner">📅 Chưa đủ 2 tuần dữ liệu trong tháng <b>${thangLabel}</b> (tính từ cột <b>Ngay</b>) để so sánh tuần.</div>
     <div class="foot-note">Nguồn: sheet "DT-Ngày" (gid=${GID.dtNgay}).</div>`;
     return;
@@ -1813,55 +1678,41 @@ function renderDecline(){
 
   const declined = rows;
   const improved = (all||[]).filter(r=>r.prev>0&&r.pctW>-20).sort((a,b)=>b.pctW-a.pctW);
-  const spanLbl = spanDates&&spanDates.length
-    ? `${isoShort2(spanDates[0])}–${isoShort2(spanDates[spanDates.length-1])}`
-    : `${daysUsed||'?'} ngày`;
-  const prevLbl = spanPrev&&spanPrev.length
-    ? `${isoShort2(spanPrev[0])}–${isoShort2(spanPrev[spanPrev.length-1])}`
-    : 'cùng kỳ';
-  const hdrPrev = `${weekLabelShort(weekPrev)} CK`;
-  const hdrCur = `${weekLabelShort(weekCur)}`;
 
-  let body = `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--red)">⚠️</div>AM Giảm &gt;20% So Với Cùng Kỳ Tuần Trước</div><span class="badge">${weekLabelShort(weekPrev)} → ${weekLabelShort(weekCur)} · ${daysUsed} ngày</span></div>`;
+  let body = `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--red)">⚠️</div>AM Giảm &gt;20% So Với Tuần Trước</div><span class="badge">${weekLabelShort(weekPrev)} → ${weekLabelShort(weekCur)}</span></div>`;
   if(!declined.length){
-    body += `<div class="section-note">✅ Không có AM nào giảm doanh thu &gt;20% so với cùng kỳ tuần trước (${daysUsed} ngày).</div>`;
-    body += analysisQuick(`So sánh <b>${daysUsed} ngày</b> cùng kỳ (${spanLbl} vs ${prevLbl}). Không có AM giảm &gt;20%.`);
+    body += `<div class="section-note">✅ Không có AM nào giảm doanh thu &gt;20% so với tuần trước.</div>`;
   } else {
-    body += `<div class="table-wrap"><table class="tbl-pro"><thead><tr><th style="width:48px">#</th><th>AM</th><th class="num">${hdrPrev}</th><th class="num">${hdrCur}</th><th class="num">Chênh lệch</th><th class="num">%</th></tr></thead><tbody>`;
+    body += `<div class="table-wrap"><table class="tbl-pro"><thead><tr><th style="width:48px">#</th><th>AM</th><th class="num">${weekLabelShort(weekPrev)}</th><th class="num">${weekLabelShort(weekCur)}</th><th class="num">Chênh lệch</th><th class="num">%</th></tr></thead><tbody>`;
     declined.forEach((r,i)=>{
       body += `<tr class="row-warn"><td><span class="rank-num">${i+1}</span></td><td><span class="lbl-name">${r.am}</span></td><td class="num">${fmtVndCell(r.prev)}</td><td class="num">${fmtVndCell(r.cur)}</td>
         <td class="num"><span class="trend-tag down">▼ ${fmtM(Math.abs(r.delta))} tr</span></td><td class="num"><span class="trend-tag down">${r.pctW.toFixed(0)}%</span></td></tr>`;
     });
     body += `</tbody></table></div>`;
-    body += analysisQuick(`<b>${declined.length}</b> AM giảm &gt;20% · cùng kỳ <b>${daysUsed} ngày</b> (${spanLbl} vs ${prevLbl}). Giảm mạnh nhất: <b>${declined[0].am}</b> (${declined[0].pctW.toFixed(0)}%).`);
+    body += `<div class="analysis-box"><b>${declined.length}</b> AM giảm &gt;20% tuần ${weekLabelShort(weekCur)} vs ${weekLabelShort(weekPrev)}. Giảm mạnh nhất: <b>${declined[0].am}</b> (${declined[0].pctW.toFixed(0)}%).</div>`;
   }
   body += `</div>`;
 
-  body += `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--green)">✅</div>AM Tăng / Ổn Định (cùng kỳ)</div><span class="badge">${daysUsed} ngày</span></div>
-  <div class="table-wrap"><table class="tbl-pro"><thead><tr><th style="width:48px">#</th><th>AM</th><th class="num">${hdrPrev}</th><th class="num">${hdrCur}</th><th class="num">%</th></tr></thead><tbody>`;
+  body += `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--green)">✅</div>AM Tăng / Ổn Định (tuần)</div></div>
+  <div class="table-wrap"><table class="tbl-pro"><thead><tr><th style="width:48px">#</th><th>AM</th><th class="num">${weekLabelShort(weekPrev)}</th><th class="num">${weekLabelShort(weekCur)}</th><th class="num">%</th></tr></thead><tbody>`;
   improved.forEach((r,i)=>{
     body += `<tr><td><span class="rank-num">${i+1}</span></td><td><span class="lbl-name">${r.am}</span></td><td class="num">${fmtVndCell(r.prev)}</td><td class="num">${fmtVndCell(r.cur)}</td><td class="num"><span class="trend-tag ${r.pctW<0?'up':'down'}">${r.pctW.toFixed(0)}%</span></td></tr>`;
   });
-  body += `</tbody></table></div>`;
-  const bestUp = improved.filter(r=>r.pctW>0)[0];
-  body += analysisQuick(bestUp
-    ? `<b>${improved.length}</b> AM tăng/ổn định (≥ −20%). Dẫn đầu tăng: <b>${bestUp.am}</b> (+${bestUp.pctW.toFixed(0)}%).`
-    : `<b>${improved.length}</b> AM không giảm quá 20% trên cùng kỳ ${daysUsed} ngày.`);
-  body += `</div>`;
+  body += `</tbody></table></div></div>`;
 
   el.innerHTML = `
-  <div class="page-header"><div><div class="page-title">AM Giảm Doanh Thu</div><div class="page-sub">Cùng kỳ tuần hiện tại vs tuần trước · không so tổng tuần thiếu ngày · <span class="unit-note">triệu đồng</span></div></div></div>
-  <div class="data-banner">📅 Tháng <b>${thangLabel}</b> · So sánh cùng kỳ <b>${daysUsed} ngày</b>: <b>${spanLbl}</b> (${weekLabelShort(weekCur)}) vs <b>${prevLbl}</b> (${weekLabelShort(weekPrev)}).</div>
+  <div class="page-header"><div><div class="page-title">AM Giảm Doanh Thu</div><div class="page-sub">Tuần hiện tại vs tuần trước · Ngay → ISO tuần · <span class="unit-note">triệu đồng</span></div></div></div>
+  <div class="data-banner">📅 Tháng <b>${thangLabel}</b> · So sánh <b>${weekLabelShort(weekPrev)}</b> → <b>${weekLabelShort(weekCur)}</b> (tính từ cột Ngay, vd. <code>2026-07-11</code>).</div>
   ${body}
-  <div class="foot-note">Nguồn: sheet "DT-Ngày" (gid=${GID.dtNgay}). Ngưỡng cảnh báo: giảm &gt;20% so với cùng kỳ tuần liền trước (T2 → ngày mới nhất tuần hiện tại).</div>`;
+  <div class="foot-note">Nguồn: sheet "DT-Ngày" (gid=${GID.dtNgay}). Ngưỡng cảnh báo: giảm &gt;20% so với tuần liền trước.</div>`;
 }
 
-/* ===================== 3) PHÂN NHÓM KHÁCH HÀNG THEO AM — 3 NGÀY (TotalKH) ===================== */
+/* ===================== 3) PHÂN NHÓM KHÁCH HÀNG THEO AM — 3 NGÀY THEO NGÀY ===================== */
 function renderSegment(){
   const el = document.getElementById('segment');
-  const { totalKH } = window._DATA;
-  if(!totalKH || totalKH.length<2){ el.innerHTML = `<div class="data-banner err">Không có dữ liệu sheet ${SHEET.totalKH}.</div>`; return; }
-  const { recs, maxDate } = parseTotalKHNhomRecs(totalKH);
+  const { phanNhom } = window._DATA;
+  if(!phanNhom || phanNhom.length<2){ el.innerHTML = '<div class="data-banner err">Không có dữ liệu sheet PHÂN NHÓM KHÁCH HÀNG.</div>'; return; }
+  const { recs, maxDate } = parsePhanNhomRecs(phanNhom);
 
   const allDates = [...new Set(recs.map(r=>r.ngay))].sort();
   const last3 = allDates.slice(-3);
@@ -1870,8 +1721,6 @@ function renderSegment(){
   const dayHdr = last3.map(d=>`<th class="num">${isoShort2(d)}</th>`).join('');
 
   let body = '';
-  let regionTot = 0;
-  const amTotals = [];
   ams.forEach((am,ai)=>{
     const amRecs = recs.filter(r=>r.am===am&&set3.has(r.ngay));
     body += `<div class="card am-block"><div class="am-title">${ai+1}. ${am}</div>
@@ -1892,47 +1741,42 @@ function renderSegment(){
     });
     const totCells = last3.map(d=>`<td class="num">${fmtVndCell(totByDay[d])}</td>`).join('');
     body += `<tr class="tot"><td>Tổng</td>${totCells}<td class="num">${fmtVndCell(totAll)}</td></tr>`;
-    body += `</tbody></table></div>`;
-    body += analysisQuick(`AM <b>${am}</b>: tổng 3N <b>${fmtVnd(totAll)}</b>.`);
-    body += `</div>`;
-    regionTot += totAll;
-    amTotals.push({am, tot: totAll});
+    body += `</tbody></table></div></div>`;
   });
-  const topAm = amTotals.slice().sort((a,b)=>b.tot-a.tot)[0];
 
+  const isStale = maxDate && (new Date()-new Date(maxDate+'T00:00:00'))/86400000>5;
   el.innerHTML = `
   <div class="page-header"><div><div class="page-title">Phân Nhóm Khách Hàng</div><div class="page-sub">Theo AM · 3 ngày gần nhất · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
-  ${nhomStaleBanner(maxDate, SHEET.totalKH)}
-  <div class="data-banner" style="margin-top:0">📊 3 ngày gần nhất (cột <b>Ngày chuẩn hóa</b>): <b>${last3.map(isoShort2).join(' · ')||'—'}</b></div>
+  ${nhomStaleBanner(maxDate)}
+  <div class="data-banner" style="margin-top:0">📊 3 ngày gần nhất: <b>${last3.map(isoShort2).join(' · ')||'—'}</b></div>
   ${body||'<div class="data-banner">Không có dữ liệu 3 ngày gần nhất.</div>'}
-  ${topAm?analysisQuick(`Toàn vùng 3N: <b>${fmtVnd(regionTot)}</b> · AM dẫn đầu: <b>${topAm.am}</b> (${fmtVnd(topAm.tot)}).`):''}
-  <div class="foot-note">Nguồn: sheet "${SHEET.totalKH}" · cột Ngày chuẩn hóa (vd. 12/07/2026).</div>`;
+  <div class="foot-note">Nguồn: sheet "PHÂN NHÓM KHÁCH HÀNG" (gid=${GID.phanNhom}).</div>`;
 }
 
 /* ===================== 3b) DOANH THU THEO NHÓM KHÁCH HÀNG ===================== */
 function renderNhomKH(){
   const el = document.getElementById('nhomKH');
-  const { totalKH } = window._DATA;
-  if(!totalKH || totalKH.length<2){ el.innerHTML = `<div class="data-banner err">Không có dữ liệu sheet ${SHEET.totalKH}.</div>`; return; }
-  const { recs, maxDate } = parseTotalKHNhomRecs(totalKH);
+  const { phanNhom } = window._DATA;
+  if(!phanNhom || phanNhom.length<2){ el.innerHTML = '<div class="data-banner err">Không có dữ liệu sheet PHÂN NHÓM KHÁCH HÀNG.</div>'; return; }
+  const { recs, maxDate } = parsePhanNhomRecs(phanNhom);
   el.innerHTML = `
-  <div class="page-header"><div><div class="page-title">Doanh Thu Theo Nhóm Khách Hàng</div><div class="page-sub">Tổng vùng &amp; theo AM · 3 ngày gần nhất từ <b>${SHEET.totalKH}</b> · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
-  ${nhomStaleBanner(maxDate, SHEET.totalKH)}
+  <div class="page-header"><div><div class="page-title">Doanh Thu Theo Nhóm Khách Hàng</div><div class="page-sub">Tổng vùng &amp; theo AM · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
+  ${nhomStaleBanner(maxDate)}
   ${renderNhomKHCard(recs, maxDate)}
-  <div class="foot-note">Nguồn: sheet "${SHEET.totalKH}" · cột Ngày chuẩn hóa (vd. 12/07/2026, 21/06/2026).</div>`;
+  <div class="foot-note">Nguồn: sheet "PHÂN NHÓM KHÁCH HÀNG" (gid=${GID.phanNhom}).</div>`;
 }
 
 /* ===================== 3c) DOANH THU KHÁCH HÀNG THEO TỈNH ===================== */
 function renderDtTinh(){
   const el = document.getElementById('dtTinh');
-  const { totalKH } = window._DATA;
-  if(!totalKH || totalKH.length<2){ el.innerHTML = `<div class="data-banner err">Không có dữ liệu sheet ${SHEET.totalKH}.</div>`; return; }
-  const { recs, maxDate } = parseTotalKHNhomRecs(totalKH);
+  const { phanNhom } = window._DATA;
+  if(!phanNhom || phanNhom.length<2){ el.innerHTML = '<div class="data-banner err">Không có dữ liệu sheet PHÂN NHÓM KHÁCH HÀNG.</div>'; return; }
+  const { recs, maxDate } = parsePhanNhomRecs(phanNhom);
   el.innerHTML = `
   <div class="page-header"><div><div class="page-title">Doanh Thu Khách Hàng Theo Tỉnh</div><div class="page-sub">Phân nhóm KH theo tỉnh · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
-  ${nhomStaleBanner(maxDate, SHEET.totalKH)}
+  ${nhomStaleBanner(maxDate)}
   ${renderNhomTinhCard(recs, maxDate)}
-  <div class="foot-note">Nguồn: sheet "${SHEET.totalKH}" · cột Ngày chuẩn hóa.</div>`;
+  <div class="foot-note">Nguồn: sheet "PHÂN NHÓM KHÁCH HÀNG" (gid=${GID.phanNhom}).</div>`;
 }
 
 /* ===================== 4) NHÓM A — PHÂN TÍCH KHÁCH HÀNG ===================== */
@@ -2021,7 +1865,6 @@ function renderNhomA(){
     tableCur += `<tr class="tot"><td></td><td colspan="3">TỔNG ${activeCur.length} KH</td>
       <td class="num">${fmtVndCell(totalDtCur)}</td><td class="num">${fmtVolCell(activeCur.reduce((s,r)=>s+r.volCur,0))}</td><td></td></tr>`;
     tableCur += `</tbody></table></div>`;
-    tableCur += analysisQuick(`<b>${activeCur.length}</b> KH nhóm A có DT tháng <b>${thangCurLabel}</b> · tổng <b>${fmtVnd(totalDtCur)}</b>. Top: <b>${activeCur[0]?activeCur[0].ten:'—'}</b>.`);
   }
   tableCur += `</div>`;
 
@@ -2040,7 +1883,7 @@ function renderNhomA(){
         <td class="num">${fmtVndCell(r.dtCur)}</td><td>${r.lastPrev?isoShort2(r.lastPrev):'—'}</td></tr>`;
     });
     tableChurn += `</tbody></table></div>`;
-    tableChurn += analysisQuick(`Các KH trên có doanh thu tháng <b>${thangPrevLabel}</b> nhưng <b>chưa có DT</b> trong tháng <b>${thangCurLabel}</b> · <b>${churnRows.length}</b> KH cần đôn đốc.`);
+    tableChurn += `<div class="analysis-box">Các KH trên có doanh thu tháng <b>${thangPrevLabel}</b> (tính từ cột <b>Ngay</b>, vd. <code>2026-06-15</code>) nhưng <b>chưa có DT</b> trong tháng <b>${thangCurLabel}</b>.</div>`;
   }
   tableChurn += `</div>`;
 

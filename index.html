@@ -68,6 +68,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 table.tbl-pro{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
 table.tbl-pro th{padding:11px 16px;text-align:left;font-weight:600;font-size:11px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap;background:#F8FAFC;position:sticky;top:0;z-index:2}
+table.tbl-pro th .ck{display:block;font-style:italic;font-weight:500;text-transform:none;letter-spacing:0;font-size:10px;color:var(--text-muted);margin-top:2px}
+.kpi-card .lbl .ck{display:block;font-style:italic;font-weight:500;color:var(--text-muted);margin-top:2px}
 table.tbl-pro th.num{text-align:right}
 table.tbl-pro th.grp-hdr{text-align:center;background:#EFF6FF;color:var(--blue-dark);font-size:10px;letter-spacing:.6px;border-bottom:1px solid var(--blue-mid)}
 table.tbl-pro td{padding:12px 16px;border-bottom:1px solid var(--border-light);vertical-align:middle}
@@ -143,6 +145,8 @@ table.tbl-pro.compact td,table.tbl-pro.compact th{padding:8px 12px;font-size:12p
 .chart-box .chart-title{font-size:14px;font-weight:700;margin-bottom:4px;color:var(--ink);letter-spacing:-.2px}
 .chart-box .chart-sub{font-size:11px;color:var(--text-muted);margin-bottom:16px}
 .chart-wrap{position:relative;height:300px}
+.chart-wrap.tall{height:360px}
+.chart-box.full{margin-bottom:20px}
 .rank-num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;background:#F1F5F9;color:var(--text-sub);font-size:11px;font-weight:700}
 .rank-num.top3{background:var(--blue-light);color:var(--blue-dark)}
 @media(max-width:900px){.sidebar{display:none}.main{margin-left:0;padding:20px 16px 48px}}
@@ -194,7 +198,7 @@ const SHEET = {
   dtThang2025: 'DT-Tháng2025',  // Doanh thu 2025 — fetch theo tên sheet
   dtThang2026: 'DT-Tháng',       // Doanh thu 2026 — sheet bổ sung (vd. 2026/6 + 2026/06)
   doanhThuGTC: 'DoanhThu-GTC',    // Doanh thu GTC — cấu trúc giống DT-Tháng
-  totalKH: 'TotalKH'               // Chi tiết KH theo nhóm — tính tiềm năng lên A
+  totalKH: 'TotalKH'               // Chi tiết KH theo nhóm (alias: KHTotal)
 };
 const NHOM_A_DT_NGUONG = 45e6;   // Ngưỡng nhóm A: 45 triệu đồng / tháng
 const VUNG_NAME = 'Vùng TNT';
@@ -297,7 +301,11 @@ function weekKeyFromNgayCell(s){
   return isoWeekFromIsoDate(iso).key;
 }
 function sortedWeekKeys(keys){
-  return [...new Set(keys.filter(Boolean))].sort((a,b)=>weekSortKeyIso(a)-weekSortKeyIso(b));
+  const list=keys==null?[]:(Array.isArray(keys)?keys:Array.from(keys));
+  return [...new Set(list.filter(Boolean))].sort((a,b)=>weekSortKeyIso(a)-weekSortKeyIso(b));
+}
+function uniqueList(arr){
+  return [...new Set((arr||[]).filter(v=>v!=null&&v!==''))];
 }
 function wowCountText(cur,prev){
   if(!prev&&!cur) return '—';
@@ -367,82 +375,182 @@ function idxNgayChuanHoa(header){
   if(exact>=0) return exact;
   return header.findIndex(h=>/chu[aẩ]n\s*h[oó]a/i.test((h||'').trim()));
 }
+/** Lấy ngày ISO từ TotalKH: ưu tiên Ngày chuẩn hóa; nếu trống → cột Ngay (vd. "12 thg 7. 2026"). */
+function resolveSheetNgayIso(r, iNgayChuan, iNgay){
+  if(iNgayChuan!=null && iNgayChuan>=0){
+    const a=normalizeNgayToIso(r[iNgayChuan]);
+    if(a) return a;
+  }
+  if(iNgay!=null && iNgay>=0){
+    const b=normalizeNgayToIso(r[iNgay]);
+    if(b) return b;
+  }
+  return '';
+}
 function weekdayVi(iso){
   if(!iso) return '—';
   return ['CN','T2','T3','T4','T5','T6','T7'][new Date(iso+'T12:00:00').getDay()];
 }
-function parseKhNhomAWeekly(khNhomA, thang){
-  if(!khNhomA||khNhomA.length<2) return null;
-  const h=khNhomA[0];
-  const iMa=idxOf(h,'MaKH'), iTen=idxOf(h,'TenKH'), iNgay=idxOf(h,'Ngay');
-  const iAMk=idxAMCol(h)>=0?idxAMCol(h):22;
-  let iDT=idxOfNth(h,'% Doanh thu đạt được so với MTD',3);
-  if(iDT<0) iDT=14;
+function parseKhNhomAWeekly(totalKH, thang, monthProgress, dtNgay){
+  if(!totalKH||totalKH.length<2) return null;
+  const h=totalKH[0];
+  const iMa=idxOf(h,'MaKH'), iTen=idxOf(h,'TenKH'), iNhom=idxOf(h,'Nhom'), iVung=idxOf(h,'Vung');
+  const iNgayChuan=idxNgayChuanHoa(h);
+  const iNgay=idxOf(h,'Ngay');
+  const iDT=idxOf(h,'DT'), iMtd=idxOf(h,'MTD');
+  const iAM=idxOf(h,'AM Chuẩn');
+  const iVol=idxVolumeCol(h);
+  const iAov=idxAovCol(h);
   let maxIso='';
-  for(let i=1;i<khNhomA.length;i++){
-    const iso=normalizeNgayToIso(khNhomA[i][iNgay]);
+  for(let i=1;i<totalKH.length;i++){
+    const r=totalKH[i];
+    if(iVung>=0 && (r[iVung]||'').trim() && !isVungTnt(r[iVung])) continue;
+    if(normNhom(r[iNhom])!=='A') continue;
+    const iso=resolveSheetNgayIso(r, iNgayChuan, iNgay);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)) continue;
     const mk=monthKeyFromIso(iso);
     if(mk&&thangEq(mk,thang)&&iso>maxIso) maxIso=iso;
   }
   if(!maxIso) return null;
+
+  const p=parseThang(thang)||parseThang(monthKeyFromIso(maxIso));
+  const totalDays=(monthProgress&&monthProgress.totalDays)||(p?daysInMonth(p.y,p.m):31);
+  const dayNum=+maxIso.slice(8,10);
+  const elapsed=Math.min(Math.max((monthProgress&&monthProgress.elapsed)||dayNum,1), totalDays);
+
   const dayCur=maxIso;
   const dayPrev=isoShiftDays(maxIso,-7);
   const dayPrev2=isoShiftDays(maxIso,-14);
-  const needDays=new Set([dayCur,dayPrev,dayPrev2]);
+  const windowStart=isoShiftDays(maxIso,-20);
+  const last5=isoEachDay(isoShiftDays(maxIso,-4), maxIso);
+  const last7=isoEachDay(isoShiftDays(maxIso,-6), maxIso);
+  const last5Prev=isoEachDay(isoShiftDays(dayPrev,-4), dayPrev);
+  const last7Prev=isoEachDay(isoShiftDays(dayPrev,-6), dayPrev);
+  const needDays=new Set([dayCur,dayPrev,dayPrev2,...last5,...last7,...last5Prev,...last7Prev]);
+
+  /** DT ngày TotalKH đôi khi lệch đơn vị (~×1000); chặn để nhận diện có/không lên đơn. */
+  const dayDt=raw=>{
+    const d=+raw||0;
+    if(d>200e6) return d/1000;
+    return d;
+  };
+
   const monthCust=new Set();
   const byCust={};
-  for(let i=1;i<khNhomA.length;i++){
-    const r=khNhomA[i];
+  for(let i=1;i<totalKH.length;i++){
+    const r=totalKH[i];
+    if(iVung>=0 && (r[iVung]||'').trim() && !isVungTnt(r[iVung])) continue;
+    if(normNhom(r[iNhom])!=='A') continue;
     const ma=(r[iMa]||'').trim();
-    const iso=normalizeNgayToIso(r[iNgay]);
+    const iso=resolveSheetNgayIso(r, iNgayChuan, iNgay);
     if(!ma||!/^\d{4}-\d{2}-\d{2}$/.test(iso)) continue;
     const mk=monthKeyFromIso(iso);
     const inMonth=!!(mk&&thangEq(mk,thang));
     if(inMonth) monthCust.add(ma);
-    if(!inMonth&&!needDays.has(iso)) continue;
-    const dt=parseVNNum(r[iDT]);
-    if(!byCust[ma]) byCust[ma]={ma,ten:(r[iTen]||'').trim(),am:(r[iAMk]||'').trim(),dates:{},dtMonth:0,lastIso:''};
+    if(!inMonth && iso<windowStart) continue;
+    if(!inMonth && !needDays.has(iso) && iso>maxIso) continue;
+    const mtd=iMtd>=0?parseMtdNum(r[iMtd]):0;
+    const dt=dayDt(parseVNNum(r[iDT]));
+    const rv=resolveRowVolume(dt, iVol>=0?parseVNNum(r[iVol]):0, iAov>=0?parseVNNum(r[iAov]):0);
+    if(!byCust[ma]) byCust[ma]={ma,ten:(r[iTen]||'').trim(),am:(iAM>=0?(r[iAM]||'').trim():''),dates:{},vols:{},mtd:0,maxNgay:'',lastIso:''};
     byCust[ma].ten=(r[iTen]||'').trim()||byCust[ma].ten;
-    byCust[ma].am=(r[iAMk]||'').trim()||byCust[ma].am;
-    if(iso>=byCust[ma].lastIso) byCust[ma].lastIso=iso;
+    byCust[ma].am=(iAM>=0?(r[iAM]||'').trim():'')||byCust[ma].am;
+    if(inMonth && iso>=(byCust[ma].maxNgay||'')){
+      byCust[ma].maxNgay=iso;
+      if(mtd>0) byCust[ma].mtd=mtd;
+    }
+    if(dt>0 && iso>=(byCust[ma].lastIso||'')) byCust[ma].lastIso=iso;
     byCust[ma].dates[iso]=(byCust[ma].dates[iso]||0)+dt;
-    if(inMonth) byCust[ma].dtMonth+=dt;
+    byCust[ma].vols[iso]=(byCust[ma].vols[iso]||0)+(rv.vol||0);
   }
+
   const weekCur=isoWeekFromIsoDate(dayCur).key;
   const weekPrev=isoWeekFromIsoDate(dayPrev).key;
+  const elapsedPrev=Math.min(Math.max(+dayPrev.slice(8,10)||1,1), totalDays);
+
   const rows=[...monthCust].map(ma=>{
-    const c=byCust[ma]||{ma,ten:'',am:'',dates:{},dtMonth:0,lastIso:''};
+    const c=byCust[ma]||{ma,ten:'',am:'',dates:{},vols:{},mtd:0,maxNgay:'',lastIso:''};
+    // DT tháng ưu tiên cột MTD (ổn định); fallback tổng DT ngày đã chuẩn hóa
+    let dtMonthDays=0;
+    Object.keys(c.dates).forEach(iso=>{
+      const mk=monthKeyFromIso(iso);
+      if(mk&&thangEq(mk,thang)) dtMonthDays+=c.dates[iso];
+    });
+    const dtMonth=(c.mtd>0?c.mtd:dtMonthDays);
     const dtCur=c.dates[dayCur]||0;
     const dtPrev=c.dates[dayPrev]||0;
     const dtPrev2=c.dates[dayPrev2]||0;
     const pctW=dtPrev>0?(dtCur-dtPrev)/dtPrev*100:(dtCur>0?100:0);
     const noRevWeek=dtCur===0&&dtPrev>0;
     const drop30=dtPrev>0&&dtCur>0&&pctW<=-30;
-    const alert=noRevWeek||drop30;
-    const giamHang=drop30||noRevWeek;
+    const alertWow=noRevWeek||drop30;
     const wasGiamPrev=dtPrev2>0&&((dtPrev===0)||(dtPrev>0&&((dtPrev-dtPrev2)/dtPrev2)<=-30));
-    return {...c,dtMonth:c.dtMonth,dtCur,dtPrev,dtPrev2,pctW,noRevWeek,drop30,giamHang,alert,wasGiamPrev,lastIso:c.lastIso||dayCur,dayCur,dayPrev};
+
+    // Giảm hạng: DT TB các ngày đã qua × tổng ngày tháng < 45 tr
+    const avgDaily=dtMonth/elapsed;
+    const projected=avgDaily*totalDays;
+    const giamHang=projected<NHOM_A_DT_NGUONG;
+
+    let dtMonthPrev=0;
+    Object.keys(c.dates).forEach(iso=>{
+      const mk=monthKeyFromIso(iso);
+      if(mk&&thangEq(mk,thang)&&iso<=dayPrev) dtMonthPrev+=c.dates[iso];
+    });
+    // Nếu có MTD và đang ở cuối cửa sổ, ước MTD tại mốc −7 theo tỷ lệ ngày
+    if(c.mtd>0 && elapsed>elapsedPrev){
+      const ratio=elapsedPrev/elapsed;
+      dtMonthPrev=Math.max(dtMonthPrev, c.mtd*ratio);
+    }
+    const projectedPrev=(dtMonthPrev/elapsedPrev)*totalDays;
+    const giamHangPrev=projectedPrev<NHOM_A_DT_NGUONG;
+
+    const dtLast5=sumDtOnDays(c.dates, last5);
+    const dtLast7=sumDtOnDays(c.dates, last7);
+    const dtLast5Prev=sumDtOnDays(c.dates, last5Prev);
+    const dtLast7Prev=sumDtOnDays(c.dates, last7Prev);
+    const nguyCo=dtLast5===0;
+    const nguyCoWas=dtLast5Prev===0;
+    const churn7=dtLast7===0;
+    const churn7Prev=dtLast7Prev===0;
+
+    return {
+      ...c, dtMonth, dtCur, dtPrev, dtPrev2, pctW,
+      noRevWeek, drop30, alert:alertWow, alertWow, wasGiamPrev,
+      avgDaily, projected, giamHang, giamHangPrev,
+      dtLast5, dtLast7, nguyCo, nguyCoWas, churn7, churn7Prev,
+      lastIso:c.lastIso||'', dayCur, dayPrev, elapsed, totalDays
+    };
   });
+
   const coDonMonth=rows.filter(r=>r.dtMonth>0).length;
   const coDonWeekCur=rows.filter(r=>r.dtCur>0).length;
   const coDonWeekPrev=rows.filter(r=>r.dtPrev>0).length;
   const giamHang=rows.filter(r=>r.giamHang).length;
-  const giamHangPrev=rows.filter(r=>r.wasGiamPrev).length;
-  const nguyCo=rows.filter(r=>r.alert).length;
-  const nguyCoPrev=rows.filter(r=>r.wasGiamPrev).length;
-  const churnRows=rows.filter(r=>r.alert).sort((a,b)=>{
+  const giamHangPrev=rows.filter(r=>r.giamHangPrev).length;
+  const nguyCo=rows.filter(r=>r.nguyCo).length;
+  const nguyCoPrev=rows.filter(r=>r.nguyCoWas).length;
+  const alertRows=rows.filter(r=>r.alertWow).sort((a,b)=>{
     if(a.noRevWeek!==b.noRevWeek) return a.noRevWeek?-1:1;
     return a.pctW-b.pctW;
   });
+  const churnRows=rows.filter(r=>r.churn7).sort((a,b)=>{
+    const la=a.lastIso||'', lb=b.lastIso||'';
+    if(la!==lb) return la<lb?-1:1;
+    return b.dtMonth-a.dtMonth;
+  });
+  const giamDonRows=rows.filter(r=>r.giamHang&&!r.churn7).sort((a,b)=>a.projected-b.projected);
+
   return {
     weekCur,weekPrev,dayCur,dayPrev,weekday:weekdayVi(dayCur),
+    last5,last7,elapsed,totalDays,
     weeks:[weekPrev,weekCur],total:rows.length,
     coDon:coDonMonth,coDonWeekCur,coDonWeekPrev,
-    giamHang,giamHangPrev,nguyCo,nguyCoPrev,churnRows,
+    giamHang,giamHangPrev,nguyCo,nguyCoPrev,
+    alertRows,churnRows,giamDonRows,
     wowCoDon:wowCountText(coDonWeekCur,coDonWeekPrev),
     wowGiamHang:wowCountText(giamHang,giamHangPrev),
-    wowNguyCo:wowCountText(nguyCo,nguyCoPrev)
+    wowNguyCo:wowCountText(nguyCo,nguyCoPrev),
+    source:'TotalKH'
   };
 }
 function buildAmWeekDecline(dtNgay, thang, thresholdPct){
@@ -473,7 +581,11 @@ function buildAmWeekDecline(dtNgay, thang, thresholdPct){
   if(!weekCur||!weekPrev) return {...empty,weekCur,weekPrev};
 
   // Cùng kỳ: T2 → ngày mới nhất tuần hiện tại, so với cùng các thứ ở tuần trước (−7 ngày)
-  const datesInCur=[...new Set(Object.values(byAMDate).flatMap(m=>Object.keys(m)))]
+  const allIsos=[];
+  Object.keys(byAMDate).forEach(am=>{
+    Object.keys(byAMDate[am]||{}).forEach(iso=>{ allIsos.push(iso); });
+  });
+  const datesInCur=uniqueList(allIsos)
     .filter(iso=>isoWeekFromIsoDate(iso).key===weekCur)
     .sort();
   if(!datesInCur.length) return {...empty,weekCur,weekPrev};
@@ -511,11 +623,155 @@ function renderOverviewWeekSection(breakdown, thangLabel, totalKPI){
   html+=`</div>`;
   return html;
 }
-function buildKhAAlertByAm(khNhomA, thang){
-  const w=parseKhNhomAWeekly(khNhomA, thang);
-  if(!w||!w.churnRows.length) return {weekCur:w?.weekCur||'',weekPrev:w?.weekPrev||'',dayCur:w?.dayCur||'',dayPrev:w?.dayPrev||'',weekday:w?.weekday||'',byAm:[],total:0};
+/** 14 ngày gần nhất: DT LTC theo nhóm A/BCD/EF/G.
+ *  Scale theo DT-Ngày vùng (nếu có) để khớp đơn vị triệu đồng với Tổng quan. */
+function buildNhomDtLastNDays(totalKH, n=14, dtNgay){
+  const empty={labels:[],dates:[],byGrp:{A:[],BCD:[],EF:[],G:[]},maxDate:'',from:'',to:''};
+  const {recs, maxDate}=parseTotalKHNhomRecs(totalKH);
+  if(!maxDate||!recs.length) return empty;
+  const end=new Date(maxDate+'T12:00:00');
+  if(isNaN(end.getTime())) return empty;
+  const dates=[];
+  for(let i=n-1;i>=0;i--){
+    const d=new Date(end);
+    d.setDate(end.getDate()-i);
+    const iso=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    dates.push(iso);
+  }
+  // DT LTC vùng theo ngày (chuẩn đơn vị đồng) — nếu có
+  const dayLtc={};
+  if(dtNgay&&dtNgay.length>1){
+    const h=dtNgay[0], iNgay=idxOf(h,'Ngay'), iDT=idxOf(h,'DoanhThu');
+    if(iNgay>=0&&iDT>=0){
+      for(let i=1;i<dtNgay.length;i++){
+        const r=dtNgay[i];
+        const iso=normalizeNgayToIso(r[iNgay]);
+        if(!iso||!dates.includes(iso)) continue;
+        dayLtc[iso]=(dayLtc[iso]||0)+parseVNNum(r[iDT]);
+      }
+    }
+  }
+  const byDay={};
+  dates.forEach(iso=>{ byDay[iso]={A:0,BCD:0,EF:0,G:0}; });
+  recs.forEach(r=>{
+    if(!byDay[r.ngay]||!NHOM_LABELS.includes(r.grp)) return;
+    byDay[r.ngay][r.grp]+=r.dt||0;
+  });
+  // Scale từng ngày: Tổng 4 nhóm (TotalKH) → khớp DT-Ngày vùng
+  dates.forEach(iso=>{
+    const raw=NHOM_LABELS.reduce((s,g)=>s+(byDay[iso][g]||0),0);
+    const target=dayLtc[iso]||0;
+    if(raw>0 && target>0){
+      const k=target/raw;
+      NHOM_LABELS.forEach(g=>{ byDay[iso][g]=(byDay[iso][g]||0)*k; });
+    }
+  });
+  const byGrp={};
+  NHOM_LABELS.forEach(g=>{
+    byGrp[g]=dates.map(iso=>{
+      const v=byDay[iso][g]||0;
+      return v>0?v/1e6:null;
+    });
+  });
+  return {
+    labels:dates.map(isoShort2),
+    dates, byGrp, maxDate,
+    from:dates[0], to:dates[dates.length-1],
+    scaled:Object.keys(dayLtc).length>0
+  };
+}
+function fmtChartTr(v){
+  if(v==null||isNaN(v)||v===0) return '';
+  if(v>=100) return Math.round(v).toLocaleString('vi-VN')+' tr';
+  if(v>=10) return v.toFixed(0)+' tr';
+  return String(v.toFixed(1)).replace('.',',')+' tr';
+}
+const NHOM_CHART_COLORS={
+  A:{border:'#1D4ED8', bg:'rgba(29,78,216,.08)'},
+  BCD:{border:'#047857', bg:'rgba(4,120,87,.08)'},
+  EF:{border:'#B45309', bg:'rgba(180,83,9,.08)'},
+  G:{border:'#6D28D9', bg:'rgba(109,40,217,.08)'}
+};
+function renderOverviewNhom14dSection(series){
+  if(!series||!series.dates||!series.dates.length) return '';
+  const range=`${isoShort2(series.from)} → ${isoShort2(series.to)}`;
+  const scaleNote=series.scaled?' · đã scale khớp DT-Ngày vùng':'';
+  return `<div class="chart-box full">
+    <div class="chart-title">Doanh thu LTC theo nhóm KH — 14 ngày gần nhất</div>
+    <div class="chart-sub">Nhóm A · BCD · EF · G · ${range} · đơn vị: triệu đồng (tr)${scaleNote}</div>
+    <div class="chart-wrap tall"><canvas id="cNhom14d"></canvas></div>
+  </div>`;
+}
+function drawNhom14dChart(series){
+  destroyChart('cNhom14d');
+  if(!series||!series.dates||!series.dates.length) return;
+  const alignCycle=['top','bottom','top','bottom'];
+  const datasets=NHOM_LABELS.map((g,i)=>{
+    const c=NHOM_CHART_COLORS[g];
+    return {
+      label:'Nhóm '+g,
+      data:series.byGrp[g]||[],
+      borderColor:c.border,
+      backgroundColor:c.bg,
+      tension:.35,
+      pointRadius:4,
+      pointHoverRadius:6,
+      borderWidth:2.5,
+      spanGaps:true,
+      datalabels:{
+        display(ctx){
+          const v=ctx.dataset.data[ctx.dataIndex];
+          return v!=null && v!==0;
+        },
+        align:alignCycle[i%alignCycle.length],
+        anchor:'end',
+        offset:3,
+        clamp:true,
+        font:{size:9,weight:'700'},
+        color:c.border,
+        formatter:v=>fmtChartTr(v)
+      }
+    };
+  });
+  mkChart('cNhom14d',{
+    type:'line',
+    data:{labels:series.labels, datasets},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{position:'bottom',labels:{font:{size:11},padding:14,usePointStyle:true}},
+        tooltip:{
+          callbacks:{
+            label(ctx){
+              const v=ctx.parsed.y;
+              return ` ${ctx.dataset.label}: ${v==null?'—':fmtChartTr(v)}`;
+            }
+          }
+        },
+        datalabels:{}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:10},color:'#94A3B8',maxRotation:45,minRotation:0}},
+        y:{
+          grid:{color:'#F1F5F9'},
+          ticks:{
+            font:{size:11},color:'#64748B',
+            callback(v){ return fmtChartTr(v)||v; }
+          },
+          title:{display:true,text:'Triệu đồng (tr)',font:{size:11},color:'#94A3B8'}
+        }
+      }
+    }
+  });
+}
+function buildKhAAlertByAm(totalKH, thang, monthProgress, dtNgay){
+  const w=parseKhNhomAWeekly(totalKH, thang, monthProgress, dtNgay);
+  const alertSrc=(w&&(w.alertRows||w.churnRows))||[];
+  if(!w||!alertSrc.length) return {weekCur:w?.weekCur||'',weekPrev:w?.weekPrev||'',dayCur:w?.dayCur||'',dayPrev:w?.dayPrev||'',weekday:w?.weekday||'',byAm:[],total:0};
   const map={};
-  w.churnRows.forEach(r=>{
+  alertSrc.forEach(r=>{
     const am=(r.am||'').trim()||'—';
     if(!map[am]) map[am]={am,customers:[]};
     map[am].customers.push({
@@ -528,47 +784,81 @@ function buildKhAAlertByAm(khNhomA, thang){
     weekCur:w.weekCur,weekPrev:w.weekPrev,
     dayCur:w.dayCur,dayPrev:w.dayPrev,weekday:w.weekday,
     byAm:Object.values(map).sort((a,b)=>b.customers.length-a.customers.length),
-    total:w.churnRows.length
+    total:alertSrc.length
   };
 }
-function buildBanMoiDayCompare(totalKH, thang){
+function buildBanMoiDayCompare(totalKH, thang, dtNgay){
   if(!totalKH||totalKH.length<2) return {isoN1:'',isoN2:'',rows:[],good:[],bad:[]};
   const h=totalKH[0];
   const iMa=idxOf(h,'MaKH'), iNhom=idxOf(h,'Nhom'), iVung=idxOf(h,'Vung');
-  let iNgay=idxNgayChuanHoa(h);
-  if(iNgay<0) iNgay=idxOf(h,'Ngay');
+  const iNgayChuan=idxNgayChuanHoa(h);
+  const iNgay=idxOf(h,'Ngay');
   const iDT=idxOf(h,'DT'), iNV=idxOf(h,'Nhanvien');
   const iAMName=idxTotalKHAmChuan(h);
-  const recs=[];
+  const recs=[]; // nhóm G theo AM
+  const dayRawAll={}; // tổng DT mọi nhóm / ngày (để scale)
   for(let i=1;i<totalKH.length;i++){
     const r=totalKH[i];
     if(iVung>=0&&!isVungTnt(r[iVung])) continue;
-    if(normNhom(r[iNhom])!=='G') continue;
-    const iso=parseVnNgay(r[iNgay]);
+    const iso=resolveSheetNgayIso(r, iNgayChuan, iNgay);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)) continue;
     const mk=monthKeyFromIso(iso);
     if(!mk||!thangEq(mk,thang)) continue;
-    const amKey=(iNV>=0?(r[iNV]||'').trim():'')||'—';
+    const dt=parseVNNum(r[iDT]);
+    if(dt) dayRawAll[iso]=(dayRawAll[iso]||0)+dt;
+    if(normNhom(r[iNhom])!=='G') continue;
     const amName=(iAMName>=0?(r[iAMName]||'').trim():'');
+    const nv=(iNV>=0?(r[iNV]||'').trim():'');
+    const amKey=amName||nv||'—';
+    if(amKey==='—') continue;
     recs.push({
       iso,
       amKey,
-      am:amName||amKey,
+      am:amName||nv||amKey,
       ma:(r[iMa]||'').trim(),
-      dt:parseVNNum(r[iDT])
+      dt
     });
   }
-  const dates=[...new Set(recs.map(r=>r.iso))].sort();
+  // DT-Ngày vùng theo ngày → hệ số scale (TotalKH thô → đồng vùng)
+  const dayLtc={};
+  if(dtNgay&&dtNgay.length>1){
+    const hd=dtNgay[0], iNgayD=idxOf(hd,'Ngay'), iDTD=idxOf(hd,'DoanhThu');
+    if(iNgayD>=0&&iDTD>=0){
+      for(let i=1;i<dtNgay.length;i++){
+        const r=dtNgay[i];
+        const iso=normalizeNgayToIso(r[iNgayD]);
+        if(!iso||!thangEq(monthKeyFromIso(iso),thang)) continue;
+        dayLtc[iso]=(dayLtc[iso]||0)+parseVNNum(r[iDTD]);
+      }
+    }
+  }
+  const scaleK=iso=>{
+    const raw=dayRawAll[iso]||0;
+    const tgt=dayLtc[iso]||0;
+    return (raw>0&&tgt>0)?(tgt/raw):1;
+  };
+  let dates=uniqueList(recs.map(r=>r.iso)).sort();
+  // Nếu ngày mới nhất (N-1) DT vùng còn rất mỏng so với N-2 → coi chưa đủ ngày, so N-2 vs N-3
+  if(dates.length>=3){
+    const last=dates[dates.length-1], prev=dates[dates.length-2];
+    const ltcLast=dayLtc[last]||0, ltcPrev=dayLtc[prev]||0;
+    if(ltcPrev>0 && ltcLast>0 && ltcLast<ltcPrev*0.35){
+      dates=dates.slice(0,-1);
+    } else if(ltcPrev>0 && ltcLast<=0 && (dayRawAll[last]||0)<(dayRawAll[prev]||0)*0.35){
+      dates=dates.slice(0,-1);
+    }
+  }
   const isoN1=dates[dates.length-1]||'';
   const isoN2=dates.length>=2?dates[dates.length-2]:'';
   if(!isoN1||!isoN2) return {isoN1,isoN2,rows:[],good:[],bad:[]};
+  const k1=scaleK(isoN1), k2=scaleK(isoN2);
   const byAM={};
   recs.forEach(r=>{
     if(r.iso!==isoN1&&r.iso!==isoN2) return;
     if(!byAM[r.amKey]) byAM[r.amKey]={am:r.am,n1:0,n2:0,kh1:new Set(),kh2:new Set()};
     else if(r.am&&r.am!=='—') byAM[r.amKey].am=r.am;
-    if(r.iso===isoN1){ byAM[r.amKey].n1+=r.dt; if(r.ma) byAM[r.amKey].kh1.add(r.ma); }
-    if(r.iso===isoN2){ byAM[r.amKey].n2+=r.dt; if(r.ma) byAM[r.amKey].kh2.add(r.ma); }
+    if(r.iso===isoN1){ byAM[r.amKey].n1+=r.dt*k1; if(r.ma) byAM[r.amKey].kh1.add(r.ma); }
+    if(r.iso===isoN2){ byAM[r.amKey].n2+=r.dt*k2; if(r.ma) byAM[r.amKey].kh2.add(r.ma); }
   });
   const rows=Object.values(byAM).map(x=>{
     const delta=x.n1-x.n2;
@@ -577,8 +867,9 @@ function buildBanMoiDayCompare(totalKH, thang){
   }).filter(x=>x.n1>0||x.n2>0).sort((a,b)=>b.delta-a.delta);
   return {
     isoN1,isoN2,rows,
-    good:rows.filter(r=>r.delta>0).sort((a,b)=>b.pctD-a.pctD),
-    bad:rows.filter(r=>r.delta<0).sort((a,b)=>a.pctD-b.pctD)
+    good:rows.filter(r=>r.delta>0).sort((a,b)=>b.delta-a.delta),
+    bad:rows.filter(r=>r.delta<0).sort((a,b)=>a.delta-b.delta),
+    scaled:Object.keys(dayLtc).length>0
   };
 }
 function renderOverviewKhASection(alertData){
@@ -593,18 +884,18 @@ function renderOverviewKhASection(alertData){
   }
   html+=`<div class="table-wrap"><table class="tbl-pro"><thead><tr><th style="width:48px">#</th><th>AM</th><th class="num">Số KH</th><th>Danh sách KH (Tên · trạng thái)</th></tr></thead><tbody>`;
   alertData.byAm.forEach((g,i)=>{
-    const list=g.customers.map(c=>`<span class="cust-chip warn" title="${c.ma}">${c.ten||c.ma} · ${c.tag}</span>`).join(' ');
+    const list=g.customers.map(c=>`<span class="cust-chip warn">${c.ten||'—'} · ${c.tag}</span>`).join(' ');
     html+=`<tr class="row-warn"><td><span class="rank-num">${i+1}</span></td><td><span class="lbl-name">${g.am}</span></td><td class="num">${g.customers.length}</td><td class="cust-list">${list}</td></tr>`;
   });
   html+=`</tbody></table></div>`;
-  html+=analysisQuick(`<b>${alertData.total}</b> KH A cảnh báo · so <b>${wd}</b> tuần này vs <b>${wd}</b> tuần trước · nhóm theo AM. Nguồn: sheet khách hàng nhóm A · cột <b>Ngay</b>.`);
+  html+=analysisQuick(`<b>${alertData.total}</b> KH A cảnh báo · so <b>${wd}</b> tuần này vs <b>${wd}</b> tuần trước · nhóm theo AM.`);
   html+=`</div>`;
   return html;
 }
 function renderOverviewBanMoiDaySection(bm){
   let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--green)">🆕</div>Bán Mới (Nhóm G) — Ngày N-1 vs N-2</div>`;
   if(!bm.isoN1||!bm.isoN2){
-    html+=`<span class="badge">Chưa đủ 2 ngày</span></div><div class="section-note">Cần ít nhất 2 ngày dữ liệu nhóm G trong tháng (sheet ${SHEET.totalKH}).</div></div>`;
+    html+=`<span class="badge">Chưa đủ 2 ngày</span></div><div class="section-note">Cần ít nhất 2 ngày dữ liệu nhóm G trong tháng.</div></div>`;
     return html;
   }
   html+=`<span class="badge">${isoShort2(bm.isoN2)} → ${isoShort2(bm.isoN1)}</span></div>`;
@@ -614,10 +905,10 @@ function renderOverviewBanMoiDaySection(bm){
     if(!list.length) s+=`<div class="section-note" style="padding:12px 16px">—</div>`;
     else{
       s+=`<div class="table-wrap"><table class="tbl-pro compact"><thead><tr><th>AM</th><th class="num">${isoShort2(bm.isoN2)}</th><th class="num">${isoShort2(bm.isoN1)}</th><th class="num">Δ</th><th class="num">%</th></tr></thead><tbody>`;
-      list.slice(0,8).forEach(r=>{
-        s+=`<tr><td><span class="lbl-name">${r.am}</span></td><td class="num">${fmtVndCell(r.n2)}</td><td class="num">${fmtVndCell(r.n1)}</td>
+      list.slice(0,10).forEach(r=>{
+        s+=`<tr><td><span class="lbl-name">${r.am}</span></td><td class="num">${fmtVnd(r.n2)}</td><td class="num">${fmtVnd(r.n1)}</td>
           <td class="num"><span class="trend-tag ${r.delta>=0?'down':'up'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td>
-          <td class="num">${r.n2>0?r.pctD.toFixed(0)+'%':'—'}</td></tr>`;
+          <td class="num">${r.n2>0?r.pctD.toFixed(0)+'%':(r.n1>0?'mới':'—')}</td></tr>`;
       });
       s+=`</tbody></table></div>`;
     }
@@ -625,77 +916,164 @@ function renderOverviewBanMoiDaySection(bm){
   };
   html+=renderSide('AM tốt (tăng DT)','▲',bm.good,'good');
   html+=renderSide('AM tệ (giảm DT)','▼',bm.bad,'bad');
-  html+=`</div>${analysisQuick(`So sánh DT bán mới nhóm G theo AM (cột <b>AM Chuẩn</b>) · nguồn sheet <b>${SHEET.totalKH}</b> · ngày <b>${isoShort2(bm.isoN1)}</b> vs <b>${isoShort2(bm.isoN2)}</b>.`)}</div>`;
+  html+=`</div>${analysisQuick(`So sánh DT bán mới nhóm G theo AM · ngày <b>${isoShort2(bm.isoN1)}</b> vs <b>${isoShort2(bm.isoN2)}</b>${bm.scaled?' · đã scale khớp DT-Ngày vùng':''}.`)}</div>`;
   return html;
 }
-function renderOverviewProjectionSection(rows, totalActual, totalKPI, totalProjected, projRateTotal, elapsed, totalDays, thangLabel){
+function renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc){
+  const withKpi=rows.filter(r=>r.kpiCm>0);
+  // % Đạt dự kiến = Dự kiến DT LTC / KPI Cty (tháng)
+  const list=withKpi.slice().map(r=>{
+    const proj=r.projected!=null?r.projected:(elapsed?r.actual/elapsed*totalDays:0);
+    const rateProjCty=pct(proj, r.kpiCm);
+    return {...r, projected:proj, rateProjCty};
+  }).sort((a,b)=>b.rateProjCty-a.rateProjCty);
+  const nDat=list.filter(r=>r.rateProjCty>=100).length;
+  const nKhong=list.length-nDat;
   const pctCls=p=>p>=100?'pct-g':p>=70?'pct-y':'pct-r';
-  const duThang=rows.filter(r=>r.kpiVung>0&&r.projRateVung>=100).sort((a,b)=>b.projRateVung-a.projRateVung);
-  const thieu=rows.filter(r=>r.kpiVung>0&&r.projRateVung<100).sort((a,b)=>a.projRateVung-b.projRateVung);
-  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--yellow)">📈</div>DT Thực Đạt — Dự Kiến Đủ Tháng</div><span class="badge">${thangLabel} · KPI Vùng · ${elapsed}/${totalDays} ngày</span></div>`;
+  const totalActual=rows.reduce((s,r)=>s+r.actual,0);
+  const totalProj=rows.reduce((s,r)=>s+(r.projected||0),0);
+  const rateLtcCk=pct(totalActual, totalKpiCmPeriod);
+  const rateCtyCk=pct(totalGtc||0, totalKpiCmPeriod);
+  const rateProjCty=pct(totalProj, totalKpiCm);
+  const colDat=p=>p>=100?'down':'up';
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--yellow)">📈</div>DT Thực Đạt — Dự Kiến Đủ Tháng</div><span class="badge">${thangLabel} · KPI Cty · ${elapsed}/${totalDays} ngày</span></div>`;
   html+=`<div class="kpi-grid" style="margin:16px 22px 0;padding:0">
-    <div class="kpi-card" style="margin:0"><div class="lbl">MTD thực đạt</div><div class="val">${fmtVndHero(totalActual)}</div></div>
-    <div class="kpi-card" style="margin:0"><div class="lbl">Dự kiến cuối tháng</div><div class="val">${fmtVndHero(totalProjected)}</div><div class="sub">MTD ÷ ${elapsed} × ${totalDays}</div></div>
-    <div class="kpi-card" style="margin:0"><div class="lbl">KPI Vùng (tháng)</div><div class="val">${fmtVndHero(totalKPI)}</div>
-      <div class="cmp">Dự kiến/KPI Vùng: <b class="${projRateTotal>=100?'down':'up'}">${projRateTotal.toFixed(0)}%</b></div></div>
+    <div class="kpi-card" style="margin:0">
+      <div class="lbl">KPI Cty</div>
+      <div class="val">${fmtVndHero(totalKpiCm)}</div>
+      <div class="cmp">Số dự kiến đạt của Vùng: <b>${fmtVnd(totalProj)}</b><br>
+        Tỷ lệ (dự kiến/KPI): <b class="${colDat(rateProjCty)}">${rateProjCty.toFixed(0)}%</b></div>
+    </div>
+    <div class="kpi-card" style="margin:0">
+      <div class="lbl">KPI Cty<span class="ck">(cùng kỳ)</span></div>
+      <div class="val">${fmtVndHero(totalKpiCmPeriod)}</div>
+      <div class="sub">KPI Cty × ${elapsed}/${totalDays}</div>
+    </div>
+    <div class="kpi-card" style="margin:0">
+      <div class="lbl">% Đạt dự kiến / KPI Cty</div>
+      <div class="val"><span class="hero-amt">${rateProjCty.toFixed(0)}</span><span class="hero-unit">%</span></div>
+      <div class="cmp">AM ≥100%: <b class="down">${nDat}</b> · &lt;100%: <b class="up">${nKhong}</b>
+        <div class="sub" style="margin-top:6px">% Đạt KPI Cty <span class="ck" style="display:inline">(cùng kỳ)</span>: <b class="${colDat(rateCtyCk)}">${rateCtyCk.toFixed(0)}%</b></div></div>
+    </div>
+    <div class="kpi-card" style="margin:0">
+      <div class="lbl">MTD LTC / Dự kiến</div>
+      <div class="val">${fmtVndHero(totalActual)}</div>
+      <div class="cmp">Số dự kiến đạt của Vùng: <b>${fmtVnd(totalProj)}</b><br>
+        Tỷ lệ (dự kiến/KPI): <b class="${colDat(rateProjCty)}">${rateProjCty.toFixed(0)}%</b><br>
+        % Đạt KPI LTC <span class="ck" style="display:inline">(cùng kỳ)</span>: <b class="${colDat(rateLtcCk)}">${rateLtcCk.toFixed(0)}%</b></div>
+    </div>
   </div>`;
-  html+=`<div class="overview-split" style="margin-top:16px">`;
-  const renderAmList=(title,list,ok)=>{
-    let s=`<div class="overview-half"><div class="overview-half-hd ${ok?'good':'bad'}">${ok?'✅':'⚠️'} ${title} (${list.length})</div>`;
-    if(!list.length) s+=`<div class="section-note" style="padding:12px 16px">${ok?'Không có AM nào dự kiến đủ KPI Vùng.':'Tất cả AM có KPI Vùng đều dự kiến đủ tháng.'}</div>`;
-    else{
-      s+=`<div class="table-wrap"><table class="tbl-pro compact"><thead><tr><th>AM</th><th class="num">MTD</th><th class="num">Dự kiến</th><th class="num">KPI Vùng</th><th class="num">% DK/KPI</th></tr></thead><tbody>`;
-      list.forEach(r=>{
-        s+=`<tr><td><span class="lbl-name">${r.am}</span></td><td class="num">${fmtVndCell(r.actual)}</td><td class="num">${fmtVndCell(r.projected)}</td><td class="num">${fmtVndCell(r.kpiVung)}</td>
-          <td class="num"><span class="pct-pill ${pctCls(r.projRateVung)}">${r.projRateVung.toFixed(0)}%</span></td></tr>`;
-      });
-      s+=`</tbody></table></div>`;
-    }
-    return s+'</div>';
-  };
-  html+=renderAmList('Dự kiến đủ KPI Vùng',duThang,true);
-  html+=renderAmList('Dự kiến chưa đủ KPI Vùng',thieu,false);
-  html+=`</div>${analysisQuick(`So sánh theo <b>KPI Vùng</b> (sheet KPI AM). Dự kiến = MTD ÷ ${elapsed} × ${totalDays}.`)}</div>`;
+  html+=`<div style="margin:16px 0 0;padding:0 0 8px">`;
+  if(!list.length){
+    html+=`<div class="section-note" style="padding:12px 22px">Chưa có AM có KPI Cty.</div>`;
+  } else {
+    html+=`<div class="table-wrap"><table class="tbl-pro compact"><thead><tr>
+      <th style="width:40px">#</th>
+      <th>AM</th>
+      <th class="num">KPI Cty</th>
+      <th class="num">Dự kiến DT LTC</th>
+      <th class="num">MTD LTC</th>
+      <th class="num">DT GTTC<span class="ck">(cùng kỳ)</span></th>
+      <th class="num">KPI Cty<span class="ck">(cùng kỳ)</span></th>
+      <th class="num">% Đạt KPI LTC<span class="ck">(cùng kỳ)</span></th>
+      <th class="num">% Đạt KPI Cty<span class="ck">(cùng kỳ)</span></th>
+      <th class="num">% Đạt dự kiến</th>
+    </tr></thead><tbody>`;
+    list.forEach((r,i)=>{
+      const weak=r.rateProjCty<100;
+      html+=`<tr class="${weak?'row-warn':''}">
+        <td><span class="rank-num${i<3?' top3':''}">${i+1}</span></td>
+        <td><span class="lbl-name">${r.am}</span></td>
+        <td class="num">${fmtVndCell(r.kpiCm)}</td>
+        <td class="num">${fmtVndCell(r.projected)}</td>
+        <td class="num">${fmtVndCell(r.actual)}</td>
+        <td class="num">${r.gtc?fmtVndCell(r.gtc):'<span class="empty-val">—</span>'}</td>
+        <td class="num">${fmtVndCell(r.kpiCmPeriod)}</td>
+        <td class="num"><span class="pct-pill ${pctCls(r.rateCmPeriod)}">${r.rateCmPeriod.toFixed(0)}%</span></td>
+        <td class="num">${r.kpiCmPeriod?`<span class="pct-pill ${pctCls(r.rateGtcCmPeriod)}">${r.rateGtcCmPeriod.toFixed(0)}%</span>`:'—'}</td>
+        <td class="num"><span class="pct-pill ${pctCls(r.rateProjCty)}">${r.rateProjCty.toFixed(0)}%</span></td>
+      </tr>`;
+    });
+    html+=`</tbody></table></div>`;
+  }
+  html+=`</div>`;
+  html+=analysisQuick(`Một bảng tất cả AM · sắp xếp theo <b>% Đạt dự kiến / KPI Cty</b> cao→thấp. Dự kiến DT LTC = MTD LTC ÷ ${elapsed} × ${totalDays}. Tỷ lệ dự kiến Vùng = Dự kiến DT LTC / KPI Cty.`);
+  html+=`</div>`;
   return html;
 }
 function renderOverviewKpiCmSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc){
   const withKpi=rows.filter(r=>r.kpiCm>0);
-  const dat=withKpi.filter(r=>r.rateCmPeriod>=100).sort((a,b)=>b.rateCmPeriod-a.rateCmPeriod);
-  const khongDat=withKpi.filter(r=>r.rateCmPeriod<100).sort((a,b)=>a.rateCmPeriod-b.rateCmPeriod);
+  // Một bảng tất cả AM — sắp xếp % Đạt KPI Cty cao → thấp
+  const list=withKpi.slice().sort((a,b)=>b.rateGtcCmPeriod-a.rateGtcCmPeriod);
+  const nDat=list.filter(r=>r.rateGtcCmPeriod>=100).length;
+  const nKhong=list.length-nDat;
   const pctCls=p=>p>=100?'pct-g':p>=70?'pct-y':'pct-r';
   const totalActual=rows.reduce((s,r)=>s+r.actual,0);
-  const rateTotal=pct(totalActual, totalKpiCmPeriod);
-  const rateGtcTotal=pct(totalGtc||0, totalKpiCmPeriod);
-  const hasGtc=(totalGtc||0)>0 || rows.some(r=>(r.gtc||0)>0);
-  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">🎯</div>KPI Tháng Hiện Tại — AM Đạt / Không Đạt</div><span class="badge">${thangLabel} · KPI CM · ${elapsed}/${totalDays} ngày</span></div>`;
+  const totalProj=rows.reduce((s,r)=>s+(r.projected||0),0);
+  const rateLtcCk=pct(totalActual, totalKpiCmPeriod);
+  const rateCtyCk=pct(totalGtc||0, totalKpiCmPeriod);
+  const rateProjCty=pct(totalProj, totalKpiCm);
+  const colDat=p=>p>=100?'down':'up';
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">🎯</div>KPI Tháng Hiện Tại — Theo AM</div><span class="badge">${thangLabel} · KPI Cty · ${elapsed}/${totalDays} ngày</span></div>`;
   html+=`<div class="kpi-grid" style="margin:16px 22px 0;padding:0">
-    <div class="kpi-card" style="margin:0"><div class="lbl">KPI CM tháng</div><div class="val">${fmtVndHero(totalKpiCm)}</div></div>
-    <div class="kpi-card" style="margin:0"><div class="lbl">KPI CM cùng kỳ</div><div class="val">${fmtVndHero(totalKpiCmPeriod)}</div><div class="sub">KPI CM × ${elapsed}/${totalDays}</div></div>
-    <div class="kpi-card" style="margin:0"><div class="lbl">% Đạt KPI CM (KQ)</div><div class="val"><span class="hero-amt">${rateTotal.toFixed(0)}</span><span class="hero-unit">%</span></div>
-      <div class="cmp">AM đạt: <b class="down">${dat.length}</b> · Chưa đạt: <b class="up">${khongDat.length}</b></div></div>
-    <div class="kpi-card" style="margin:0"><div class="lbl">DT GTC MTD</div><div class="val">${hasGtc?fmtVndHero(totalGtc||0):'—'}</div>
-      <div class="sub">${hasGtc?`% GTC / KPI CM CK: <b class="${rateGtcTotal>=100?'down':'up'}">${rateGtcTotal.toFixed(0)}%</b>`:'Chưa có DoanhThu-GTC'}</div></div>
+    <div class="kpi-card" style="margin:0">
+      <div class="lbl">KPI Cty</div>
+      <div class="val">${fmtVndHero(totalKpiCm)}</div>
+      <div class="cmp">Số dự kiến đạt của Vùng: <b>${fmtVnd(totalProj)}</b><br>
+        Tỷ lệ (dự kiến/KPI): <b class="${colDat(rateProjCty)}">${rateProjCty.toFixed(0)}%</b></div>
+    </div>
+    <div class="kpi-card" style="margin:0">
+      <div class="lbl">KPI Cty<span class="ck">(cùng kỳ)</span></div>
+      <div class="val">${fmtVndHero(totalKpiCmPeriod)}</div>
+      <div class="sub">KPI Cty × ${elapsed}/${totalDays}</div>
+    </div>
+    <div class="kpi-card" style="margin:0">
+      <div class="lbl">% Đạt KPI Cty<span class="ck">(cùng kỳ)</span></div>
+      <div class="val"><span class="hero-amt">${rateCtyCk.toFixed(0)}</span><span class="hero-unit">%</span></div>
+      <div class="cmp">AM ≥100%: <b class="down">${nDat}</b> · &lt;100%: <b class="up">${nKhong}</b></div>
+    </div>
+    <div class="kpi-card" style="margin:0">
+      <div class="lbl">MTD LTC / Dự kiến</div>
+      <div class="val">${fmtVndHero(totalActual)}</div>
+      <div class="cmp">Số dự kiến đạt của Vùng: <b>${fmtVnd(totalProj)}</b><br>
+        Tỷ lệ (dự kiến/KPI): <b class="${colDat(rateProjCty)}">${rateProjCty.toFixed(0)}%</b><br>
+        % Đạt KPI LTC <span class="ck" style="display:inline">(cùng kỳ)</span>: <b class="${colDat(rateLtcCk)}">${rateLtcCk.toFixed(0)}%</b></div>
+    </div>
   </div>`;
-  html+=`<div class="overview-split" style="margin-top:16px">`;
-  const side=(title,list,ok)=>{
-    let s=`<div class="overview-half"><div class="overview-half-hd ${ok?'good':'bad'}">${ok?'✅':'❌'} ${title} (${list.length})</div>`;
-    if(!list.length) s+=`<div class="section-note" style="padding:12px 16px">—</div>`;
-    else{
-      s+=`<div class="table-wrap"><table class="tbl-pro compact"><thead><tr><th>AM</th><th class="num">MTD KQ</th><th class="num">DT GTC</th><th class="num">KPI CM CK</th><th class="num">% KQ</th><th class="num">% GTC</th><th class="num">KPI CM tháng</th></tr></thead><tbody>`;
-      list.forEach(r=>{
-        s+=`<tr class="${ok?'':'row-warn'}"><td><span class="lbl-name">${r.am}</span></td><td class="num">${fmtVndCell(r.actual)}</td><td class="num">${r.gtc?fmtVndCell(r.gtc):'<span class="empty-val">—</span>'}</td><td class="num">${fmtVndCell(r.kpiCmPeriod)}</td>
-          <td class="num"><span class="pct-pill ${pctCls(r.rateCmPeriod)}">${r.rateCmPeriod.toFixed(0)}%</span></td>
-          <td class="num">${r.kpiCmPeriod?`<span class="pct-pill ${pctCls(r.rateGtcCmPeriod)}">${r.rateGtcCmPeriod.toFixed(0)}%</span>`:'—'}</td>
-          <td class="num">${fmtVndCell(r.kpiCm)}</td></tr>`;
-      });
-      s+=`</tbody></table></div>`;
-    }
-    return s+'</div>';
-  };
-  html+=side('Đạt KPI CM cùng kỳ',dat,true);
-  html+=side('Chưa đạt KPI CM cùng kỳ',khongDat,false);
+  html+=`<div style="margin:16px 0 0;padding:0 0 8px">`;
+  if(!list.length){
+    html+=`<div class="section-note" style="padding:12px 22px">Chưa có AM có KPI Cty.</div>`;
+  } else {
+    html+=`<div class="table-wrap"><table class="tbl-pro compact"><thead><tr>
+      <th style="width:40px">#</th>
+      <th>AM</th>
+      <th class="num">KPI Cty</th>
+      <th class="num">Dự kiến DT LTC</th>
+      <th class="num">MTD LTC</th>
+      <th class="num">DT GTTC<span class="ck">(cùng kỳ)</span></th>
+      <th class="num">KPI Cty<span class="ck">(cùng kỳ)</span></th>
+      <th class="num">% Đạt KPI LTC<span class="ck">(cùng kỳ)</span></th>
+      <th class="num">% Đạt KPI Cty<span class="ck">(cùng kỳ)</span></th>
+    </tr></thead><tbody>`;
+    list.forEach((r,i)=>{
+      const proj=r.projected!=null?r.projected:(elapsed?r.actual/elapsed*totalDays:0);
+      const weak=r.rateGtcCmPeriod<100;
+      html+=`<tr class="${weak?'row-warn':''}">
+        <td><span class="rank-num${i<3?' top3':''}">${i+1}</span></td>
+        <td><span class="lbl-name">${r.am}</span></td>
+        <td class="num">${fmtVndCell(r.kpiCm)}</td>
+        <td class="num">${fmtVndCell(proj)}</td>
+        <td class="num">${fmtVndCell(r.actual)}</td>
+        <td class="num">${r.gtc?fmtVndCell(r.gtc):'<span class="empty-val">—</span>'}</td>
+        <td class="num">${fmtVndCell(r.kpiCmPeriod)}</td>
+        <td class="num"><span class="pct-pill ${pctCls(r.rateCmPeriod)}">${r.rateCmPeriod.toFixed(0)}%</span></td>
+        <td class="num">${r.kpiCmPeriod?`<span class="pct-pill ${pctCls(r.rateGtcCmPeriod)}">${r.rateGtcCmPeriod.toFixed(0)}%</span>`:'—'}</td>
+      </tr>`;
+    });
+    html+=`</tbody></table></div>`;
+  }
   html+=`</div>`;
-  html+=analysisQuick(`So sánh theo <b>KPI CM</b> (sheet KPI AM). KPI cùng kỳ = KPI CM tháng × ${elapsed}/${totalDays}. MTD KQ: sheet <b>Kết Quả</b> · DT GTC: sheet <b>${SHEET.doanhThuGTC}</b> (AM Chuẩn).`);
+  html+=analysisQuick(`Một bảng tất cả AM · sắp xếp theo <b>% Đạt KPI Cty (cùng kỳ)</b> cao→thấp. Dự kiến DT LTC = MTD LTC ÷ ${elapsed} × ${totalDays}. Tỷ lệ dự kiến Vùng = Dự kiến DT LTC / KPI Cty.`);
   html+=`</div>`;
   return html;
 }
@@ -717,40 +1095,92 @@ function parsePhanNhomRecs(phanNhom){
   }
   return {recs,maxDate};
 }
-/** Doanh thu theo nhóm KH từ sheet TotalKH — ưu tiên cột Ngày chuẩn hóa (vd. 12/07/2026). */
+/** Doanh thu theo nhóm KH từ sheet TotalKH — Ngày chuẩn hóa nếu có; không thì cột Ngay. */
 function parseTotalKHNhomRecs(totalKH){
   if(!totalKH||totalKH.length<2) return {recs:[],maxDate:''};
   const h=totalKH[0];
   const iNhom=idxOf(h,'Nhom'), iDT=idxOf(h,'DT'), iVung=idxOf(h,'Vung');
-  let iNgay=idxNgayChuanHoa(h);
-  if(iNgay<0) iNgay=idxOf(h,'Ngay');
+  const iNgayChuan=idxNgayChuanHoa(h);
+  const iNgay=idxOf(h,'Ngay');
   const iAM=idxOf(h,'AM Chuẩn'), iTinh=idxOf(h,'Tỉnh Chuẩn');
+  const iMa=idxOf(h,'MaKH');
+  const iTen=idxOf(h,'TenKH');
+  const iVol=idxVolumeCol(h);
+  const iAov=idxAovCol(h);
+  const iSLKH=idxOf(h,'SLKH');
   const recs=[]; let maxDate='';
+  let volFromAov=0, volFromCol=0;
   for(let i=1;i<totalKH.length;i++){
     const r=totalKH[i];
     if(iVung>=0 && (r[iVung]||'').trim() && !isVungTnt(r[iVung])) continue;
     const grp=normNhom(r[iNhom]);
-    const ngay=normalizeNgayToIso(r[iNgay]);
+    const ngay=resolveSheetNgayIso(r, iNgayChuan, iNgay);
     if(!grp||!ngay) continue;
     if(ngay>maxDate) maxDate=ngay;
     const wk=isoWeekFromIsoDate(ngay).key;
+    const dt=parseVNNum(r[iDT]);
+    const rv=resolveRowVolume(dt, iVol>=0?parseVNNum(r[iVol]):0, iAov>=0?parseVNNum(r[iAov]):0);
+    if(rv.source==='Volume') volFromCol+=rv.vol;
+    else if(rv.source==='DT/AOV') volFromAov+=rv.vol;
+    const slkh=iSLKH>=0?Math.round(parseVNNum(r[iSLKH])):0;
     recs.push({
       grp, ngay,
+      ma:iMa>=0?(r[iMa]||'').trim():'',
+      ten:iTen>=0?(r[iTen]||'').trim():'',
       am:(iAM>=0?(r[iAM]||'').trim():''),
       tinh:(iTinh>=0?(r[iTinh]||'').trim():''),
-      dt:parseVNNum(r[iDT]),
-      slkh:0, vol:0,
+      dt,
+      slkh, vol:rv.vol, volSource:rv.source,
       tuan:wk,
       thang:monthKeyFromIso(ngay)
     });
   }
-  return {recs,maxDate};
+  return {recs,maxDate,volFromAov,volFromCol};
+}
+/** Hệ số scale từng ngày: tổng TotalKH → khớp DT-Ngày vùng. */
+function buildDayScaleFromDtNgay(totalKH, dtNgay, thang){
+  const dayRaw={}, dayLtc={}, scale={};
+  if(!totalKH||totalKH.length<2) return scale;
+  const h=totalKH[0];
+  const iVung=idxOf(h,'Vung'), iDT=idxOf(h,'DT');
+  const iNgayChuan=idxNgayChuanHoa(h), iNgay=idxOf(h,'Ngay');
+  for(let i=1;i<totalKH.length;i++){
+    const r=totalKH[i];
+    if(iVung>=0 && (r[iVung]||'').trim() && !isVungTnt(r[iVung])) continue;
+    const iso=resolveSheetNgayIso(r, iNgayChuan, iNgay);
+    if(!iso) continue;
+    if(thang){
+      const mk=monthKeyFromIso(iso);
+      if(!mk||!thangEq(mk,thang)){
+        // vẫn lấy tháng liền trước nếu cần so sánh churn
+        const prev=prevThang(thang);
+        if(!(prev&&mk&&thangEq(mk,prev))) continue;
+      }
+    }
+    const dt=parseVNNum(r[iDT]);
+    if(dt) dayRaw[iso]=(dayRaw[iso]||0)+dt;
+  }
+  if(dtNgay&&dtNgay.length>1){
+    const hd=dtNgay[0], iNgayD=idxOf(hd,'Ngay'), iDTD=idxOf(hd,'DoanhThu');
+    if(iNgayD>=0&&iDTD>=0){
+      for(let i=1;i<dtNgay.length;i++){
+        const r=dtNgay[i];
+        const iso=normalizeNgayToIso(r[iNgayD]);
+        if(!iso) continue;
+        dayLtc[iso]=(dayLtc[iso]||0)+parseVNNum(r[iDTD]);
+      }
+    }
+  }
+  Object.keys(dayRaw).forEach(iso=>{
+    const raw=dayRaw[iso]||0, tgt=dayLtc[iso]||0;
+    scale[iso]=(raw>0&&tgt>0)?(tgt/raw):1;
+  });
+  return scale;
 }
 function nhomStaleBanner(maxDate, sheetName){
-  const src=sheetName||SHEET.totalKH;
-  if(!maxDate) return `<div class="data-banner err">⚠️ Chưa xác định được ngày mới nhất trong sheet ${src}.</div>`;
+  if(!maxDate) return `<div class="data-banner err">⚠️ Chưa xác định được ngày mới nhất.</div>`;
   const stale=(new Date()-new Date(maxDate+'T00:00:00'))/86400000>3;
-  return `<div class="data-banner">📅 <b>Ngày mới nhất:</b> ${isoShort2(maxDate)}${stale?' · <span class="lbl-sub">Dữ liệu chưa cập nhật đến hôm nay — báo cáo hiển thị theo ngày mới nhất có trong sheet.</span>':''}</div>`;
+  return `<div class="data-banner">📅 <b>Ngày mới nhất:</b> ${isoShort2(maxDate)}${stale?' · <span class="lbl-sub">Dữ liệu chưa cập nhật đến hôm nay — báo cáo hiển thị theo ngày mới nhất có sẵn.</span>':''}</div>`;
 }
 function buildNhomCombinedPeriod(recs){
   const allDates=[...new Set(recs.map(r=>r.ngay))].sort();
@@ -837,7 +1267,7 @@ function renderNhomKHCard(recs, maxDate){
   html+=renderNhomCombinedTable(recs,per,null,'Vùng');
   html+=`<div class="am-title" style="font-size:11px;background:var(--card);color:var(--text-sub)">Theo AM · Ngày + Tuần + Tháng liền một bảng</div>`;
   html+=renderNhomCombinedTable(recs,per,'am','AM');
-  html+=analysisQuick(`3 ngày gần nhất <b>${per.last3d.map(isoShort2).join(' · ')||'—'}</b>: vùng đạt <b>${fmtVnd(totCur)}</b> (${dPct>=0?'+':''}${dPct.toFixed(0)}% vs 3 ngày trước). Nguồn: sheet <b>${SHEET.totalKH}</b> · cột <b>Ngày chuẩn hóa</b>.`);
+  html+=analysisQuick(`3 ngày gần nhất <b>${per.last3d.map(isoShort2).join(' · ')||'—'}</b>: vùng đạt <b>${fmtVnd(totCur)}</b> (${dPct>=0?'+':''}${dPct.toFixed(0)}% vs 3 ngày trước).`);
   html+=`</div>`;
   return html;
 }
@@ -854,7 +1284,7 @@ function renderNhomTinhCard(recs, maxDate){
   <div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📊 ${nhomPeriodBanner(per)} · Δ = so với kỳ liền trước · Đơn vị: triệu đồng</div>`;
   html+=`<div class="am-title">Theo Tỉnh · Ngày + Tuần + Tháng liền một bảng</div>`;
   html+=renderNhomCombinedTable(recs,per,'tinh','Tỉnh');
-  html+=analysisQuick(`3 ngày gần nhất <b>${per.last3d.map(isoShort2).join(' · ')||'—'}</b>. Tỉnh dẫn đầu: <b>${topTinh?topTinh[0]:'—'}</b>${topTinh?` (${fmtVnd(topTinh[1])})`:''}. Nguồn: sheet <b>${SHEET.totalKH}</b> · cột <b>Ngày chuẩn hóa</b>.`);
+  html+=analysisQuick(`3 ngày gần nhất <b>${per.last3d.map(isoShort2).join(' · ')||'—'}</b>. Tỉnh dẫn đầu: <b>${topTinh?topTinh[0]:'—'}</b>${topTinh?` (${fmtVnd(topTinh[1])})`:''}.`);
   html+=`</div>`;
   return html;
 }
@@ -1016,13 +1446,14 @@ function sumGtcByAM(sheet, thang){
   return by;
 }
 function countKhTiemNangFromTotalKH(totalKH, thang, elapsed, totalDays){
-  if(!totalKH||totalKH.length<2||!elapsed||!totalDays) return {count:0, rows:[]};
+  if(!totalKH||totalKH.length<2||!elapsed||!totalDays) return {count:0, rows:[], byGrp:{BCD:0,EF:0,G:0}, note:''};
   const h=totalKH[0];
   const iMa=idxOf(h,'MaKH'), iTen=idxOf(h,'TenKH'), iNhom=idxOf(h,'Nhom');
   const iVung=idxOf(h,'Vung');
-  let iNgay=idxNgayChuanHoa(h);
-  if(iNgay<0) iNgay=idxOf(h,'Ngay');
+  const iNgayChuan=idxNgayChuanHoa(h);
+  const iNgay=idxOf(h,'Ngay');
   const iMtd=idxOf(h,'MTD');
+  const iAMName=idxTotalKHAmChuan(h);
   const iNV=idxOf(h,'Nhanvien');
   const byCust={};
   for(let i=1;i<totalKH.length;i++){
@@ -1031,13 +1462,15 @@ function countKhTiemNangFromTotalKH(totalKH, thang, elapsed, totalDays){
     if(!ma) continue;
     if(iVung>=0 && !isVungTnt(r[iVung])) continue;
     const grp=normNhom(r[iNhom]);
-    if(grp!=='BCD'&&grp!=='EF') continue;
-    const iso=parseVnNgay(r[iNgay]);
+    if(grp!=='BCD'&&grp!=='EF'&&grp!=='G') continue;
+    const iso=resolveSheetNgayIso(r, iNgayChuan, iNgay);
     const mk=monthKeyFromIso(iso);
     if(!mk||!thangEq(mk, thang)) continue;
     const mtd=parseMtdNum(r[iMtd]);
-    if(!byCust[ma]) byCust[ma]={ma,ten:(r[iTen]||'').trim(),grp,nv:(r[iNV]||'').trim(),mtd:0,maxNgay:''};
+    const am=(iAMName>=0?(r[iAMName]||'').trim():'')||(iNV>=0?(r[iNV]||'').trim():'');
+    if(!byCust[ma]) byCust[ma]={ma,ten:(r[iTen]||'').trim(),grp,am,mtd:0,maxNgay:''};
     byCust[ma].ten=(r[iTen]||'').trim()||byCust[ma].ten;
+    byCust[ma].am=am||byCust[ma].am;
     if(iso>=byCust[ma].maxNgay){
       byCust[ma].maxNgay=iso;
       if(mtd>=byCust[ma].mtd) byCust[ma].mtd=mtd;
@@ -1047,43 +1480,100 @@ function countKhTiemNangFromTotalKH(totalKH, thang, elapsed, totalDays){
     const projected=c.mtd/elapsed*totalDays;
     return {...c, projected, tiemNang:projected>=NHOM_A_DT_NGUONG};
   }).filter(c=>c.tiemNang).sort((a,b)=>b.projected-a.projected);
-  return {count:rows.length, rows};
+  const byGrp={BCD:0,EF:0,G:0};
+  rows.forEach(r=>{ if(byGrp[r.grp]!=null) byGrp[r.grp]++; });
+  const noteParts=['BCD','EF','G'].filter(g=>byGrp[g]>0).map(g=>`${g}: ${byGrp[g]}`);
+  const byAm={};
+  rows.forEach(r=>{ const a=(r.am||'').trim()||'—'; byAm[a]=(byAm[a]||0)+1; });
+  const amParts=Object.entries(byAm).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([a,n])=>`${a}: ${n}`);
+  const noteGrp=noteParts.length
+    ? `Theo nhóm: ${noteParts.join(' · ')} (DT dự kiến ≥ 45 tr)`
+    : 'BCD/EF/G · DT dự kiến ≥ 45 tr';
+  const note=rows.length
+    ? `${rows.length} khách · ${amParts.length?`theo AM: ${amParts.join(', ')} · `:''}${noteGrp}`
+    : noteGrp;
+  return {count:rows.length, rows, byGrp, byAm, note};
 }
 function parseTotalKHMetrics(totalKH, thang){
   if(!totalKH||totalKH.length<2) return null;
   const h=totalKH[0];
   const iMa=idxOf(h,'MaKH'), iNhom=idxOf(h,'Nhom'), iVung=idxOf(h,'Vung');
-  let iNgay=idxNgayChuanHoa(h);
-  if(iNgay<0) iNgay=idxOf(h,'Ngay');
+  const iNgayChuan=idxNgayChuanHoa(h);
+  const iNgay=idxOf(h,'Ngay');
   const iDT=idxOf(h,'DT'), iTuan=idxOf(h,'Tuần'), iMtd=idxOf(h,'MTD');
+  const iVol=idxVolumeCol(h);
+  const iAov=idxAovCol(h);
+  const iSLKH=idxOf(h,'SLKH');
+  const iAMName=idxTotalKHAmChuan(h);
   const iNV=idxOf(h,'Nhanvien');
-  const byWeek={};
-  const mtdByMa={};
-  let maxNgay='';
+  const isCode=s=>/^\d+$/.test(String(s||'').trim());
+  // Pass 1: map mã NV → tên AM Chuẩn
+  const nvToAm={};
   for(let i=1;i<totalKH.length;i++){
     const r=totalKH[i];
     if(iVung>=0 && !isVungTnt(r[iVung])) continue;
-    const iso=parseVnNgay(r[iNgay]);
+    const nv=(iNV>=0?(r[iNV]||'').trim():'');
+    const amRaw=(iAMName>=0?(r[iAMName]||'').trim():'');
+    if(nv&&amRaw&&!isCode(amRaw)) nvToAm[nv]=amRaw;
+  }
+  const resolveAm=(r)=>{
+    const amRaw=(iAMName>=0?(r[iAMName]||'').trim():'');
+    if(amRaw&&!isCode(amRaw)) return amRaw;
+    const nv=(iNV>=0?(r[iNV]||'').trim():'');
+    return (nv&&nvToAm[nv])||'';
+  };
+  const byWeek={};
+  const mtdByMa={};
+  let maxNgay='';
+  let volFromAov=0, volFromCol=0;
+  for(let i=1;i<totalKH.length;i++){
+    const r=totalKH[i];
+    if(iVung>=0 && !isVungTnt(r[iVung])) continue;
+    const iso=resolveSheetNgayIso(r, iNgayChuan, iNgay);
     const mk=monthKeyFromIso(iso);
     if(!mk||!thangEq(mk, thang)) continue;
     if(iso>maxNgay) maxNgay=iso;
     const wkIso=/^\d{4}-\d{2}-\d{2}$/.test(iso)?isoWeekFromIsoDate(iso).key:'';
     const wkSheet=String(r[iTuan]||'').trim();
-    const wk=wkIso||wkSheet;
+    // Chuẩn hóa tuần sheet ("28", "T28", "2026/28") → ISO key nếu có ngày
+    let wk=wkIso;
+    if(!wk && wkSheet){
+      const m=wkSheet.match(/(\d{4})?[\/\s-]?T?(\d{1,2})$/i)||wkSheet.match(/^(\d{1,2})$/);
+      if(m){
+        const wn=+(m[2]||m[1]);
+        const yy=m[1]&&m[1].length===4?+m[1]:(iso?+iso.slice(0,4):(thang.match(/(\d{4})/)||[])[1]);
+        wk=yy&&wn?`${yy}/${wn}`:wkSheet;
+      } else wk=wkSheet;
+    }
     const grp=normNhom(r[iNhom]);
     const dt=parseVNNum(r[iDT]);
+    const rv=resolveRowVolume(dt, iVol>=0?parseVNNum(r[iVol]):0, iAov>=0?parseVNNum(r[iAov]):0);
+    const vol=rv.vol;
+    if(rv.source==='Volume') volFromCol+=vol;
+    else if(rv.source==='DT/AOV') volFromAov+=vol;
+    const slkhRow=iSLKH>=0?Math.round(parseVNNum(r[iSLKH])):0;
     const ma=(r[iMa]||'').trim();
+    const amKey=resolveAm(r);
     if(wk){
-      if(!byWeek[wk]) byWeek[wk]={dt:0,dtGiu:0,dtBanMoi:0,khG:new Set(),byGrp:{A:0,BCD:0,EF:0,G:0},byAm:{},byAmAll:{}};
+      if(!byWeek[wk]) byWeek[wk]={dt:0,dtGiu:0,dtBanMoi:0,volG:0,slkhGSum:0,khG:new Set(),days:new Set(),byGrp:{A:0,BCD:0,EF:0,G:0},byAm:{},byAmAll:{},byAmG:{}};
       byWeek[wk].dt+=dt;
+      if(iso) byWeek[wk].days.add(iso);
       if(grp) byWeek[wk].byGrp[grp]=(byWeek[wk].byGrp[grp]||0)+dt;
       if(NHOM_GIU_CU.includes(grp)) byWeek[wk].dtGiu+=dt;
-      const nv=(iNV>=0?(r[iNV]||'').trim():'');
-      if(nv) byWeek[wk].byAmAll[nv]=(byWeek[wk].byAmAll[nv]||0)+dt;
+      if(amKey) byWeek[wk].byAmAll[amKey]=(byWeek[wk].byAmAll[amKey]||0)+dt;
       if(grp==='G'){
         byWeek[wk].dtBanMoi+=dt;
-        if(ma) byWeek[wk].khG.add(ma);
-        if(nv) byWeek[wk].byAm[nv]=(byWeek[wk].byAm[nv]||0)+dt;
+        byWeek[wk].volG+=(vol||0);
+        if(slkhRow>0) byWeek[wk].slkhGSum+=slkhRow;
+        // Chỉ đếm KH có phát sinh DT hoặc volume (tránh roster DT=0 → "8 KH · 0 đơn")
+        if(ma && (dt>0 || vol>0)) byWeek[wk].khG.add(ma);
+        if(amKey){
+          byWeek[wk].byAm[amKey]=(byWeek[wk].byAm[amKey]||0)+dt;
+          if(!byWeek[wk].byAmG[amKey]) byWeek[wk].byAmG[amKey]={dt:0,vol:0,kh:new Set()};
+          byWeek[wk].byAmG[amKey].dt+=dt;
+          byWeek[wk].byAmG[amKey].vol+=(vol||0);
+          if(ma && (dt>0 || vol>0)) byWeek[wk].byAmG[amKey].kh.add(ma);
+        }
       }
     }
     if(ma){
@@ -1096,15 +1586,230 @@ function parseTotalKHMetrics(totalKH, thang){
   const weeks=Object.keys(byWeek).map(w=>({w,sort:weekSortKeyIso(w)||(/^\d+$/.test(w)?+w:0)})).sort((a,b)=>a.sort-b.sort);
   const weekCur=weeks.length?weeks[weeks.length-1].w:'';
   const weekPrev=weeks.length>=2?weeks[weeks.length-2].w:'';
+  // Cộng DT ngày trong tháng (ổn định hơn cột MTD) theo nhóm giữ cũ / bán mới
+  let sumDtGiu=0, sumDtBanMoi=0, sumDtAll=0;
+  Object.values(byWeek).forEach(w=>{
+    sumDtGiu+=w.dtGiu||0;
+    sumDtBanMoi+=w.dtBanMoi||0;
+    sumDtAll+=w.dt||0;
+  });
   let mtdGiu=0,mtdBanMoi=0;
   Object.values(mtdByMa).forEach(c=>{
     if(NHOM_GIU_CU.includes(c.grp)) mtdGiu+=c.mtd;
     if(c.grp==='G') mtdBanMoi+=c.mtd;
   });
-  return {byWeek, weekCur, weekPrev, maxNgay, mtdGiu, mtdBanMoi};
+  // Ưu tiên tổng DT ngày; fallback MTD nếu chưa có
+  if(sumDtGiu+sumDtBanMoi>0){
+    mtdGiu=sumDtGiu;
+    mtdBanMoi=sumDtBanMoi;
+  }
+  const hasVolumeCol=iVol>=0;
+  const volumeCol=hasVolumeCol?(h[iVol]||'Volume'):(volFromAov>0?'DT÷AOV':'');
+  return {
+    byWeek, weekCur, weekPrev, maxNgay, mtdGiu, mtdBanMoi, sumDtGiu, sumDtBanMoi, sumDtAll,
+    weekKeys:weeks.map(x=>x.w),
+    hasVolume:hasVolumeCol||volFromAov>0,
+    volumeCol, volFromAov, volFromCol, hasAov:iAov>=0
+  };
 }
-/** Ma trận DT theo nhóm × tuần (ISO từ Ngày chuẩn hóa) — phục vụ xuất docs. */
-function buildNhomWeekMatrix(totalKH, nWeeks){
+/** Top / yếu AM bán mới (nhóm G) theo tuần từ TotalKH — DT · KH · volume. */
+function buildAmBanMoiWeekRank(byWeek, weekCur, weekPrev, n=5){
+  const cur=(byWeek&&byWeek[weekCur]&&byWeek[weekCur].byAmG)||{};
+  const prev=(byWeek&&byWeek[weekPrev]&&byWeek[weekPrev].byAmG)||{};
+  const allAm=uniqueList([...Object.keys(cur), ...Object.keys(prev)]);
+  const rows=allAm.map(am=>{
+    const c=cur[am]||{dt:0,vol:0,kh:new Set()};
+    const p=prev[am]||{dt:0,vol:0,kh:new Set()};
+    const dtC=c.dt||0, dtP=p.dt||0;
+    const volC=c.vol||0, volP=p.vol||0;
+    const khC=c.kh?c.kh.size:0, khP=p.kh?p.kh.size:0;
+    const pctDt=dtP>0?(dtC-dtP)/dtP*100:(dtC>0?100:0);
+    const pctKh=khP>0?(khC-khP)/khP*100:(khC>0?100:0);
+    return {am, dt:dtC, dtPrev:dtP, vol:volC, volPrev:volP, kh:khC, khPrev:khP, pctDt, pctKh};
+  }).filter(r=>r.dt>0||r.dtPrev>0||r.kh>0||r.khPrev>0);
+  const top=rows.slice().sort((a,b)=>b.dt-a.dt||b.kh-a.kh).slice(0,n);
+  // Yếu (vấn đề bán mới): ưu tiên giảm DT; không xếp AM tăng DT vào danh sách yếu chỉ vì giảm KH
+  const yeu=rows.filter(r=>r.dtPrev>0&&r.dt<r.dtPrev)
+    .sort((a,b)=>a.pctDt-b.pctDt||a.vol-b.vol)
+    .slice(0,n);
+  // Nếu không ai giảm DT → lấy bottom theo DT tuần này (có phát sinh)
+  const yeuFallback=!yeu.length
+    ? rows.filter(r=>r.dt>0||r.kh>0).sort((a,b)=>a.dt-b.dt||a.kh-b.kh).slice(0,n)
+    : yeu;
+  return {top, yeu:yeuFallback, rows};
+}
+function suggestAmBanMoiNhanXet(r){
+  const dt=r.dt||0, kh=r.kh||0, vol=r.vol||0, pctDt=r.pctDt;
+  if(dt>0 && vol<=0) return 'Có DT nhưng chưa có sản lượng (thiếu AOV/Volume) — cần kiểm tra dữ liệu';
+  if(dt>=80e6 || (kh>=5 && vol>=3000)) return 'Bán mới tốt, cần duy trì và khen thưởng';
+  if((r.dtPrev>0 && pctDt<=-30) || (kh<=1 && dt<=5e6)) return 'Bán mới yếu, cần coaching / tăng pipeline tuần tới';
+  if(dt>=20e6 || kh>=3) return 'Bán mới tương đối tốt, GĐV cần hỗ trợ tăng thêm năng lực cho AM';
+  return 'Cần theo dõi thêm và hỗ trợ AM đẩy bán mới';
+}
+function shortThangT(label){
+  const m=String(label||'').match(/\/0?(\d+)$/);
+  if(m) return `T${+m[1]}`;
+  const m2=String(label||'').match(/T\s*0?(\d+)/i);
+  if(m2) return `T${+m2[1]}`;
+  return label||'T-1';
+}
+function prevIsoWeekKey(w){
+  const m=String(w||'').match(/^(\d{4})\/(\d+)$/);
+  if(!m) return '';
+  let y=+m[1], n=+m[2]-1;
+  if(n>=1) return `${y}/${n}`;
+  // Lùi về tuần cuối năm trước (ISO có thể 52 hoặc 53)
+  return `${y-1}/52`;
+}
+function weekKeyNums(w){
+  const m=String(w||'').match(/^(\d{4})\/(\d+)$/);
+  if(m) return {y:+m[1], n:+m[2]};
+  const m2=String(w||'').match(/^(\d{1,2})$/);
+  if(m2) return {y:0, n:+m2[1]};
+  return null;
+}
+function sameWeekKey(a,b){
+  if(!a||!b) return false;
+  if(String(a)===String(b)) return true;
+  const na=weekKeyNums(a), nb=weekKeyNums(b);
+  if(!na||!nb) return weekLabelShort(a)===weekLabelShort(b);
+  if(na.y && nb.y) return na.y===nb.y && na.n===nb.n;
+  return na.n===nb.n;
+}
+function currentIsoWeekKey(d){
+  const dt=d||new Date();
+  const iso=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  return isoWeekFromIsoDate(iso).key;
+}
+/**
+ * So sánh tuần cho báo cáo / WoW:
+ * - Nếu ngày hiện tại đang ở tuần N (vd T29) → luôn so sánh N-1 vs N-2 (T28 vs T27)
+ * - Nếu tuần mới nhất trong data chưa đủ ngày → cùng logic
+ * - Chỉ khi tuần mới nhất đã hoàn tất (không còn là tuần hiện tại) mới so sánh tuần đó với tuần liền trước
+ */
+function resolveDocWeekCompare(weekKeys, byWeek, weekCur, weekPrev){
+  const weeks=sortedWeekKeys(weekKeys&&weekKeys.length?weekKeys:Object.keys(byWeek||{}));
+  const dayCount=w=>{
+    if(!w||!byWeek) return 0;
+    const key=Object.keys(byWeek).find(k=>sameWeekKey(k,w))||w;
+    const b=byWeek[key];
+    if(!b) return 0;
+    if(b.days&&typeof b.days.size==='number') return b.days.size;
+    return 0;
+  };
+  const todayWk=currentIsoWeekKey();
+  const nCur=dayCount(weekCur);
+  const nPrev=dayCount(weekPrev);
+  const weekCurIsToday=!!weekCur && !!todayWk && sameWeekKey(weekCur, todayWk);
+  const dataIncomplete=!!weekCur && (
+    (nCur>0 && nCur<7) ||
+    (nCur>0 && nPrev>0 && nCur<nPrev) ||
+    (nCur===0 && nPrev>0)
+  );
+  // Đang ở tuần lịch hiện tại HOẶC tuần data chưa đủ ngày → luôn lấy 2 tuần hoàn chỉnh liền trước
+  const shiftToPrevPair=weekCurIsToday || dataIncomplete;
+
+  if(shiftToPrevPair){
+    const anchor=todayWk||weekCur||'';
+    let compareCur=anchor?prevIsoWeekKey(anchor):'';
+    let comparePrev=compareCur?prevIsoWeekKey(compareCur):'';
+    if(compareCur && weeks.length){
+      const hitCur=weeks.find(w=>sameWeekKey(w, compareCur));
+      const hitPrev=weeks.find(w=>sameWeekKey(w, comparePrev));
+      if(hitCur) compareCur=hitCur;
+      if(hitPrev) comparePrev=hitPrev;
+      if(!hitCur){
+        const withoutCur=weeks.filter(w=>!sameWeekKey(w, weekCur)&&!sameWeekKey(w, todayWk));
+        if(withoutCur.length>=2){
+          compareCur=withoutCur[withoutCur.length-1];
+          comparePrev=withoutCur[withoutCur.length-2];
+        } else if(weekPrev){
+          compareCur=weekPrev;
+          comparePrev=prevIsoWeekKey(weekPrev);
+        }
+      }
+    } else if(weekPrev){
+      compareCur=weekPrev;
+      comparePrev=prevIsoWeekKey(weekPrev);
+    }
+    if(compareCur){
+      return {
+        compareCur, comparePrev,
+        incomplete:true,
+        weekCur:weekCur||todayWk||'',
+        weekPrev:weekPrev||'',
+        daysCur:nCur, daysPrev:nPrev,
+        reason:`Đang ở ${weekLabelShort(todayWk||weekCur)} → so sánh ${weekLabelShort(compareCur)} vs ${weekLabelShort(comparePrev)}`
+      };
+    }
+  }
+  return {
+    compareCur:weekCur||'', comparePrev:weekPrev||'',
+    incomplete:false,
+    weekCur:weekCur||'', weekPrev:weekPrev||'',
+    daysCur:nCur, daysPrev:nPrev, reason:''
+  };
+}
+/** Gộp DT/vol/KH nhóm G theo AM cho các tuần chỉ định — không cắt theo tháng (đủ tuần để so sánh). */
+function buildAmGByWeekFromTotalKH(totalKH, weekA, weekB){
+  const out={};
+  [weekA,weekB].filter(Boolean).forEach(w=>{ out[w]={byAmG:{},volG:0,khG:new Set(),dtBanMoi:0,days:new Set()}; });
+  if(!totalKH||totalKH.length<2) return out;
+  const {recs}=parseTotalKHNhomRecs(totalKH);
+  const resolveKey=tuan=>{
+    if(weekA && sameWeekKey(tuan, weekA)) return weekA;
+    if(weekB && sameWeekKey(tuan, weekB)) return weekB;
+    return '';
+  };
+  recs.forEach(r=>{
+    if(r.grp!=='G') return;
+    const w=resolveKey(r.tuan);
+    if(!w||!out[w]) return;
+    const dt=r.dt||0, vol=r.vol||0;
+    out[w].dtBanMoi+=dt;
+    out[w].volG+=vol;
+    if(r.ngay) out[w].days.add(r.ngay);
+    if(r.ma && (dt>0||vol>0)) out[w].khG.add(r.ma);
+    const am=(r.am||'').trim();
+    if(!am||/^\d+$/.test(am)) return;
+    if(!out[w].byAmG[am]) out[w].byAmG[am]={dt:0,vol:0,kh:new Set()};
+    out[w].byAmG[am].dt+=dt;
+    out[w].byAmG[am].vol+=vol;
+    if(r.ma && (dt>0||vol>0)) out[w].byAmG[am].kh.add(r.ma);
+  });
+  return out;
+}
+/** DT nhóm KH trong N ngày đầu tháng (cùng kỳ) — từ TotalKH. */
+function sumNhomDtCungKy(totalKH, thang, grp, elapsedDays){
+  if(!totalKH||totalKH.length<2||!thang||!elapsedDays) return 0;
+  const {recs}=parseTotalKHNhomRecs(totalKH);
+  const maxDay=Math.max(1, elapsedDays);
+  return recs.filter(r=>{
+    if(grp&&r.grp!==grp) return false;
+    if(!r.thang||!thangEq(r.thang, thang)) return false;
+    const d=+String(r.ngay||'').slice(8,10);
+    return d>=1 && d<=maxDay;
+  }).reduce((s,r)=>s+r.dt,0);
+}
+/** Phân bổ giữ cũ / bán mới khớp tổng LTC (MTD & dự kiến cùng tỷ lệ). */
+function allocateGiuBanMoi(mtdLtc, rawGiu, rawBan){
+  const raw=(rawGiu||0)+(rawBan||0);
+  if(mtdLtc>0 && raw>0){
+    return {
+      mtdGiu: mtdLtc*(rawGiu/raw),
+      mtdBanMoi: mtdLtc*(rawBan/raw),
+      shareGiu: rawGiu/raw,
+      shareBan: rawBan/raw,
+      reconciled: true
+    };
+  }
+  if(mtdLtc>0){
+    return {mtdGiu:mtdLtc, mtdBanMoi:0, shareGiu:1, shareBan:0, reconciled:false};
+  }
+  return {mtdGiu:rawGiu||0, mtdBanMoi:rawBan||0, shareGiu:0, shareBan:0, reconciled:false};
+}
+/** Ma trận DT theo nhóm × tuần từ TotalKH — scale từng tuần khớp DT-Ngày vùng (đúng triệu đồng). */
+function buildNhomWeekMatrix(totalKH, nWeeks, dtNgay){
   const empty={weeks:[], rows:[], byWeek:{}};
   const {recs}=parseTotalKHNhomRecs(totalKH);
   if(!recs.length) return empty;
@@ -1121,6 +1826,30 @@ function buildNhomWeekMatrix(totalKH, nWeeks){
     byWeek[r.tuan][r.grp]=(byWeek[r.tuan][r.grp]||0)+r.dt;
     byWeek[r.tuan].total+=r.dt;
   });
+  // Tổng DT vùng theo tuần từ DT-Ngày → scale tỷ lệ nhóm TotalKH
+  if(dtNgay&&dtNgay.length>1){
+    const h=dtNgay[0], iNgay=idxOf(h,'Ngay'), iDT=idxOf(h,'DoanhThu');
+    const weekLtc={};
+    if(iNgay>=0&&iDT>=0){
+      for(let i=1;i<dtNgay.length;i++){
+        const r=dtNgay[i];
+        const iso=normalizeNgayToIso(r[iNgay]);
+        if(!iso) continue;
+        const wk=isoWeekFromIsoDate(iso).key;
+        if(!byWeek[wk]) continue;
+        weekLtc[wk]=(weekLtc[wk]||0)+parseVNNum(r[iDT]);
+      }
+    }
+    Object.keys(byWeek).forEach(w=>{
+      const raw=byWeek[w].total||0;
+      const target=weekLtc[w]||0;
+      if(raw>0 && target>0){
+        const k=target/raw;
+        NHOM_LABELS.forEach(g=>{ byWeek[w][g]=(byWeek[w][g]||0)*k; });
+        byWeek[w].total=target;
+      }
+    });
+  }
   const prevOf=w=>{
     const i=weeks.indexOf(w);
     return i>0?weeks[i-1]:'';
@@ -1279,7 +2008,7 @@ function renderChartSection(progress){
     : '';
   return `<div class="chart-grid">
     <div class="chart-box"><div class="chart-title">Doanh Thu Theo Tháng</div><div class="chart-sub">So sánh 2025 vs 2026 · triệu đồng${projNote}</div><div class="chart-wrap"><canvas id="cDtYoY"></canvas></div></div>
-    <div class="chart-box"><div class="chart-title">Hàng Nặng / Hàng Nhẹ Theo Tháng</div><div class="chart-sub">2025: ${SHEET.dtThang2025} · 2026: ${SHEET.dtThang2026} · triệu đồng${projNote}</div><div class="chart-wrap"><canvas id="cLoaiHang"></canvas></div></div>
+    <div class="chart-box"><div class="chart-title">Hàng Nặng / Hàng Nhẹ Theo Tháng</div><div class="chart-sub">So sánh 2025 · 2026 · triệu đồng${projNote}</div><div class="chart-wrap"><canvas id="cLoaiHang"></canvas></div></div>
   </div>`;
 }
 function slkhByNhomCurrentMonth(recs, thang){
@@ -1309,15 +2038,15 @@ function renderSlkhSection(slkhInfo, thangLabel){
 function renderHangNangNheSection(recs){
   if(!recs.length) return '';
   const years=[2025,2026];
-  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">📦</div>Doanh Thu Hàng Nặng / Hàng Nhẹ Theo Tỉnh</div><span class="badge">2025: ${SHEET.dtThang2025} · 2026: ${SHEET.dtThang2026}</span></div>`;
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">📦</div>Doanh Thu Hàng Nặng / Hàng Nhẹ Theo Tỉnh</div><span class="badge">2025 · 2026</span></div>`;
   let lastYInsight='';
   years.forEach(y=>{
     const yrRecs=recs.filter(r=>r.y===y);
     if(!yrRecs.length) return;
     const now=new Date();
     const maxM = y===now.getFullYear() ? now.getMonth()+1 : 12;
-    const months=[...new Set(yrRecs.map(r=>r.m))].filter(m=>m<=maxM).sort((a,b)=>a-b);
-    const tinhs=[...new Set(yrRecs.map(r=>r.tinh))].sort();
+    const months=uniqueList(yrRecs.map(r=>r.m)).filter(m=>m<=maxM).sort((a,b)=>a-b);
+    const tinhs=uniqueList(yrRecs.map(r=>r.tinh)).sort();
     const mHdr=months.map(m=>`<th class="num" colspan="2">${String(m).padStart(2,'0')}/${y}</th>`).join('');
     const subHdr=months.map(()=>`<th class="num">Nặng</th><th class="num">Nhẹ</th>`).join('');
     html+=`<div class="am-title">Năm ${y}</div><div class="table-wrap"><table class="tbl-pro"><thead>
@@ -1352,8 +2081,20 @@ function renderHangNangNheSection(recs){
 function parseVNNum(s){
   if(s==null) return 0;
   s = String(s).trim();
-  if(!s) return 0;
-  return parseFloat(s.replace(/\./g,'').replace(',','.')) || 0;
+  if(!s || s==='-') return 0;
+  // Chuẩn VI: "1.234.567,89" (chấm = nghìn, phẩy = thập phân)
+  if(/^\d{1,3}(\.\d{3})+,(\d+)$/.test(s)){
+    return parseFloat(s.replace(/\./g,'').replace(',','.'))||0;
+  }
+  // "1.234.567" / "12.054.838.710" — mọi dấu chấm đều là phân tách nghìn (VND nguyên)
+  if(/^\d{1,3}(\.\d{3})+$/.test(s)){
+    return parseFloat(s.replace(/\./g,''))||0;
+  }
+  // "1234,56" hoặc "1234.56"
+  if(/^\d+([.,]\d+)?$/.test(s)){
+    return parseFloat(s.replace(',','.'))||0;
+  }
+  return parseFloat(s.replace(/\./g,'').replace(',','.'))||0;
 }
 function parseCSV(text){
   const rows=[]; let row=[],field='',q=false;
@@ -1400,6 +2141,69 @@ async function fetchSheet(sheetName, retry=2){
   }
 }
 function idxOf(header,name){ return header.map(h=>(h||'').trim()).indexOf(name); }
+/** Tìm cột Volume đơn hàng trên TotalKH / KHTotal (không lấy «Volume cam kết»). */
+function idxVolumeCol(header){
+  const names=['Volume','Vol','Sản lượng','San luong','Sản Lượng'];
+  for(const n of names){
+    const i=idxOf(header,n);
+    if(i>=0){
+      const h=String(header[i]||'').trim().toLowerCase();
+      if(/cam\s*k[eế]t|commitment|ke\s*hoach|kế\s*hoạch/.test(h)) continue;
+      return i;
+    }
+  }
+  return header.findIndex(h=>{
+    const s=String(h||'').trim();
+    if(/cam\s*k[eế]t|commitment/i.test(s)) return false;
+    return /^(volume|vol|sản\s*lượng|san\s*luong)$/i.test(s);
+  });
+}
+function idxAovCol(header){
+  const names=['AOV','AOV_Doanhthu','Giá trị đơn hàng trung bình (AOV)','Giá trị đơn hàng trung bình'];
+  for(const n of names){ const i=idxOf(header,n); if(i>=0) return i; }
+  return header.findIndex(h=>/^aov\b/i.test(String(h||'').trim()));
+}
+/** Volume đơn: ưu tiên cột Volume; nếu thiếu thì ước tính DT÷AOV (AOV ≥ 1.000đ). */
+function resolveRowVolume(dt, volRaw, aovRaw){
+  let vol=Math.round(+volRaw||0);
+  let aov=+aovRaw||0;
+  const d=+dt||0;
+  // AOV kiểu "23.9" (1 chữ số thập phân) → thường là nghìn đồng bị parse sai
+  if(aov>0 && aov<1000) aov=aov*1000;
+  let est=0;
+  if(d>0 && aov>=1000) est=Math.round(d/aov);
+  // Cột Volume nhầm tiền / quá lớn → bỏ, dùng DT÷AOV nếu hợp lý
+  if(vol>0){
+    if(vol>100000 && est>0 && est<vol) return {vol:est, source:'DT/AOV'};
+    if(vol>100000) return {vol:0, source:''};
+    return {vol, source:'Volume'};
+  }
+  // Một KH-ngày > 200k đơn gần như chắc chắn DT/AOV lệch đơn vị
+  if(est>0 && est<=200000) return {vol:est, source:'DT/AOV'};
+  return {vol:0, source:''};
+}
+/** Scale DT/vol nhóm G theo tuần khớp ma trận đã quy về DT-Ngày vùng (triệu đồng đúng). */
+function scaleBanMoiWeekToRegion(byWeek, nhomWeekMatrix){
+  if(!byWeek||!nhomWeekMatrix||!nhomWeekMatrix.byWeek) return;
+  Object.keys(byWeek).forEach(w=>{
+    const raw=byWeek[w];
+    const tgtG=(nhomWeekMatrix.byWeek[w]||{}).G||0;
+    if(!raw||!(tgtG>0)) return;
+    const rawG=raw.dtBanMoi||0;
+    if(!(rawG>0)) return;
+    const k=tgtG/rawG;
+    raw.dtBanMoi=tgtG;
+    if(raw.byGrp) raw.byGrp.G=tgtG;
+    raw.volG=Math.round((raw.volG||0)*k);
+    Object.keys(raw.byAm||{}).forEach(am=>{ raw.byAm[am]=(raw.byAm[am]||0)*k; });
+    Object.keys(raw.byAmG||{}).forEach(am=>{
+      const a=raw.byAmG[am];
+      if(!a) return;
+      a.dt=(a.dt||0)*k;
+      a.vol=Math.round((a.vol||0)*k);
+    });
+  });
+}
 // Ngay dạng dd/mm/yyyy -> sortable yyyy-mm-dd
 function ddmmyyyy2iso(s){
   s=(s||'').trim(); const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -1408,7 +2212,12 @@ function ddmmyyyy2iso(s){
 }
 function parseVnNgay(s){
   s=(s||'').trim();
-  const m=s.match(/^(\d{1,2})\s+thg\s+(\d{1,2}),\s*(\d{4})$/);
+  if(!s||s==='-') return '';
+  // Google Sheet VI: "12 thg 7, 2026" | "12 thg 7. 2026" | "12 thg 7 2026"
+  let m=s.match(/^(\d{1,2})\s+thg\.?\s+(\d{1,2})\s*[.,]?\s*(\d{4})$/i);
+  if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  // "12 tháng 7, 2026"
+  m=s.match(/^(\d{1,2})\s+th[aá]ng\s+(\d{1,2})\s*[.,]?\s*(\d{4})$/i);
   if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
   if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
   return ddmmyyyy2iso(s);
@@ -1618,13 +2427,25 @@ async function fetchDtThang2026(){
   if(!extraMonths.size) return gid;
   return concatSheetData(filterDtSheetExcludeMonths(gid, extraMonths, 2026), extra);
 }
+async function fetchTotalKH(){
+  try{
+    const data=await fetchSheet(SHEET.totalKH);
+    if(data&&data.length>1) return data;
+  }catch(e){}
+  // Alias phổ biến: KHTotal
+  try{
+    return await fetchSheet('KHTotal');
+  }catch(e){
+    return fetchSheet(SHEET.totalKH);
+  }
+}
 async function loadAll(){
   const btn=document.getElementById('refreshBtn');
   btn.classList.add('spinning');
   Object.keys(window._charts).forEach(k=>destroyChart(k));
   try{
     const [ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH] = await Promise.all([
-      fetchGid(GID.ketQua), fetchGid(GID.kpiAM), fetchGid(GID.dtNgay), fetchGid(GID.phanNhom), fetchGid(GID.khNhomA), fetchDtThang2026(), fetchSheet(SHEET.dtThang2025), fetchSheet(SHEET.doanhThuGTC), fetchSheet(SHEET.totalKH)
+      fetchGid(GID.ketQua), fetchGid(GID.kpiAM), fetchGid(GID.dtNgay), fetchGid(GID.phanNhom), fetchGid(GID.khNhomA), fetchDtThang2026(), fetchSheet(SHEET.dtThang2025), fetchSheet(SHEET.doanhThuGTC), fetchTotalKH()
     ]);
     window._DATA = { ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH };
     loaded = true;
@@ -1637,8 +2458,10 @@ async function loadAll(){
     renderDtTinh();
     renderNhomA();
   }catch(e){
+    console.error(e);
+    const detail=(e&&e.stack)?String(e.stack).split('\n').slice(0,2).join(' · '):(e&&e.message)||e;
     ['overview','decline','segment','nhomKH','dtTinh','nhomA'].forEach(id=>{
-      document.getElementById(id).innerHTML = `<div class="data-banner err">⚠️ Lỗi tải dữ liệu từ Google Sheet: ${e.message}. Kiểm tra quyền chia sẻ (Anyone with link) hoặc thử Cập nhật lại.</div>`;
+      document.getElementById(id).innerHTML = `<div class="data-banner err">⚠️ Lỗi tải dữ liệu từ Google Sheet: ${detail}. Kiểm tra quyền chia sẻ (Anyone with link) hoặc thử Cập nhật lại (hard refresh: Cmd+Shift+R).</div>`;
     });
   }
   btn.classList.remove('spinning');
@@ -1675,11 +2498,12 @@ function renderOverview(){
   const monthProgress = getMonthProgress(dtNgay);
   const { elapsed, totalDays, pctTime, maxDataDay } = monthProgress;
 
-  // --- KPI Vùng / KPI CM theo AM — sheet KPI AM ---
+  // --- KPI Vùng / KPI Cty (KPI CM) theo AM — sheet KPI AM ---
   const hKPI = kpiAM[0];
   const iAMk = idxOf(hKPI,'AM'), iKPIVung = idxOf(hKPI,'KPI Vùng'), iThangKPI = idxOf(hKPI,'Tháng');
-  let iKPICm = idxOf(hKPI,'KPI CM');
-  if(iKPICm<0) iKPICm = idxOf(hKPI,'KPI Cty');
+  let iKPICm = idxOf(hKPI,'KPI Cty');
+  if(iKPICm<0) iKPICm = idxOf(hKPI,'KPI CM');
+  if(iKPICm<0) iKPICm = idxOf(hKPI,'KPI CM tháng');
   const kpiVungByAM = {}, kpiCmByAM = {};
   let kpiCmHasData=false, totalKpiCm=0, totalKpiVung=0;
   for(let i=1;i<kpiAM.length;i++){
@@ -1738,9 +2562,11 @@ function renderOverview(){
   const dtByDate = buildDtNgayByDate(dtNgay, thang);
   const weekBreakdown = buildMonthWeekBreakdown(dtByDate, thang, totalKpiVung, totalDays);
   const weekSection = renderOverviewWeekSection(weekBreakdown, thangLabel, totalKpiVung);
-  const khASection = renderOverviewKhASection(buildKhAAlertByAm(khNhomA, thang));
-  const banMoiDaySection = renderOverviewBanMoiDaySection(buildBanMoiDayCompare(totalKH, thang));
-  const projectionSection = renderOverviewProjectionSection(rows, totalActual, totalKpiVung, totalProjected, projRateTotal, elapsed, totalDays, thangLabel);
+  const nhom14dSeries = buildNhomDtLastNDays(totalKH, 14, dtNgay);
+  const nhom14dSection = renderOverviewNhom14dSection(nhom14dSeries);
+  const khASection = renderOverviewKhASection(buildKhAAlertByAm(totalKH, thang, monthProgress, dtNgay));
+  const banMoiDaySection = renderOverviewBanMoiDaySection(buildBanMoiDayCompare(totalKH, thang, dtNgay));
+  const projectionSection = renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc);
   const kpiCmSection = renderOverviewKpiCmSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc);
   const kpiCards = `
   <div class="kpi-grid">
@@ -1769,7 +2595,7 @@ function renderOverview(){
       <div class="sub">MTD ÷ ${elapsed} ngày × ${totalDays} ngày</div>
       <div class="cmp">
         % dự kiến / KPI Vùng: <b class="${projRateTotal>=100?'down':'up'}">${projRateTotal.toFixed(0)}%</b>
-        ${kpiCmHasData ? `<span class="lbl-sub"> · KPI CM ${fmtVnd(totalKpiCm)}</span>` : ''}
+        ${kpiCmHasData ? `<span class="lbl-sub"> · KPI Cty ${fmtVnd(totalKpiCm)}</span>` : ''}
       </div>
     </div>
     <div class="kpi-card">
@@ -1782,44 +2608,62 @@ function renderOverview(){
 
   let table = `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">📊</div>Doanh Thu Theo AM</div><span class="badge">Tháng ${thangLabel} · ${elapsed}/${totalDays} ngày</span></div>
   <div class="table-wrap"><table class="tbl-pro"><thead><tr>
-    <th style="width:48px">#</th><th>AM</th><th class="num">MTD</th><th class="num">DT GTC</th><th class="num">Volume MTD</th><th class="num">KPI Vùng CK</th><th class="num">% Đạt Vùng</th><th class="num">KPI Vùng</th><th class="num">KPI CM CK</th><th class="num">% Đạt CM</th><th class="num">% GTC/CM</th><th class="num">Dự kiến</th><th class="num">% DK/Vùng</th>
+    <th style="width:48px">#</th>
+    <th>AM</th>
+    <th class="num">KPI Cty</th>
+    <th class="num">Dự kiến DT LTC</th>
+    <th class="num">MTD LTC</th>
+    <th class="num">DT GTTC<span class="ck">(cùng kỳ)</span></th>
+    <th class="num">Volume MTD</th>
+    <th class="num">KPI Cty<span class="ck">(cùng kỳ)</span></th>
+    <th class="num">% Đạt KPI LTC<span class="ck">(cùng kỳ)</span></th>
+    <th class="num">% Đạt KPI Cty<span class="ck">(cùng kỳ)</span></th>
+    <th class="num">KPI Vùng</th>
+    <th class="num">KPI Vùng CK</th>
+    <th class="num">% Đạt Vùng</th>
+    <th class="num">% DK/Vùng</th>
   </tr></thead><tbody>`;
   rows.forEach((r,i)=>{
     table += `<tr><td><span class="rank-num${i<3?' top3':''}">${i+1}</span></td><td><span class="lbl-name">${r.am}</span></td>
+      <td class="num">${r.kpiCm?fmtVndCell(r.kpiCm):'<span class="empty-val">—</span>'}</td>
+      <td class="num">${fmtVndCell(r.projected)}</td>
       <td class="num">${fmtVndCell(r.actual)}</td>
       <td class="num">${r.gtc?fmtVndCell(r.gtc):'<span class="empty-val">—</span>'}</td>
       <td class="num">${fmtVolCell(r.vol)}</td>
-      <td class="num">${r.kpiVungPeriod?fmtVndCell(r.kpiVungPeriod):'<span class="empty-val">—</span>'}</td>
-      <td class="num">${pctCell(r.ratePeriod)}</td>
-      <td class="num">${r.kpiVung?fmtVndCell(r.kpiVung):'<span class="empty-val">—</span>'}</td>
       <td class="num">${r.kpiCmPeriod?fmtVndCell(r.kpiCmPeriod):'<span class="empty-val">—</span>'}</td>
       <td class="num">${r.kpiCm?pctCell(r.rateCmPeriod):'<span class="empty-val">—</span>'}</td>
       <td class="num">${r.kpiCm?pctCell(r.rateGtcCmPeriod):'<span class="empty-val">—</span>'}</td>
-      <td class="num">${fmtVndCell(r.projected)}</td>
+      <td class="num">${r.kpiVung?fmtVndCell(r.kpiVung):'<span class="empty-val">—</span>'}</td>
+      <td class="num">${r.kpiVungPeriod?fmtVndCell(r.kpiVungPeriod):'<span class="empty-val">—</span>'}</td>
+      <td class="num">${pctCell(r.ratePeriod)}</td>
       <td class="num">${r.kpiVung?pctCell(r.projRateVung):'<span class="empty-val">—</span>'}</td>
     </tr>`;
   });
   table += `<tr class="tot"><td></td><td>TỔNG VÙNG TNT</td>
-    <td class="num">${fmtVndCell(totalActual)}</td><td class="num">${fmtVndCell(totalGtc)}</td><td class="num">${fmtVolCell(totalVol)}</td><td class="num">${fmtVndCell(totalKPIPeriod)}</td>
-    <td class="num"><span class="pct-pill ${pctClass(rateTotal)}">${rateTotal.toFixed(0)}%</span></td>
-    <td class="num">${fmtVndCell(totalKpiVung)}</td><td class="num">${fmtVndCell(totalKpiCmPeriod)}</td>
+    <td class="num">${kpiCmHasData?fmtVndCell(totalKpiCm):'<span class="empty-val">—</span>'}</td>
+    <td class="num">${fmtVndCell(totalProjected)}</td>
+    <td class="num">${fmtVndCell(totalActual)}</td>
+    <td class="num">${fmtVndCell(totalGtc)}</td>
+    <td class="num">${fmtVolCell(totalVol)}</td>
+    <td class="num">${fmtVndCell(totalKpiCmPeriod)}</td>
     <td class="num">${kpiCmHasData?`<span class="pct-pill ${pctClass(pct(totalActual,totalKpiCmPeriod))}">${pct(totalActual,totalKpiCmPeriod).toFixed(0)}%</span>`:'—'}</td>
     <td class="num">${kpiCmHasData?`<span class="pct-pill ${pctClass(pct(totalGtc,totalKpiCmPeriod))}">${pct(totalGtc,totalKpiCmPeriod).toFixed(0)}%</span>`:'—'}</td>
-    <td class="num">${fmtVndCell(totalProjected)}</td>
+    <td class="num">${fmtVndCell(totalKpiVung)}</td>
+    <td class="num">${fmtVndCell(totalKPIPeriod)}</td>
+    <td class="num"><span class="pct-pill ${pctClass(rateTotal)}">${rateTotal.toFixed(0)}%</span></td>
     <td class="num"><span class="pct-pill ${pctClass(projRateTotal)}">${projRateTotal.toFixed(0)}%</span></td></tr>`;
   table += `</tbody></table></div>`;
 
-  const worst = rows.filter(r=>r.kpiCm>0).slice().sort((a,b)=>a.rateCmPeriod-b.rateCmPeriod)[0]
+  const worst = rows.filter(r=>r.kpiCm>0).slice().sort((a,b)=>a.rateGtcCmPeriod-b.rateGtcCmPeriod)[0]
     || rows.slice().sort((a,b)=>a.ratePeriod-b.ratePeriod)[0];
-  const best = rows.filter(r=>r.kpiCm>0).slice().sort((a,b)=>b.rateCmPeriod-a.rateCmPeriod)[0]
+  const best = rows.filter(r=>r.kpiCm>0).slice().sort((a,b)=>b.rateGtcCmPeriod-a.rateGtcCmPeriod)[0]
     || rows.slice().sort((a,b)=>b.ratePeriod-a.ratePeriod)[0];
   table += analysisQuick(`
-    Qua ${elapsed}/${totalDays} ngày, vùng đạt <b>${fmtVnd(totalActual)}</b>
-    (<b>${rateTotal.toFixed(0)}%</b> KPI Vùng cùng kỳ · <b>${kpiCmHasData?pct(totalActual,totalKpiCmPeriod).toFixed(0)+'%':'—'}</b> KPI CM cùng kỳ).
-    GTC MTD <b>${fmtVnd(totalGtc)}</b> (${kpiCmHasData?pct(totalGtc,totalKpiCmPeriod).toFixed(0)+'%':'—'} KPI CM CK).
-    Dự kiến cuối tháng <b>${fmtVnd(totalProjected)}</b> (${projRateTotal.toFixed(0)}% KPI Vùng).
-    Dẫn đầu: <b>${best?best.am:'—'}</b> · Cần hỗ trợ: <b>${worst?worst.am:'—'}</b>.
-    ${!kpiCmHasData ? '<br><span class="lbl-sub">⚠️ Chưa có cột KPI CM trong sheet KPI AM.</span>' : ''}
+    Qua ${elapsed}/${totalDays} ngày, vùng đạt <b>${fmtVnd(totalActual)}</b> MTD LTC
+    (<b>${rateTotal.toFixed(0)}%</b> KPI Vùng cùng kỳ · <b>${kpiCmHasData?pct(totalActual,totalKpiCmPeriod).toFixed(0)+'%':'—'}</b> % Đạt KPI LTC · <b>${kpiCmHasData?pct(totalGtc,totalKpiCmPeriod).toFixed(0)+'%':'—'}</b> % Đạt KPI Cty).
+    DT GTTC <b>${fmtVnd(totalGtc)}</b> · Dự kiến DT LTC <b>${fmtVnd(totalProjected)}</b> (${projRateTotal.toFixed(0)}% KPI Vùng).
+    Dẫn đầu (% Đạt KPI Cty): <b>${best?best.am:'—'}</b> · Cần hỗ trợ: <b>${worst?worst.am:'—'}</b>.
+    ${!kpiCmHasData ? '<br><span class="lbl-sub">⚠️ Chưa có cột KPI Cty / KPI CM trong sheet KPI AM.</span>' : ''}
   `);
   table += `</div>`;
 
@@ -1834,6 +2678,7 @@ function renderOverview(){
   ${noDataBanner}
   ${kpiCards}
   ${weekSection}
+  ${nhom14dSection}
   ${khASection}
   ${banMoiDaySection}
   ${projectionSection}
@@ -1842,8 +2687,9 @@ function renderOverview(){
   ${chartSection}
   ${slkhSection}
   ${hangSection}
-  <div class="foot-note">Nguồn: "Kết Quả" · "KPI AM" · "${SHEET.doanhThuGTC}" · "${SHEET.dtThang2025}" · "${SHEET.dtThang2026}" · Đơn vị DT: triệu đồng.</div>`;
+  <div class="foot-note">Đơn vị DT: triệu đồng.</div>`;
   drawOverviewCharts(dtThangRecs, monthProgress);
+  drawNhom14dChart(nhom14dSeries);
 }
 
 /* ===================== 2) AM GIẢM DOANH THU — CÙNG KỲ TUẦN ===================== */
@@ -1859,7 +2705,7 @@ function renderDecline(){
     el.innerHTML = `
     <div class="page-header"><div><div class="page-title">AM Giảm Doanh Thu</div><div class="page-sub">So sánh cùng kỳ tuần hiện tại vs tuần trước · <span class="unit-note">triệu đồng</span></div></div></div>
     <div class="data-banner">📅 Chưa đủ 2 tuần dữ liệu trong tháng <b>${thangLabel}</b> (tính từ cột <b>Ngay</b>) để so sánh tuần.</div>
-    <div class="foot-note">Nguồn: sheet "DT-Ngày" (gid=${GID.dtNgay}).</div>`;
+    <div class="foot-note">Đơn vị DT: triệu đồng.</div>`;
     return;
   }
 
@@ -1905,14 +2751,14 @@ function renderDecline(){
   <div class="page-header"><div><div class="page-title">AM Giảm Doanh Thu</div><div class="page-sub">Cùng kỳ tuần hiện tại vs tuần trước · không so tổng tuần thiếu ngày · <span class="unit-note">triệu đồng</span></div></div></div>
   <div class="data-banner">📅 Tháng <b>${thangLabel}</b> · So sánh cùng kỳ <b>${daysUsed} ngày</b>: <b>${spanLbl}</b> (${weekLabelShort(weekCur)}) vs <b>${prevLbl}</b> (${weekLabelShort(weekPrev)}).</div>
   ${body}
-  <div class="foot-note">Nguồn: sheet "DT-Ngày" (gid=${GID.dtNgay}). Ngưỡng cảnh báo: giảm &gt;20% so với cùng kỳ tuần liền trước (T2 → ngày mới nhất tuần hiện tại).</div>`;
+  <div class="foot-note">Ngưỡng cảnh báo: giảm &gt;20% so với cùng kỳ tuần liền trước (T2 → ngày mới nhất tuần hiện tại).</div>`;
 }
 
 /* ===================== 3) PHÂN NHÓM KHÁCH HÀNG THEO AM — 3 NGÀY (TotalKH) ===================== */
 function renderSegment(){
   const el = document.getElementById('segment');
   const { totalKH } = window._DATA;
-  if(!totalKH || totalKH.length<2){ el.innerHTML = `<div class="data-banner err">Không có dữ liệu sheet ${SHEET.totalKH}.</div>`; return; }
+  if(!totalKH || totalKH.length<2){ el.innerHTML = `<div class="data-banner err">Không có dữ liệu nhóm khách hàng.</div>`; return; }
   const { recs, maxDate } = parseTotalKHNhomRecs(totalKH);
 
   const allDates = [...new Set(recs.map(r=>r.ngay))].sort();
@@ -1954,100 +2800,133 @@ function renderSegment(){
 
   el.innerHTML = `
   <div class="page-header"><div><div class="page-title">Phân Nhóm Khách Hàng</div><div class="page-sub">Theo AM · 3 ngày gần nhất · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
-  ${nhomStaleBanner(maxDate, SHEET.totalKH)}
-  <div class="data-banner" style="margin-top:0">📊 3 ngày gần nhất (cột <b>Ngày chuẩn hóa</b>): <b>${last3.map(isoShort2).join(' · ')||'—'}</b></div>
+  ${nhomStaleBanner(maxDate)}
+  <div class="data-banner" style="margin-top:0">📊 3 ngày gần nhất: <b>${last3.map(isoShort2).join(' · ')||'—'}</b></div>
   ${body||'<div class="data-banner">Không có dữ liệu 3 ngày gần nhất.</div>'}
   ${topAm?analysisQuick(`Toàn vùng 3N: <b>${fmtVnd(regionTot)}</b> · AM dẫn đầu: <b>${topAm.am}</b> (${fmtVnd(topAm.tot)}).`):''}
-  <div class="foot-note">Nguồn: sheet "${SHEET.totalKH}" · cột Ngày chuẩn hóa (vd. 12/07/2026).</div>`;
+  <div class="foot-note">Đơn vị DT: triệu đồng.</div>`;
 }
 
 /* ===================== 3b) DOANH THU THEO NHÓM KHÁCH HÀNG ===================== */
 function renderNhomKH(){
   const el = document.getElementById('nhomKH');
   const { totalKH } = window._DATA;
-  if(!totalKH || totalKH.length<2){ el.innerHTML = `<div class="data-banner err">Không có dữ liệu sheet ${SHEET.totalKH}.</div>`; return; }
+  if(!totalKH || totalKH.length<2){ el.innerHTML = `<div class="data-banner err">Không có dữ liệu nhóm khách hàng.</div>`; return; }
   const { recs, maxDate } = parseTotalKHNhomRecs(totalKH);
   el.innerHTML = `
-  <div class="page-header"><div><div class="page-title">Doanh Thu Theo Nhóm Khách Hàng</div><div class="page-sub">Tổng vùng &amp; theo AM · 3 ngày gần nhất từ <b>${SHEET.totalKH}</b> · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
-  ${nhomStaleBanner(maxDate, SHEET.totalKH)}
+  <div class="page-header"><div><div class="page-title">Doanh Thu Theo Nhóm Khách Hàng</div><div class="page-sub">Tổng vùng &amp; theo AM · 3 ngày gần nhất · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
+  ${nhomStaleBanner(maxDate)}
   ${renderNhomKHCard(recs, maxDate)}
-  <div class="foot-note">Nguồn: sheet "${SHEET.totalKH}" · cột Ngày chuẩn hóa (vd. 12/07/2026, 21/06/2026).</div>`;
+  <div class="foot-note">Đơn vị DT: triệu đồng.</div>`;
 }
 
 /* ===================== 3c) DOANH THU KHÁCH HÀNG THEO TỈNH ===================== */
 function renderDtTinh(){
   const el = document.getElementById('dtTinh');
   const { totalKH } = window._DATA;
-  if(!totalKH || totalKH.length<2){ el.innerHTML = `<div class="data-banner err">Không có dữ liệu sheet ${SHEET.totalKH}.</div>`; return; }
+  if(!totalKH || totalKH.length<2){ el.innerHTML = `<div class="data-banner err">Không có dữ liệu nhóm khách hàng.</div>`; return; }
   const { recs, maxDate } = parseTotalKHNhomRecs(totalKH);
   el.innerHTML = `
   <div class="page-header"><div><div class="page-title">Doanh Thu Khách Hàng Theo Tỉnh</div><div class="page-sub">Phân nhóm KH theo tỉnh · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
-  ${nhomStaleBanner(maxDate, SHEET.totalKH)}
+  ${nhomStaleBanner(maxDate)}
   ${renderNhomTinhCard(recs, maxDate)}
-  <div class="foot-note">Nguồn: sheet "${SHEET.totalKH}" · cột Ngày chuẩn hóa.</div>`;
+  <div class="foot-note">Đơn vị DT: triệu đồng.</div>`;
 }
 
-/* ===================== 4) NHÓM A — PHÂN TÍCH KHÁCH HÀNG ===================== */
+/* ===================== 4) NHÓM A — PHÂN TÍCH KHÁCH HÀNG (TotalKH) ===================== */
 function renderNhomA(){
   const el = document.getElementById('nhomA');
-  const { khNhomA } = window._DATA;
-  if(!khNhomA || khNhomA.length<2){
-    el.innerHTML = '<div class="data-banner err">Không có dữ liệu sheet khách hàng nhóm A.</div>';
+  const { totalKH, dtNgay } = window._DATA;
+  if(!totalKH || totalKH.length<2){
+    el.innerHTML = '<div class="data-banner err">Không có dữ liệu TotalKH (nhóm A).</div>';
     return;
   }
-  const h = khNhomA[0];
-  const iMa = idxOf(h,'MaKH'), iTen = idxOf(h,'TenKH'), iNgay = idxOf(h,'Ngay'), iVol = idxOf(h,'Volume');
-  const iAM = idxAMCol(h) >= 0 ? idxAMCol(h) : 22;
-  let iDT = idxOfNth(h,'% Doanh thu đạt được so với MTD',3);
-  if(iDT<0) iDT = 14;
-
   const thangCur = currentThang();
   const thangPrev = prevThang(thangCur);
   const thangCurLabel = formatThangLabel(thangCur);
   const thangPrevLabel = formatThangLabel(thangPrev);
+  const prog = getMonthProgress(dtNgay);
+  const elapsed = prog.elapsed||1;
+  const totalDays = prog.totalDays||31;
+  const h = totalKH[0];
+  const iMa = idxOf(h,'MaKH'), iTen = idxOf(h,'TenKH'), iNhom = idxOf(h,'Nhom'), iVung = idxOf(h,'Vung');
+  const iNgayChuan = idxNgayChuanHoa(h);
+  const iNgay = idxOf(h,'Ngay');
+  const iDT = idxOf(h,'DT'), iMtd = idxOf(h,'MTD');
+  const iAM = idxOf(h,'AM Chuẩn');
+  const iVol = idxVolumeCol(h);
+  const iAov = idxAovCol(h);
+  const dayDt=raw=>{ const d=+raw||0; return d>200e6?d/1000:d; };
 
   const byCust = {};
-  for(let i=1;i<khNhomA.length;i++){
-    const r = khNhomA[i];
-    const ma = (r[iMa]||'').trim(), ten = (r[iTen]||'').trim(), am = (r[iAM]||'').trim();
-    const ngayIso = normalizeNgayToIso(r[iNgay]);
+  for(let i=1;i<totalKH.length;i++){
+    const r = totalKH[i];
+    if(iVung>=0 && (r[iVung]||'').trim() && !isVungTnt(r[iVung])) continue;
+    if(normNhom(r[iNhom])!=='A') continue;
+    const ma = (r[iMa]||'').trim();
+    const ngayIso = resolveSheetNgayIso(r, iNgayChuan, iNgay);
     if(!ma || !ngayIso) continue;
-    const dt = parseVNNum(r[iDT]);
-    const vol = iVol>=0 ? Math.round(parseVNNum(r[iVol])) : 0;
-    if(!byCust[ma]) byCust[ma] = {ma, ten, am, dates:{}, vols:{}};
+    const mk = monthKeyFromIso(ngayIso);
+    if(!mk || (!thangEq(mk,thangCur) && !(thangPrev && thangEq(mk,thangPrev)))) continue;
+    const dt = dayDt(parseVNNum(r[iDT]));
+    const mtd = iMtd>=0?parseMtdNum(r[iMtd]):0;
+    const rv = resolveRowVolume(dt, iVol>=0?parseVNNum(r[iVol]):0, iAov>=0?parseVNNum(r[iAov]):0);
+    const ten = (iTen>=0?(r[iTen]||'').trim():'');
+    const am = (iAM>=0?(r[iAM]||'').trim():'');
+    if(!byCust[ma]) byCust[ma] = {ma, ten, am, dates:{}, vols:{}, mtdCur:0, mtdPrev:0, maxCur:'', maxPrev:''};
     byCust[ma].ten = ten || byCust[ma].ten;
     byCust[ma].am = am || byCust[ma].am;
     byCust[ma].dates[ngayIso] = (byCust[ma].dates[ngayIso]||0) + dt;
-    byCust[ma].vols[ngayIso] = (byCust[ma].vols[ngayIso]||0) + vol;
+    byCust[ma].vols[ngayIso] = (byCust[ma].vols[ngayIso]||0) + (rv.vol||0);
+    if(thangEq(mk,thangCur) && ngayIso>=(byCust[ma].maxCur||'')){
+      byCust[ma].maxCur=ngayIso;
+      if(mtd>0) byCust[ma].mtdCur=mtd;
+    }
+    if(thangPrev && thangEq(mk,thangPrev) && ngayIso>=(byCust[ma].maxPrev||'')){
+      byCust[ma].maxPrev=ngayIso;
+      if(mtd>0) byCust[ma].mtdPrev=mtd;
+    }
   }
 
   const rows = Object.values(byCust).map(c=>{
-    const dtCur = monthDtFromDates(c.dates, thangCur);
-    const dtPrev = monthDtFromDates(c.dates, thangPrev);
+    const sumCur = monthDtFromDates(c.dates, thangCur);
+    const sumPrev = monthDtFromDates(c.dates, thangPrev);
+    const dtCur = c.mtdCur>0?c.mtdCur:sumCur;
+    const dtPrev = c.mtdPrev>0?c.mtdPrev:sumPrev;
     const volCur = monthVolFromVols(c.vols, thangCur);
     const volPrev = monthVolFromVols(c.vols, thangPrev);
     const lastCur = lastNgayInMonth(c.dates, thangCur);
     const lastPrev = lastNgayInMonth(c.dates, thangPrev);
-    return {...c, dtCur, dtPrev, volCur, volPrev, lastCur, lastPrev};
+    const projected = dtCur/elapsed*totalDays;
+    const giamHang = projected < NHOM_A_DT_NGUONG;
+    return {...c, dtCur, dtPrev, volCur, volPrev, lastCur, lastPrev, projected, giamHang};
   });
 
+  const totalA = rows.length;
   const activeCur = rows.filter(r=>r.dtCur>0).sort((a,b)=>b.dtCur-a.dtCur);
   const churnRows = rows.filter(r=>r.dtPrev>0 && r.dtCur===0).sort((a,b)=>b.dtPrev-a.dtPrev);
+  const giamHangRows = activeCur.filter(r=>r.giamHang);
   const totalDtCur = activeCur.reduce((s,r)=>s+r.dtCur,0);
 
   const kpiCards = `
   <div class="kpi-grid">
     <div class="kpi-card">
+      <div class="ic" style="background:var(--blue-light);color:var(--blue-dark)">👥</div>
+      <div class="lbl">KH nhóm A (TotalKH)</div>
+      <div class="val"><span class="hero-amt">${fmt(totalA)}</span><span class="hero-unit">KH</span></div>
+      <div class="sub">Đếm unique MaKH · Nhom = A</div>
+    </div>
+    <div class="kpi-card">
       <div class="ic" style="background:var(--green-bg);color:var(--green)">✅</div>
       <div class="lbl">KH có doanh thu tháng ${thangCurLabel}</div>
       <div class="val"><span class="hero-amt">${fmt(activeCur.length)}</span><span class="hero-unit">KH</span></div>
-      <div class="sub">Tính theo cột Ngay → tháng hiện tại</div>
+      <div class="sub">Tổng DT MTD: ${fmtVnd(totalDtCur)}</div>
     </div>
     <div class="kpi-card">
-      <div class="ic" style="background:var(--blue-light);color:var(--blue-dark)">💰</div>
-      <div class="lbl">Tổng DT tháng ${thangCurLabel}</div>
-      <div class="val">${fmtVndHero(totalDtCur)}</div>
-      <div class="sub">Chỉ KH đang phát sinh DT tháng này</div>
+      <div class="ic" style="background:var(--yellow-bg,#fef3c7);color:var(--yellow,#b45309)">📉</div>
+      <div class="lbl">Dự kiến giảm hạng</div>
+      <div class="val"><span class="hero-amt">${fmt(giamHangRows.length)}</span><span class="hero-unit">KH</span></div>
+      <div class="sub">DT TB ngày × ${totalDays} ngày &lt; 45 tr (qua ${elapsed} ngày)</div>
     </div>
     <div class="kpi-card">
       <div class="ic" style="background:var(--red-bg);color:var(--red)">⚠️</div>
@@ -2062,18 +2941,21 @@ function renderNhomA(){
     tableCur += `<div class="section-note">Chưa có KH nhóm A phát sinh doanh thu trong tháng <b>${thangCurLabel}</b>.</div>`;
   } else {
     tableCur += `<div class="table-wrap"><table class="tbl-pro"><thead><tr>
-      <th style="width:40px">#</th><th>Mã</th><th>Tên KH</th><th>AM</th>
-      <th class="num">DT ${thangCurLabel}</th><th class="num">Volume</th><th class="num">Ngày cuối có DT</th>
+      <th style="width:40px">#</th><th>Tên KH</th><th>AM</th>
+      <th class="num">DT ${thangCurLabel}</th><th class="num">DT dự kiến tháng</th><th class="num">Volume</th><th class="num">Ngày cuối có DT</th>
     </tr></thead><tbody>`;
     activeCur.forEach((r,i)=>{
-      tableCur += `<tr><td><span class="rank-num${i<3?' top3':''}">${i+1}</span></td><td>${r.ma}</td><td><span class="lbl-name">${r.ten}</span></td><td>${r.am}</td>
-        <td class="num">${fmtVndCell(r.dtCur)}</td><td class="num">${fmtVolCell(r.volCur)}</td>
+      const warn=r.giamHang?' class="row-warn"':'';
+      tableCur += `<tr${warn}><td><span class="rank-num${i<3?' top3':''}">${i+1}</span></td><td><span class="lbl-name">${r.ten||r.ma}</span></td><td>${r.am||'—'}</td>
+        <td class="num">${fmtVndCell(r.dtCur)}</td><td class="num">${fmtVndCell(r.projected)}${r.giamHang?' <span class="trend-tag up">&lt;45</span>':''}</td>
+        <td class="num">${fmtVolCell(r.volCur)}</td>
         <td>${r.lastCur?isoShort2(r.lastCur):'—'}</td></tr>`;
     });
-    tableCur += `<tr class="tot"><td></td><td colspan="3">TỔNG ${activeCur.length} KH</td>
-      <td class="num">${fmtVndCell(totalDtCur)}</td><td class="num">${fmtVolCell(activeCur.reduce((s,r)=>s+r.volCur,0))}</td><td></td></tr>`;
+    tableCur += `<tr class="tot"><td></td><td colspan="2">TỔNG ${activeCur.length} KH</td>
+      <td class="num">${fmtVndCell(totalDtCur)}</td><td class="num">${fmtVndCell(activeCur.reduce((s,r)=>s+r.projected,0))}</td>
+      <td class="num">${fmtVolCell(activeCur.reduce((s,r)=>s+r.volCur,0))}</td><td></td></tr>`;
     tableCur += `</tbody></table></div>`;
-    tableCur += analysisQuick(`<b>${activeCur.length}</b> KH nhóm A có DT tháng <b>${thangCurLabel}</b> · tổng <b>${fmtVnd(totalDtCur)}</b>. Top: <b>${activeCur[0]?activeCur[0].ten:'—'}</b>.`);
+    tableCur += analysisQuick(`<b>${totalA}</b> KH nhóm A trên TotalKH · <b>${activeCur.length}</b> có DT tháng <b>${thangCurLabel}</b> (MTD) · <b>${giamHangRows.length}</b> dự kiến giảm hạng (TB ngày × ${totalDays} &lt; 45 tr). Top: <b>${activeCur[0]?activeCur[0].ten||activeCur[0].ma:'—'}</b>.`);
   }
   tableCur += `</div>`;
 
@@ -2082,12 +2964,12 @@ function renderNhomA(){
     tableChurn += `<div class="section-note">✅ Tất cả KH có DT tháng ${thangPrevLabel} đều đã phát sinh DT trong tháng ${thangCurLabel}.</div>`;
   } else {
     tableChurn += `<div class="table-wrap"><table class="tbl-pro"><thead><tr>
-      <th style="width:40px">#</th><th>Mã</th><th>Tên KH</th><th>AM</th>
+      <th style="width:40px">#</th><th>Tên KH</th><th>AM</th>
       <th class="num">DT ${thangPrevLabel}</th><th class="num">Volume ${thangPrevLabel}</th>
       <th class="num">DT ${thangCurLabel}</th><th>Ngày cuối có DT (T-1)</th>
     </tr></thead><tbody>`;
     churnRows.forEach((r,i)=>{
-      tableChurn += `<tr class="row-danger"><td>${i+1}</td><td>${r.ma}</td><td><span class="lbl-name">${r.ten}</span></td><td>${r.am}</td>
+      tableChurn += `<tr class="row-danger"><td>${i+1}</td><td><span class="lbl-name">${r.ten||r.ma}</span></td><td>${r.am||'—'}</td>
         <td class="num">${fmtVndCell(r.dtPrev)}</td><td class="num">${fmtVolCell(r.volPrev)}</td>
         <td class="num">${fmtVndCell(r.dtCur)}</td><td>${r.lastPrev?isoShort2(r.lastPrev):'—'}</td></tr>`;
     });
@@ -2097,12 +2979,12 @@ function renderNhomA(){
   tableChurn += `</div>`;
 
   el.innerHTML = `
-  <div class="page-header"><div><div class="page-title">Nhóm A — Phân Tích KH</div><div class="page-sub">Tháng hiện tại: <b>${thangCurLabel}</b> · So với <b>${thangPrevLabel}</b> · <span class="unit-note">triệu đồng</span></div></div></div>
-  <div class="data-banner">📅 Tháng tính từ cột <b>Ngay</b> (ISO <code>YYYY-MM-DD</code>, vd. <code>2025-12-03</code> → tháng 12/2025). Chỉ hiển thị dữ liệu tháng hiện tại và so sánh tháng liền trước — không liệt kê các tháng cũ hơn.</div>
+  <div class="page-header"><div><div class="page-title">Nhóm A — Phân Tích KH</div><div class="page-sub">Tháng hiện tại: <b>${thangCurLabel}</b> · So với <b>${thangPrevLabel}</b> · nguồn <b>TotalKH</b> · <span class="unit-note">triệu đồng</span></div></div></div>
+  <div class="data-banner">📅 Đếm KH <b>Nhom = A</b> trên TotalKH (Vùng TNT). DT tháng lấy cột <b>MTD</b>. Giảm hạng: <b>DT TB ngày × ${totalDays} ngày &lt; 45 tr</b> (qua ${elapsed} ngày).</div>
   ${kpiCards}
   ${tableCur}
   ${tableChurn}
-  <div class="foot-note">Nguồn: sheet "khách hàng nhóm A" (gid=${GID.khNhomA}). Tháng = tháng lịch suy ra từ Ngay.</div>`;
+  <div class="foot-note">Giảm hạng = (MTD ÷ ${elapsed}) × ${totalDays} &lt; 45 triệu đồng.</div>`;
 }
 function isoShort2(iso){
   if(!iso) return '—';
@@ -2132,7 +3014,7 @@ function sumPnSlkh(recs, pred){ return recs.filter(pred).reduce((s,r)=>s+r.slkh,
 function sumPnVol(recs, pred){ return recs.filter(pred).reduce((s,r)=>s+r.vol,0); }
 
 function buildWeeklyReportNarratives(d){
-  const wk=d.weekLabel||'—';
+  const wk=d.weekCompareLabel||d.weekLabel||'—';
   const giuWeekCur=(d.nhomWeekGiu||[]).reduce((s,x)=>s+x.cur,0);
   const giuWeekPrev=(d.nhomWeekGiu||[]).reduce((s,x)=>s+x.prev,0);
   const giuWow=pctWoWText(giuWeekCur,giuWeekPrev);
@@ -2140,66 +3022,173 @@ function buildWeeklyReportNarratives(d){
   const kpiNote=d.pctCungKy>=100?'đạt KPI cùng kỳ':d.pctCungKy>=70?'chậm hơn KPI cùng kỳ':'chưa đạt KPI cùng kỳ';
   const nhanDinhGiuCu=`Tuần ${wk}, DT giữ cũ MTD <b>${fmtVnd(d.mtdGiu)}</b> · DT tuần ${fmtVnd(giuWeekCur)} (${giuWow} vs tuần trước). Vùng ${kpiNote} — MTD LTC <b>${fmtVnd(d.mtdLtc)}</b> đạt <b>${d.pctCungKy.toFixed(0)}%</b> KPI cùng kỳ (${d.elapsed}/${d.totalDays} ngày), dự kiến tháng <b>${d.weekBreakdown&&d.weekBreakdown.length?fmtVnd(d.weekBreakdown[d.weekBreakdown.length-1].projectedMonth):fmtVnd(d.mtdLtc/d.elapsed*d.totalDays)}</b> (${d.weekBreakdown&&d.weekBreakdown.length?d.weekBreakdown[d.weekBreakdown.length-1].pctProj.toFixed(0):pct(d.mtdLtc/d.elapsed*d.totalDays,d.targetThang).toFixed(0)}% target).`;
   const nguyCoRoiBo=d.nhomA.nguyCo>0
-    ?`<b>${d.nhomA.nguyCo}</b> KH nhóm A cảnh báo cùng thứ tuần trước (${d.nhomA.wowNguyCo}): không lên đơn hoặc giảm ≥30% so với cùng ngày tuần trước.`
-    :`Không phát hiện KH A nguy cơ rời bỏ so với cùng thứ tuần trước.`;
+    ?`<b>${d.nhomA.nguyCo}</b> KH nhóm A không có DT LTC trong 5 ngày gần nhất (${(d.nhomA.last5||[]).map(isoShort2).join(' · ')||'—'}) (${d.nhomA.wowNguyCo} vs tuần trước).`
+    :`Không phát hiện KH A nguy cơ rời bỏ (có DT trong 5 ngày gần nhất).`;
   const nhomGiamDt=nhomGiam.length
     ?`Các nhóm giảm DT tuần: ${nhomGiam.join('; ')}.`
     :'Không có nhóm A/BCD/EF giảm DT so với tuần trước.';
   const amGiamTxt=(d.topAmGiam||[]).length
     ?`AM giảm DT tuần: ${d.topAmGiam.slice(0,3).map(([am,p])=>`${am} (${p.toFixed(0)}%)`).join(', ')}.`
     :'';
-  const nguyenNhanGiuCu=[amGiamTxt,d.nhomA.giamHang>0?`${d.nhomA.giamHang} KH A giảm ≥30% / không lên đơn vs cùng thứ tuần trước.`:'']
+  const nguyenNhanGiuCu=[amGiamTxt,d.nhomA.giamHang>0?`${d.nhomA.giamHang} KH A dự kiến giảm hạng (TB ngày × ${d.nhomA.totalDays||d.totalDays} < 45 tr).`:'']
     .filter(Boolean).join(' ')||'Chưa có tín hiệu giảm mạnh tập trung; tiếp tục theo dõi sát tuần tới.';
-  const nhanDinhBanMoi=`Tuần ${wk}: <b>${fmt(d.slkhG)}</b> KH bán mới (nhóm G), volume <b>${fmt(d.volG)}</b> đơn (TB ~${fmt(d.slkhAvgG)} đơn/KH). DT bán mới MTD <b>${fmtVnd(d.mtdBanMoi)}</b>, ${d.wowBanMoi} vs tuần trước.${(d.topAmBanMoi||[]).length?` AM nổi bật: ${d.topAmBanMoi.slice(0,3).map(([am,v])=>`${am} (${fmtVnd(v)})`).join(', ')}.`:' Chưa có AM bán mới nổi bật tuần này.'}`;
-  const wowBanNum=parseFloat(String(d.wowBanMoi||'').replace(/[^0-9.\-+]/g,''));
-  const vanDeBanMoi=!d.slkhG&&!d.mtdBanMoi
-    ?'Chưa có KH bán mới phát sinh tuần này — cần rà soát pipeline, nguồn shop và hỗ trợ AM khu vực.'
-    :!isNaN(wowBanNum)&&wowBanNum<-5
-    ?`DT bán mới giảm ${d.wowBanMoi} tuần này — cần tăng cường prospecting, onboarding KH mới và hỗ trợ AM khu vực yếu.`
-    :`Tiến độ bán mới ${d.wowBanMoi||'ổn định'} tuần này — duy trì và nhân rộng mô hình từ AM top.`;
-  const dtBanMoiDuKien=d.elapsed&&d.mtdBanMoi
-    ?`Dự kiến ~${fmtVnd(d.mtdBanMoi/d.elapsed*7)} DT bán mới tuần tới (ước tính theo TB ngày MTD).`
-    :'Chưa đủ dữ liệu MTD để ước tính tuần tới.';
-  const wdA=d.nhomA.weekday||(d.nhomA.dayCur?weekdayVi(d.nhomA.dayCur):'');
-  const dayCmp=d.nhomA.dayCur&&d.nhomA.dayPrev
-    ? `${wdA} ${isoShort2(d.nhomA.dayPrev)} → ${wdA} ${isoShort2(d.nhomA.dayCur)}`
-    : (d.nhomA.weekCur?weekLabelShort(d.nhomA.weekCur):wk);
-  const nhanDinhNhomA=`Tháng ${d.thangLabel}: <b>${d.nhomA.coDon}/${d.nhomA.total}</b> KH A có lên đơn. So ${dayCmp}: <b>${d.nhomA.nguyCo}</b> KH cảnh báo (${d.nhomA.wowNguyCo}), <b>${d.nhomA.giamHang}</b> KH giảm/không lên đơn (${d.nhomA.wowGiamHang}), <b>${d.tiemNang.count}</b> KH BCD/EF tiềm năng lên A (DT dự kiến ≥45 tr).`;
+  const mtdBanGNar=d.mtdBanMoiCungKy||d.mtdBanMoi||0;
+  const prevBanGNar=d.prevBanMoiCungKy||0;
+  const nhanDinhBanMoi=`Tuần ${wk}: <b>${fmt(d.slkhG)}</b> KH bán mới (nhóm G), volume <b>${fmt(d.volG)}</b> đơn (TB ~${fmt(d.slkhAvgG||(d.slkhG?Math.round((d.volG||0)/d.slkhG):0))} đơn/KH). Nhóm G cùng kỳ ${d.elapsed} ngày: <b>${fmtVnd(mtdBanGNar)}</b> vs ${d.thangPrevLabel||'T-1'} <b>${fmtVnd(prevBanGNar)}</b> (${fmtMomPct(mtdBanGNar, prevBanGNar)}).${(d.topAmBanMoi||[]).length?` AM nổi bật: ${d.topAmBanMoi.slice(0,3).map(x=>{ const r=Array.isArray(x)?(x[2]||{am:x[0],dt:x[1]}):x; return `${r.am} (${fmtVnd(r.dt||0)}${r.kh?`, ${fmt(r.kh)} KH`:''})`; }).join(', ')}.`:' '}`;
+  const banMoiMomNum=parseFloat(String(fmtMomPct(mtdBanGNar, prevBanGNar)||'').replace(/[^0-9.\-+]/g,''));
+  const amYeuTxt=(d.topAmBanMoiYeu||[]).length
+    ? `AM nhóm G yếu tuần ${wk}: ${(d.topAmBanMoiYeu||[]).slice(0,3).map(r=>`${r.am} (${fmtMomPct(r.dt,r.dtPrev)}, ${fmt(r.kh)} KH)`).join('; ')}.`
+    : '';
+  const vanDeBanMoi=!d.slkhG&&!mtdBanGNar
+    ?'Chưa có KH bán mới phát sinh — cần rà soát pipeline, nguồn shop và hỗ trợ AM khu vực.'
+    :!isNaN(banMoiMomNum)&&banMoiMomNum<-5
+    ?`DT bán mới nhóm G cùng kỳ giảm ${fmtMomPct(mtdBanGNar, prevBanGNar)} vs ${d.thangPrevLabel||'T-1'} (${fmtVnd(mtdBanGNar)} vs ${fmtVnd(prevBanGNar)}). ${amYeuTxt||'Cần tăng cường prospecting, onboarding KH mới và hỗ trợ AM khu vực yếu.'}`
+    :`Tiến độ bán mới nhóm G cùng kỳ ${fmtMomPct(mtdBanGNar, prevBanGNar)} vs ${d.thangPrevLabel||'T-1'} (${fmtVnd(mtdBanGNar)} vs ${fmtVnd(prevBanGNar)}). ${amYeuTxt||'Duy trì và nhân rộng mô hình từ AM top.'}`;
+  const dtBanMoiDuKien=(()=>{
+    const tbNgay=d.elapsed&&mtdBanGNar?mtdBanGNar/d.elapsed:0;
+    const parts=[];
+    if(tbNgay>0) parts.push(`Ước tính ~${fmtVnd(tbNgay*7)} DT nhóm G tuần tới (TB ngày MTD cùng kỳ × 7)`);
+    if(d.slkhG) parts.push(`Tuần ${wk} vừa qua: ${fmt(d.slkhG)} KH · ${fmt(d.volG)} đơn — nếu duy trì nhịp tương tự có thể phát sinh ~${fmt(d.slkhG)} KH mới`);
+    if((d.topAmBanMoi||[]).length) parts.push(`AM pipeline mạnh: ${(d.topAmBanMoi||[]).slice(0,3).map(x=>Array.isArray(x)?x[0]:x.am).join(', ')}`);
+    return parts.length?parts.join('. ')+'.':'Chưa đủ dữ liệu nhóm G để ước tính tuần tới.';
+  })();
+  const last5Lbl=(d.nhomA.last5||[]).map(isoShort2).join(' · ')||'—';
+  const last7Lbl=(d.nhomA.last7||[]).map(isoShort2).join(' · ')||'—';
+  const giamDon=d.nhomA.giamDonRows||[];
+  const nhanDinhNhomA=`Tháng ${d.thangLabel}: <b>${d.nhomA.coDon}/${d.nhomA.total}</b> KH A có lên đơn. Dự kiến giảm hạng (<45 tr): <b>${d.nhomA.giamHang}</b> (${d.nhomA.wowGiamHang}). Giảm đơn (còn lên đơn nhưng dự kiến <45 tr): <b>${giamDon.length}</b>. Nguy cơ rời bỏ (0 DT 5N): <b>${d.nhomA.nguyCo}</b> (${d.nhomA.wowNguyCo}). Rời bỏ 7N không lên đơn: <b>${(d.nhomA.churnRows||[]).length}</b>. Tiềm năng lên A: <b>${d.tiemNang.count}</b>.`;
   const churn=d.nhomA.churnRows||[];
-  const noRev=churn.filter(r=>r.noRevWeek).length;
-  const drop30=churn.filter(r=>r.drop30).length;
-  const tinhHinhNhomA=churn.length
-    ?`So ${dayCmp}: ${d.nhomA.coDon}/${d.nhomA.total} KH A có lên đơn MTD; ${d.nhomA.nguyCo} KH cảnh báo (${d.nhomA.wowNguyCo}).`
-    :`So ${dayCmp}: ${d.nhomA.coDon}/${d.nhomA.total} KH A có lên đơn MTD; không phát sinh cảnh báo rời bỏ.`;
-  const vanDeNhomA=churn.length
-    ?`${noRev} KH không lên đơn cùng thứ tuần này (tuần trước có DT); ${drop30} KH giảm DT ≥30% vs cùng thứ tuần trước. AM liên quan: ${[...new Set(churn.map(r=>r.am).filter(Boolean))].slice(0,6).join(', ')||'—'}.`
-    :'Không phát hiện vấn đề lớn với nhóm KH A theo cùng thứ tuần trước.';
+  const tinhHinhNhomA=`${d.nhomA.coDon}/${d.nhomA.total} KH A có DT MTD · ${d.nhomA.giamHang} dự kiến giảm hạng · ${giamDon.length} giảm đơn · ${d.nhomA.nguyCo} không DT 5 ngày gần nhất (${last5Lbl}).`;
+  const vanDeParts=[];
+  if(giamDon.length) vanDeParts.push(`<b>${giamDon.length}</b> KH A giảm đơn (dự kiến < 45 tr nhưng vẫn còn lên đơn trong 7 ngày gần nhất). AM: ${[...new Set(giamDon.map(r=>r.am).filter(Boolean))].slice(0,6).join(', ')||'—'}.`);
+  if(churn.length) vanDeParts.push(`<b>${churn.length}</b> KH A không lên đơn trong 7 ngày gần nhất (${last7Lbl}). AM: ${[...new Set(churn.map(r=>r.am).filter(Boolean))].slice(0,6).join(', ')||'—'}.`);
+  const vanDeNhomA=vanDeParts.length?vanDeParts.join(' '):'Không phát hiện KH A giảm đơn hoặc ngưng lên đơn suốt 7 ngày gần nhất.';
   const tongQuanNguyenNhan=churn.length
-    ?`So ${dayCmp}: <b>${churn.length}</b> KH cảnh báo — <b>${noRev}</b> không lên đơn (${Math.round(noRev/churn.length*100)}%), <b>${drop30}</b> giảm ≥30% (${Math.round(drop30/churn.length*100)}%). AM liên quan: ${[...new Set(churn.map(r=>r.am).filter(Boolean))].slice(0,6).join(', ')||'—'}.`
-    :'Không có KH A rời bỏ/cảnh báo so với cùng thứ tuần trước.';
+    ?`Danh sách rời bỏ theo logic <b>7 ngày không lên đơn</b> (${last7Lbl}): <b>${churn.length}</b> KH. AM liên quan: ${[...new Set(churn.map(r=>r.am).filter(Boolean))].slice(0,6).join(', ')||'—'}.`
+    :`Không có KH A nào ngưng lên đơn 7 ngày liên tiếp (${last7Lbl}).`;
+  const tongQuanGiamDon=giamDon.length
+    ?`Danh sách giảm đơn theo logic <b>DT dự kiến tháng < 45 tr</b> và <b>vẫn còn lên đơn trong 7 ngày</b>: <b>${giamDon.length}</b> KH. AM liên quan: ${[...new Set(giamDon.map(r=>r.am).filter(Boolean))].slice(0,6).join(', ')||'—'}.`
+    :`Không có KH A giảm đơn (dự kiến < 45 tr nhưng vẫn còn lên đơn trong 7 ngày gần nhất).`;
   const vanDe=[];
-  if(d.nhomA.nguyCo>0) vanDe.push({nhom:'Giữ cũ',moTa:`${d.nhomA.nguyCo} KH A cảnh báo vs cùng thứ tuần trước (${dayCmp})`,tacDong:'Ảnh hưởng DT giữ cũ và retention nhóm A',uuTien:'Cao',tienDo:'Đang rà soát danh sách — xem mục 2'});
-  if((d.topAmGiam||[]).length) vanDe.push({nhom:'Giữ cũ',moTa:`AM giảm DT tuần: ${d.topAmGiam.slice(0,3).map(([am,p])=>`${am} (${p.toFixed(0)}%)`).join(', ')}`,tacDong:'Giảm DT vùng so với tuần trước',uuTien:'Cao',tienDo:'Chưa xử lý — cần coaching AM'});
-  if(d.pctCungKy<70) vanDe.push({nhom:'Giữ cũ/Vận hành',moTa:`MTD đạt ${d.pctCungKy.toFixed(0)}% KPI cùng kỳ (${d.elapsed}/${d.totalDays} ngày)`,tacDong:`Nguy cơ không đạt target tháng ${fmtVnd(d.targetThang)}`,uuTien:'Cao',tienDo:'Theo dõi hàng ngày'});
-  if((!d.slkhG||(!isNaN(wowBanNum)&&wowBanNum<-5))&&vanDe.length<3) vanDe.push({nhom:'Bán mới',moTa:`Bán mới tuần ${d.wowBanMoi||'—'} · ${fmt(d.slkhG)} KH mới · ${fmt(d.volG)} đơn`,tacDong:'Chậm tiến độ bán mới',uuTien:'Trung bình',tienDo:'Đang triển khai'});
+  if(d.nhomA.nguyCo>0) vanDe.push({nhom:'Giữ cũ',moTa:`${d.nhomA.nguyCo} KH A không có DT LTC 5 ngày gần nhất (${last5Lbl})`,tacDong:'Ảnh hưởng DT giữ cũ và retention nhóm A',uuTien:'Cao',tienDo:'Đang rà soát danh sách — xem mục 2'});
+  if(churn.length) vanDe.push({nhom:'Giữ cũ',moTa:`${churn.length} KH A không lên đơn 7 ngày (${last7Lbl})`,tacDong:'Nguy cơ churn / giảm hạng A',uuTien:'Cao',tienDo:'Đôn đốc AM liên hệ'});
+  if(giamDon.length && vanDe.length<3) vanDe.push({nhom:'Giữ cũ',moTa:`${giamDon.length} KH A giảm đơn (dự kiến < 45 tr, còn lên đơn)`,tacDong:'Giảm DT giữ cũ / tuột hạng A',uuTien:'Cao',tienDo:'Xem mục CHI TIẾT KH GIẢM ĐƠN'});
+  if(d.nhomA.giamHang>0 && vanDe.length<3) vanDe.push({nhom:'Giữ cũ',moTa:`${d.nhomA.giamHang} KH A dự kiến giảm hạng (TB ngày×tháng < 45 tr)`,tacDong:'Tuột khỏi phân hạng A cuối tháng',uuTien:'Trung bình',tienDo:'Theo dõi MTD hàng ngày'});
+  if((d.topAmGiam||[]).length && vanDe.length<3) vanDe.push({nhom:'Giữ cũ',moTa:`AM giảm DT tuần: ${d.topAmGiam.slice(0,3).map(([am,p])=>`${am} (${p.toFixed(0)}%)`).join(', ')}`,tacDong:'Giảm DT vùng so với tuần trước',uuTien:'Cao',tienDo:'Chưa xử lý — cần coaching AM'});
+  if(d.pctCungKy<70 && vanDe.length<3) vanDe.push({nhom:'Giữ cũ/Vận hành',moTa:`MTD đạt ${d.pctCungKy.toFixed(0)}% KPI cùng kỳ (${d.elapsed}/${d.totalDays} ngày)`,tacDong:`Nguy cơ không đạt target tháng ${fmtVnd(d.targetThang)}`,uuTien:'Cao',tienDo:'Theo dõi hàng ngày'});
+  if((!d.slkhG||(!isNaN(banMoiMomNum)&&banMoiMomNum<-5))&&vanDe.length<3) vanDe.push({nhom:'Bán mới',moTa:`Nhóm G cùng kỳ ${fmtMomPct(mtdBanGNar, prevBanGNar)} (${fmtVnd(mtdBanGNar)} vs ${fmtVnd(prevBanGNar)}) · ${fmt(d.slkhG)} KH mới tuần ${wk} · ${fmt(d.volG)} đơn`,tacDong:'Chậm tiến độ bán mới',uuTien:'Trung bình',tienDo:'Đang triển khai'});
   const giaiPhap=[];
-  if(churn.length) giaiPhap.push({gp:'Chăm sóc & liên hệ KH A cảnh báo',doiTuong:`${churn.length} KH A (${[...new Set(churn.map(r=>r.am))].slice(0,3).join(', ')})`,mucTieu:'Khôi phục DT tuần tới, giữ hạng A',ngay:'Tuần tới',pic:'AM phụ trách',hoTro:'CSKH / chính sách giá nếu cần'});
-  if((d.topAmGiam||[]).length) giaiPhap.push({gp:'Coaching AM giảm DT tuần',doiTuong:d.topAmGiam.slice(0,3).map(([a])=>a).join(', '),mucTieu:'Cải thiện DT ≥20% tuần tới',ngay:'Tuần tới',pic:'QLV / AM vùng',hoTro:'Phân tích nguyên nhân, hỗ trợ KH trọng điểm'});
-  if(d.tiemNang.count>0) giaiPhap.push({gp:'Chăm sóc KH tiềm năng lên hạng A',doiTuong:`${d.tiemNang.count} KH BCD/EF`,mucTieu:'DT dự kiến cuối tháng ≥45 tr',ngay:'Tuần tới',pic:'AM',hoTro:'—'});
-  return {nhanDinhGiuCu,nguyCoRoiBo,nhomGiamDt,nguyenNhanGiuCu,nhanDinhBanMoi,vanDeBanMoi,dtBanMoiDuKien,nhanDinhNhomA,tinhHinhNhomA,vanDeNhomA,tongQuanNguyenNhan,vanDe,giaiPhap};
+  if(churn.length) giaiPhap.push({gp:'Chăm sóc KH A không lên đơn 7 ngày',doiTuong:`${churn.length} KH A (${[...new Set(churn.map(r=>r.am))].slice(0,3).join(', ')})`,mucTieu:'Khôi phục đơn trong tuần tới',ngay:'48h–tuần tới',pic:'AM phụ trách',hoTro:'CSKH / chính sách giá nếu cần'});
+  if(giamDon.length && giaiPhap.length<3) giaiPhap.push({gp:'Đẩy sản lượng KH A giảm đơn',doiTuong:`${giamDon.length} KH A (${[...new Set(giamDon.map(r=>r.am))].slice(0,3).join(', ')})`,mucTieu:'DT dự kiến ≥45 tr cuối tháng',ngay:'Tuần tới',pic:'AM phụ trách',hoTro:'Upsell / lịch giao hàng ổn định'});
+  if(d.nhomA.nguyCo>0 && giaiPhap.length<3) giaiPhap.push({gp:'Đôn đốc KH A mất DT 5 ngày',doiTuong:`${d.nhomA.nguyCo} KH`,mucTieu:'Phát sinh DT lại ngay',ngay:'Tuần tới',pic:'AM',hoTro:'—'});
+  if((d.topAmGiam||[]).length && giaiPhap.length<3) giaiPhap.push({gp:'Coaching AM giảm DT tuần',doiTuong:d.topAmGiam.slice(0,3).map(([a])=>a).join(', '),mucTieu:'Cải thiện DT ≥20% tuần tới',ngay:'Tuần tới',pic:'QLV / AM vùng',hoTro:'Phân tích nguyên nhân, hỗ trợ KH trọng điểm'});
+  if(d.tiemNang.count>0 && giaiPhap.length<3) giaiPhap.push({gp:'Chăm sóc KH tiềm năng lên hạng A',doiTuong:`${d.tiemNang.count} KH (${d.tiemNang.note||'BCD/EF/G'})`,mucTieu:'DT dự kiến cuối tháng ≥45 tr',ngay:'Tuần tới',pic:'AM',hoTro:'—'});
+
+  // Chữ đỏ xuất docs — dùng bản đã scale khớp LTC (không lấy TotalKH raw vì sai đơn vị)
+  const mtdGiu=d.mtdGiu||0;
+  const prevGiuCk=d.prevGiuCungKy||0;
+  const mtdBanG=d.mtdBanMoiCungKy||d.mtdBanMoi||0;
+  const prevBanG=d.prevBanMoiCungKy||0;
+  const mtdBan=mtdBanG;
+  const prevBanCk=prevBanG;
+  const mtdTongCk=mtdGiu+mtdBan;
+  const prevTongCk=prevGiuCk+prevBanCk;
+  const thang6Lbl=d.thangPrevLabel||'T-1';
+  const tomTatMtdTong=`Tổng Doanh thu MTD ${fmtVnd(mtdTongCk||d.mtdLtc)}, so với MTD cùng kỳ ${thang6Lbl} (${fmtVnd(prevTongCk||kpiSamePeriod(d.prevLtc||0,d.elapsed,d.totalDays))}) đạt ${docPctDat(mtdTongCk||d.mtdLtc, prevTongCk||kpiSamePeriod(d.prevLtc||0,d.elapsed,d.totalDays))}`;
+  const tomTatMtdGiuCu=`Giữ cũ ${fmtVnd(mtdGiu)}, so với MTD cùng kỳ ${thang6Lbl} (${fmtVnd(prevGiuCk)}) đạt ${docPctDat(mtdGiu, prevGiuCk)}`;
+  const tomTatMtdBanMoi=`Bán mới (nhóm G) cùng kỳ ${d.elapsed||'—'} ngày: ${fmtVnd(mtdBanG)} vs ${thang6Lbl} ${fmtVnd(prevBanG)} · đạt ${docPctDat(mtdBanG, prevBanG)} · ${fmtMomPct(mtdBanG, prevBanG)}`;
+
+  // WoW comment: dùng 2 tuần hoàn chỉnh (vd W28 vs W27) khi tuần hiện tại chưa đủ ngày
+  const wkCmpCur=d.weekCompareCur||d.weekCur;
+  const wkCmpPrev=d.weekComparePrev||d.weekPrev;
+  const wkCmpCurLbl=d.weekCompareLabel||(wkCmpCur?weekLabelShort(wkCmpCur):(d.weekLabel||'—'));
+  const wkCmpPrevLbl=d.weekComparePrevLabel||(wkCmpPrev?weekLabelShort(wkCmpPrev):'tuần trước');
+  const totWow=docWowVerb(d.wowLtc);
+  const giuWowV=docWowVerb(d.wowGiu||giuWow);
+  const banMoiWeekCur=((d.nhomWeekMatrix&&d.nhomWeekMatrix.byWeek)||{})[wkCmpCur]||{};
+  const banMoiWeekPrev=((d.nhomWeekMatrix&&d.nhomWeekMatrix.byWeek)||{})[wkCmpPrev]||{};
+  const dtBanMoiWeek=banMoiWeekCur.G||0;
+  const dtBanMoiWeekPrev=banMoiWeekPrev.G||0;
+  const banMoiWowV=docWowVerb(d.wowBanMoi||pctWoWText(dtBanMoiWeek, dtBanMoiWeekPrev));
+  const tomTatTuanTong=`Tổng Doanh thu ${wkCmpCurLbl} ${totWow.verb} ${totWow.pct} so với ${wkCmpPrevLbl}`;
+  const tomTatTuanGiuCu=`Giữ cũ ${fmtVnd(giuWeekCur)} (${giuWowV.verb} ${giuWowV.pct} so với ${wkCmpPrevLbl})`;
+  const tomTatTuanBanMoi=`Bán mới ${fmtVnd(dtBanMoiWeek)} (${banMoiWowV.verb} ${banMoiWowV.pct} so với ${wkCmpPrevLbl}) · SLKH ${fmt(d.slkhG)} · volume ${fmt(d.volG)} đơn`;
+
+  const _mCur=(d.thangLabel||'').match(/\/(\d+)$/);
+  const _mPrev=(d.thangPrevLabel||'').match(/\/(\d+)$/);
+  const thangCurDisp=_mCur?String(+_mCur[1]):'hiện tại';
+  const thangPrevDisp=_mPrev?String(+_mPrev[1]):'trước';
+  const giuTotTe=docTrendTotTe(mtdGiu, prevGiuCk);
+  const giuTuanTotTe=docTrendTotTe(giuWeekCur, giuWeekPrev);
+  const banMoiTotTe=docTrendTotTe(mtdBanG, prevBanG);
+  const banMoiMomTxt=fmtMomPct(mtdBanG, prevBanG);
+  const banMoiDatTxt=docPctDat(mtdBanG, prevBanG);
+  const nhanDinhGiuCuPrompt=`Tình hình khách hàng cũ lên đơn trong tháng ${thangCurDisp} MTD ${giuTotTe} so với tháng ${thangPrevDisp}${giuTotTe==='tệ hơn'?' => nếu tệ hơn thì nguyên nhân là gì?':'.'}`;
+  const nhanDinhGiuCuTuan=`Tình hình khách hàng cũ lên đơn trong ${wkCmpCurLbl} ${giuTuanTotTe} so với ${wkCmpPrevLbl}${giuTuanTotTe==='tệ hơn'?' => nếu tệ hơn thì nguyên nhân là gì?':'.'}`;
+  const nhanDinhBanMoiPrompt=prevBanG>0||mtdBanG>0
+    ?`Tốc độ bán mới (nhóm G) MTD cùng kỳ ${d.elapsed||'—'} ngày: tháng ${thangCurDisp} ${fmtVnd(mtdBanG)} vs tháng ${thangPrevDisp} ${fmtVnd(prevBanG)} → ${banMoiTotTe} (${banMoiMomTxt}, đạt ${banMoiDatTxt} cùng kỳ)${banMoiTotTe==='tệ hơn'?' => nếu tệ hơn thì nguyên nhân là gì?':'.'}`
+    :`Tốc độ bán mới MTD: chưa có đủ số liệu nhóm G cùng kỳ tháng ${thangCurDisp} vs tháng ${thangPrevDisp} để so sánh.`;
+  const nhanDinhBanMoiTuan=`SLKH ${wkCmpCurLbl}: ${fmt(d.slkhG)} KH bán mới · volume ${fmt(d.volG)} đơn · TB ~${fmt(d.slkhAvgG||(d.slkhG?Math.round((d.volG||0)/d.slkhG):0))} đơn/KH · DT nhóm G ${fmtVnd(dtBanMoiWeek)} (${banMoiWowV.verb} ${banMoiWowV.pct} vs ${wkCmpPrevLbl}).`;
+
+  // Nhận xét chung AM bán mới + gợi ý vấn đề (điền tay / sửa khi xuất)
+  const amRowsAll=(d.amBanMoiRows||[]).slice().sort((a,b)=>b.dt-a.dt||b.kh-a.kh);
+  const amTotTe=(()=>{
+    const sumCur=amRowsAll.reduce((s,r)=>s+(r.dt||0),0);
+    const sumPrev=amRowsAll.reduce((s,r)=>s+(r.dtPrev||0),0);
+    if(sumPrev<=0&&sumCur<=0) return 'tương đương';
+    if(sumPrev<=0) return 'tốt hơn';
+    return sumCur>=sumPrev?'tốt hơn':'tệ hơn';
+  })();
+  const nhanXetChungAmBanMoi=amRowsAll.length
+    ? `${wkCmpCurLbl} các AM bán mới ${amTotTe} so với ${wkCmpPrevLbl}${(d.topAmBanMoiYeu||[]).length?` — AM cần bám sát: ${(d.topAmBanMoiYeu||[]).slice(0,3).map(r=>r.am).join(', ')}`:''}. GĐV cần tập trung hỗ trợ AM để gia tăng khách mới tuần tới.`
+    : `Chưa có đủ dữ liệu AM nhóm G tuần ${wkCmpCurLbl} để nhận xét.`;
+  const vanDeBanMoiBullets=(d.topAmBanMoiYeu||[]).length
+    ? (d.topAmBanMoiYeu||[]).slice(0,5).map(r=>{
+        const wow=r.dtPrev>0?` (${fmtMomPct(r.dt,r.dtPrev)} DT)`:'';
+        const volTxt=r.vol>0?`${fmt(r.vol)} đơn`:(r.dt>0?'SL chưa ước tính được (thiếu AOV)':'0 đơn');
+        return `${r.am}: ${fmt(r.kh)} KH · ${volTxt} · ${fmtVnd(r.dt)}${wow} — cần…`;
+      })
+    : ['[Điền vấn đề AM / đối thủ / giá / vận hành đang ảnh hưởng bán mới…]'];
+
+  const giamHangPrev=d.nhomA.giamHangPrev!=null?d.nhomA.giamHangPrev:null;
+  const giamHangCur=d.nhomA.giamHang||0;
+  const ghiChuGiamHang=(()=>{
+    const logic=`Logic: DT TB các ngày đã qua × ${d.nhomA.totalDays||d.totalDays} ngày < 45 tr (qua ${d.nhomA.elapsed||d.elapsed} ngày) · nguồn TotalKH cột MTD`;
+    if(giamHangPrev==null) return logic;
+    const wkA=d.nhomA.weekPrev?weekLabelShort(d.nhomA.weekPrev):'W-1';
+    const wkB=d.nhomA.weekCur?weekLabelShort(d.nhomA.weekCur):(d.weekLabel||'W');
+    const delta=giamHangCur-giamHangPrev;
+    let move='';
+    if(delta<0) move=`, có ${Math.abs(delta)} trong ${giamHangPrev} KH đã cải thiện / gửi trở lại`;
+    else if(delta>0) move=`, tăng thêm ${delta} KH`;
+    else move=', không đổi';
+    return `${logic}\n- Số KH dự kiến giảm hạng ${wkA}: ${giamHangPrev}, sang ${wkB}: ${giamHangCur}${move}`;
+  })();
+
+  return {
+    nhanDinhGiuCu,nguyCoRoiBo,nhomGiamDt,nguyenNhanGiuCu,nhanDinhBanMoi,vanDeBanMoi,dtBanMoiDuKien,
+    nhanDinhNhomA,tinhHinhNhomA,vanDeNhomA,tongQuanNguyenNhan,tongQuanGiamDon,vanDe,giaiPhap,
+    tomTatMtdTong, tomTatMtdGiuCu, tomTatMtdBanMoi,
+    tomTatTuanTong, tomTatTuanGiuCu, tomTatTuanBanMoi,
+    nhanDinhGiuCuPrompt, nhanDinhGiuCuTuan, nhanDinhBanMoiPrompt, nhanDinhBanMoiTuan,
+    nhanXetChungAmBanMoi, vanDeBanMoiBullets, ghiChuGiamHang
+  };
 }
-function suggestChurnLyDo(r, wkLbl){
-  const wd=r.dayCur?weekdayVi(r.dayCur):(wkLbl||'');
-  if(r.noRevWeek) return `Không lên đơn ${wd} tuần này (có DT cùng thứ tuần trước)`;
-  return `Doanh thu giảm ${Math.abs(r.pctW||0).toFixed(0)}% so với cùng thứ tuần trước`;
+function suggestChurnLyDo(r){
+  const last=r.lastIso?isoShort2(r.lastIso):'—';
+  return `Không lên đơn trong 7 ngày gần nhất · ngày DT cuối: ${last}`;
 }
-function suggestChurnNgayNgung(r, wkLbl){
-  if(r.noRevWeek) return r.dayCur ? isoShort2(r.dayCur) : (r.lastIso ? isoShort2(r.lastIso) : `Tuần ${wkLbl}`);
-  return r.lastIso ? isoShort2(r.lastIso) : '—';
+function suggestChurnNgayNgung(r){
+  return r.lastIso ? isoShort2(r.lastIso) : 'Không có DT trong cửa sổ 7 ngày';
 }
 function suggestChurnAction(r){
-  if(r.noRevWeek) return `AM ${r.am||'—'} liên hệ KH trong 48h, xác minh lý do không lên đơn và đề xuất CSKH/khuyến mại phù hợp.`;
-  return `AM ${r.am||'—'} phân tích nguyên nhân giảm ${Math.abs(r.pctW||0).toFixed(0)}% vs cùng thứ tuần trước, lập kế hoạch chăm sóc KH.`;
+  return `AM ${r.am||'—'} liên hệ KH trong 48h, xác minh lý do ngưng lên đơn ≥7 ngày và đề xuất CSKH/khuyến mại phù hợp.`;
+}
+function suggestGiamDonLyDo(r){
+  const gap=Math.max(0, NHOM_A_DT_NGUONG-(r.projected||0));
+  return `DT dự kiến tháng ${fmtVnd(r.projected||0)} < 45 tr (thiếu ~${fmtVnd(gap)}); TB ${fmtVnd(r.avgDaily||0)}/ngày · còn lên đơn trong 7N`;
+}
+function suggestGiamDonAction(r){
+  return `AM ${r.am||'—'} đẩy tần suất / sản lượng đơn trong tuần tới để DT dự kiến ≥45 tr; rà soát lịch mua và đề xuất upsell.`;
 }
 
 function buildWeeklyReportData(){
@@ -2222,8 +3211,9 @@ function buildWeeklyReportData(){
 
   const hKPI = kpiAM[0];
   const iAMk = idxOf(hKPI,'AM'), iKPIVung = idxOf(hKPI,'KPI Vùng'), iThangKPI = idxOf(hKPI,'Tháng');
-  let iKPICm = idxOf(hKPI,'KPI CM');
-  if(iKPICm<0) iKPICm = idxOf(hKPI,'KPI Cty');
+  let iKPICm = idxOf(hKPI,'KPI Cty');
+  if(iKPICm<0) iKPICm = idxOf(hKPI,'KPI CM');
+  if(iKPICm<0) iKPICm = idxOf(hKPI,'KPI CM tháng');
   let targetThang = 0, totalKpiCm = 0;
   const targetByAM={}, kpiCmByAM={};
   for(let i=1;i<kpiAM.length;i++){
@@ -2241,28 +3231,43 @@ function buildWeeklyReportData(){
       totalKpiCm+=cm;
     }
   }
-  const kpiCungKy = kpiSamePeriod(targetThang, elapsed, totalDays);
-  const pctHoanThanh = pct(mtdLtc, targetThang);
+  // Target tháng = KPI CM (fallback KPI Vùng nếu thiếu CM)
+  const targetPlan = totalKpiCm > 0 ? totalKpiCm : targetThang;
+  const kpiCungKy = kpiSamePeriod(targetPlan, elapsed, totalDays);
+  const pctHoanThanh = pct(mtdLtc, targetPlan);
   const pctCungKy = pct(mtdLtc, kpiCungKy);
 
-  // Target giữ cũ = DT tháng trước (Kết Quả ≈ 11.2 tỷ). Target bán mới = KPI Vùng − giữ cũ.
+  // Target giữ cũ = DT tháng trước. Target bán mới = KPI CM − giữ cũ.
   const targetGiuCu = prevLtc || 0;
-  const targetBanMoi = Math.max(0, targetThang - targetGiuCu);
-  const targetBanMoiCm = Math.max(0, totalKpiCm - targetGiuCu);
+  const targetBanMoiCm = Math.max(0, targetPlan - targetGiuCu);
+  const targetBanMoi = targetBanMoiCm;
 
   const monthPn = pnRecs.filter(r=>r.thang&&thangEq(r.thang, thang));
   const tkMetrics = parseTotalKHMetrics(totalKH, thang);
   let weekCur='', weekPrev='', mtdGiu=0, mtdBanMoi=0;
   let wowLtc='—', wowGiu='—', wowBanMoi='—', slkhG=0, volG=0;
+  let weekCompareCur='', weekComparePrev='', weekCurIncomplete=false;
+  let volGSource='';
   if(tkMetrics && tkMetrics.weekCur){
     weekCur=tkMetrics.weekCur;
     weekPrev=tkMetrics.weekPrev;
-    const wCur=tkMetrics.byWeek[weekCur]||{};
-    const wPrev=tkMetrics.byWeek[weekPrev]||{};
-    wowLtc=pctWoWText(wCur.dt||0, wPrev.dt||0);
-    wowGiu=pctWoWText(wCur.dtGiu||0, wPrev.dtGiu||0);
-    wowBanMoi=pctWoWText(wCur.dtBanMoi||0, wPrev.dtBanMoi||0);
-    slkhG=wCur.khG?wCur.khG.size:0;
+    const cmp=resolveDocWeekCompare(tkMetrics.weekKeys||Object.keys(tkMetrics.byWeek||{}), tkMetrics.byWeek, weekCur, weekPrev);
+    weekCompareCur=cmp.compareCur;
+    weekComparePrev=cmp.comparePrev;
+    weekCurIncomplete=!!cmp.incomplete;
+    // Khi so sánh 2 tuần hoàn chỉnh (vd đang T29 → T28/T27), lấy lại AM/KH/Vol không cắt theo tháng
+    if(weekCurIncomplete && weekCompareCur){
+      const full=buildAmGByWeekFromTotalKH(totalKH, weekCompareCur, weekComparePrev);
+      [weekCompareCur, weekComparePrev].filter(Boolean).forEach(w=>{
+        if(!full[w]) return;
+        if(!tkMetrics.byWeek[w]) tkMetrics.byWeek[w]={dt:0,dtGiu:0,dtBanMoi:0,volG:0,slkhGSum:0,khG:new Set(),days:new Set(),byGrp:{A:0,BCD:0,EF:0,G:0},byAm:{},byAmAll:{},byAmG:{}};
+        tkMetrics.byWeek[w].byAmG=full[w].byAmG;
+        tkMetrics.byWeek[w].volG=full[w].volG;
+        tkMetrics.byWeek[w].khG=full[w].khG;
+        tkMetrics.byWeek[w].dtBanMoi=full[w].dtBanMoi;
+        if(full[w].days&&full[w].days.size) tkMetrics.byWeek[w].days=full[w].days;
+      });
+    }
   }
   if(tkMetrics){
     mtdGiu=tkMetrics.mtdGiu||0;
@@ -2273,73 +3278,161 @@ function buildWeeklyReportData(){
     const weeks=[...new Set(monthPn.map(r=>r.tuan).filter(Boolean))].sort((a,b)=>weekSortKey(a)-weekSortKey(b));
     weekCur=weeks[weeks.length-1]||'';
     weekPrev=weeks.length>=2?weeks[weeks.length-2]:'';
-    const matchWk=(r,w)=>r.tuan===w;
+    const cmp=resolveDocWeekCompare(weeks, null, weekCur, weekPrev);
+    weekCompareCur=cmp.compareCur||weekCur;
+    weekComparePrev=cmp.comparePrev||weekPrev;
+    weekCurIncomplete=!!cmp.incomplete;
+    const matchWk=(r,w)=>r.tuan===w||String(r.tuan)===String(w)||weekLabelShort(r.tuan)===weekLabelShort(w);
     const dtWeekAll=w=>sumPnDt(monthPn,r=>matchWk(r,w));
     const dtWeekGiu=w=>sumPnDt(monthPn,r=>matchWk(r,w)&&NHOM_GIU_CU.includes(r.grp));
-    const dtWeekBanMoi=w=>sumPnDt(monthPn,r=>matchWk(r,w)&&r.grp==='G');
-    wowLtc=pctWoWText(dtWeekAll(weekCur), dtWeekAll(weekPrev));
-    wowGiu=pctWoWText(dtWeekGiu(weekCur), dtWeekGiu(weekPrev));
-    wowBanMoi=pctWoWText(dtWeekBanMoi(weekCur), dtWeekBanMoi(weekPrev));
-    slkhG=sumPnSlkh(monthPn,r=>r.tuan===weekCur&&r.grp==='G');
-    volG=sumPnVol(monthPn,r=>r.tuan===weekCur&&r.grp==='G');
+    wowLtc=pctWoWText(dtWeekAll(weekCompareCur), dtWeekAll(weekComparePrev));
+    wowGiu=pctWoWText(dtWeekGiu(weekCompareCur), dtWeekGiu(weekComparePrev));
+    slkhG=sumPnSlkh(monthPn,r=>matchWk(r,weekCompareCur)&&r.grp==='G');
+    volG=sumPnVol(monthPn,r=>matchWk(r,weekCompareCur)&&r.grp==='G');
     if(!mtdGiu) mtdGiu=sumPnDt(monthPn,r=>NHOM_GIU_CU.includes(r.grp));
     if(!mtdBanMoi) mtdBanMoi=sumPnDt(monthPn,r=>r.grp==='G');
-  } else if(!volG){
-    volG=sumPnVol(monthPn,r=>r.tuan===weekCur&&r.grp==='G');
   }
-  // Prev-month giữ cũ / bán mới từ TotalKH (cộng DT cả tháng)
+  if(!weekCompareCur) weekCompareCur=weekCur;
+  if(!weekComparePrev) weekComparePrev=weekPrev;
+
+  // Ma trận tuần (scale theo DT-Ngày) → quy DT/vol nhóm G & AM về đúng triệu đồng vùng
+  const nhomWeekMatrix=buildNhomWeekMatrix(totalKH, 5, dtNgay);
+  if(tkMetrics&&tkMetrics.byWeek) scaleBanMoiWeekToRegion(tkMetrics.byWeek, nhomWeekMatrix);
+
+  if(tkMetrics && weekCompareCur){
+    const wCur=tkMetrics.byWeek[weekCompareCur]||{};
+    const wPrev=tkMetrics.byWeek[weekComparePrev]||{};
+    wowLtc=pctWoWText(wCur.dt||0, wPrev.dt||0);
+    wowGiu=pctWoWText(wCur.dtGiu||0, wPrev.dtGiu||0);
+    wowBanMoi=pctWoWText(wCur.dtBanMoi||0, wPrev.dtBanMoi||0);
+    slkhG=wCur.khG?wCur.khG.size:0;
+    volG=Math.round(wCur.volG||0);
+    if(volG>0){
+      const how=tkMetrics.volumeCol==='DT÷AOV'||(tkMetrics.volFromAov>0&&!(tkMetrics.volFromCol>0))
+        ? 'ước tính DT÷AOV (đã scale)'
+        : `cột «${tkMetrics.volumeCol||'Volume'}»`;
+      volGSource=`TotalKH ${how} · nhóm G · tuần ${weekLabelShort(weekCompareCur)}`;
+    } else if(wCur.slkhGSum){
+      volG=Math.round(wCur.slkhGSum);
+      volGSource=`TotalKH cột SLKH · nhóm G · tuần ${weekLabelShort(weekCompareCur)}`;
+    }
+  }
+  if(!volG && weekCompareCur){
+    const matchWk=(r,w)=>r.tuan===w||String(r.tuan)===String(w)||weekLabelShort(r.tuan)===weekLabelShort(w);
+    const tkRecs=parseTotalKHNhomRecs(totalKH).recs.filter(r=>r.grp==='G'&&matchWk(r,weekCompareCur));
+    const rawVol=tkRecs.reduce((s,r)=>s+(r.vol||0),0);
+    const rawDt=tkRecs.reduce((s,r)=>s+(r.dt||0),0);
+    const tgtG=((nhomWeekMatrix.byWeek||{})[weekCompareCur]||{}).G||0;
+    if(rawVol>0 && rawDt>0 && tgtG>0){
+      volG=Math.round(rawVol*(tgtG/rawDt));
+      volGSource=`TotalKH DT÷AOV scale · nhóm G · tuần ${weekLabelShort(weekCompareCur)}`;
+    } else {
+      volG=sumPnVol(monthPn,r=>matchWk(r,weekCompareCur)&&r.grp==='G');
+      if(volG>0) volGSource=`Phân nhóm cột Volume · nhóm G · tuần ${weekLabelShort(weekCompareCur)}`;
+    }
+  }
+  if(!volGSource && volG) volGSource='Nguồn volume không xác định';
+  if(!volG) volGSource='Chưa đọc được cột Volume nhóm G trên TotalKH';
+  // Khớp giữ cũ + bán mới với tổng LTC (tỷ lệ TotalKH → scale theo Kết Quả)
+  {
+    const alloc=allocateGiuBanMoi(mtdLtc, mtdGiu, mtdBanMoi);
+    mtdGiu=alloc.mtdGiu;
+    mtdBanMoi=alloc.mtdBanMoi;
+  }
+  // A / BCD / EF / G: TotalKH cùng kỳ (N ngày) — tỷ lệ scale khớp LTC / LTC cùng kỳ T-1
+  const mtdARaw=sumNhomDtCungKy(totalKH, thang, 'A', elapsed);
+  const mtdBcdRaw=sumNhomDtCungKy(totalKH, thang, 'BCD', elapsed);
+  const mtdEfRaw=sumNhomDtCungKy(totalKH, thang, 'EF', elapsed);
+  const mtdBanMoiRaw=sumNhomDtCungKy(totalKH, thang, 'G', elapsed);
+  const prevARaw=thangPrevM?sumNhomDtCungKy(totalKH, thangPrevM, 'A', elapsed):0;
+  const prevBcdRaw=thangPrevM?sumNhomDtCungKy(totalKH, thangPrevM, 'BCD', elapsed):0;
+  const prevEfRaw=thangPrevM?sumNhomDtCungKy(totalKH, thangPrevM, 'EF', elapsed):0;
+  const prevBanMoiRaw=thangPrevM?sumNhomDtCungKy(totalKH, thangPrevM, 'G', elapsed):0;
+  const mtdGiuRaw=mtdARaw+mtdBcdRaw+mtdEfRaw;
+  const prevGiuRaw=prevARaw+prevBcdRaw+prevEfRaw;
+  // Khớp MTD với tổng LTC (Kết Quả đã cộng cả 2026/7 + 2026/07)
+  const allocCur=allocateGiuBanMoi(mtdLtc, mtdGiuRaw, mtdBanMoiRaw);
+  const mtdGiuCungKy=allocCur.mtdGiu;
+  const mtdBanMoiCungKy=allocCur.mtdBanMoi;
+  const mtdACungKy=mtdGiuRaw>0?mtdGiuCungKy*(mtdARaw/mtdGiuRaw):0;
+  const mtdBcdCungKy=mtdGiuRaw>0?mtdGiuCungKy*(mtdBcdRaw/mtdGiuRaw):0;
+  const mtdEfCungKy=mtdGiuRaw>0?mtdGiuCungKy*(mtdEfRaw/mtdGiuRaw):0;
+  // Cơ sở T-1 cùng kỳ = DT tháng trước × (elapsed/totalDays) — cùng cách tính MoM của LTC
+  const prevLtcCungKy=kpiSamePeriod(prevLtc, elapsed, totalDays);
+  const allocPrev=allocateGiuBanMoi(prevLtcCungKy||(prevGiuRaw+prevBanMoiRaw), prevGiuRaw, prevBanMoiRaw);
+  const prevGiuCungKy=allocPrev.mtdGiu;
+  const prevBanMoiCungKy=allocPrev.mtdBanMoi;
+  const prevACungKy=prevGiuRaw>0?prevGiuCungKy*(prevARaw/prevGiuRaw):0;
+  const prevBcdCungKy=prevGiuRaw>0?prevGiuCungKy*(prevBcdRaw/prevGiuRaw):0;
+  const prevEfCungKy=prevGiuRaw>0?prevGiuCungKy*(prevEfRaw/prevGiuRaw):0;
+  const targetBanMoiCungKy=kpiSamePeriod(targetBanMoi, elapsed, totalDays);
+  // Prev-month giữ cũ / bán mới từ TotalKH (cả tháng), scale khớp prevLtc nếu có
   let prevGiu=0, prevBanMoi=0;
   if(totalKH&&totalKH.length>2&&thangPrevM){
     const prevRecs=parseTotalKHNhomRecs(totalKH).recs.filter(r=>r.thang&&thangEq(r.thang,thangPrevM));
     prevGiu=prevRecs.filter(r=>NHOM_GIU_CU.includes(r.grp)).reduce((s,r)=>s+r.dt,0);
     prevBanMoi=prevRecs.filter(r=>r.grp==='G').reduce((s,r)=>s+r.dt,0);
+    if(prevLtc>0){
+      const prevAlloc=allocateGiuBanMoi(prevLtc, prevGiu, prevBanMoi);
+      prevGiu=prevAlloc.mtdGiu;
+      prevBanMoi=prevAlloc.mtdBanMoi;
+    }
   }
 
   const projLtc=projectMonth(mtdLtc,elapsed,totalDays);
   const projGtc=projectMonth(mtdGtc,elapsed,totalDays);
-  const projGiu=projectMonth(mtdGiu,elapsed,totalDays);
-  const projBanMoi=projectMonth(mtdBanMoi,elapsed,totalDays);
+  const projGiu=projectMonth(mtdGiuCungKy,elapsed,totalDays);
+  const projBanMoi=projectMonth(mtdBanMoiCungKy,elapsed,totalDays);
 
   const planRows=[
     {
       label:'Tổng doanh thu LTC',
-      mtd:mtdLtc, target:targetThang,
-      pctMtd:pct(mtdLtc,targetThang),
-      projected:projLtc, pctProj:pct(projLtc,targetThang),
-      mom:fmtMomPct(projLtc, prevLtc)
+      thucDat: prevLtcCungKy||prevLtc,
+      mtd:mtdLtc, target:targetPlan,
+      pctMtd:pct(mtdLtc,targetPlan),
+      projected:projLtc, pctProj:pct(projLtc,targetPlan),
+      mom:fmtMomPct(mtdLtc, prevLtcCungKy||prevLtc)
     },
     {
       label:'Tổng doanh thu GTC',
-      mtd:mtdGtc, target:targetThang,
-      pctMtd:pct(mtdGtc,targetThang),
-      projected:projGtc, pctProj:pct(projGtc,targetThang),
-      mom:fmtMomPct(projGtc, prevGtc)
+      thucDat: kpiSamePeriod(prevGtc, elapsed, totalDays)||prevGtc,
+      mtd:mtdGtc, target:targetPlan,
+      pctMtd:pct(mtdGtc,targetPlan),
+      projected:projGtc, pctProj:pct(projGtc,targetPlan),
+      mom:fmtMomPct(mtdGtc, kpiSamePeriod(prevGtc, elapsed, totalDays)||prevGtc)
     },
     {
       label:'Doanh thu giữ cũ (A/BCD/EF)',
-      mtd:mtdGiu, target:targetGiuCu,
-      pctMtd:pct(mtdGiu,targetGiuCu),
+      thucDat: prevGiuCungKy,
+      mtd:mtdGiuCungKy, target:targetGiuCu,
+      pctMtd:pct(mtdGiuCungKy,targetGiuCu),
       projected:projGiu, pctProj:pct(projGiu,targetGiuCu),
-      mom:fmtMomPct(projGiu, prevGiu||prevLtc)
+      mom:fmtMomPct(mtdGiuCungKy, prevGiuCungKy),
+      redCells:['mtd']
     },
     {
       label:'Doanh thu bán mới (Nhóm G)',
-      mtd:mtdBanMoi, target:targetBanMoi,
-      pctMtd:pct(mtdBanMoi,targetBanMoi),
+      thucDat: prevBanMoiCungKy,
+      mtd:mtdBanMoiCungKy, target:targetBanMoi,
+      pctMtd:pct(mtdBanMoiCungKy,targetBanMoi),
       projected:projBanMoi, pctProj:pct(projBanMoi,targetBanMoi),
-      mom:fmtMomPct(projBanMoi, prevBanMoi)
+      mom:fmtMomPct(mtdBanMoiCungKy, prevBanMoiCungKy),
+      redCells:['mtd','pctProj','mom']
     }
   ];
-  const nhomWeekMatrix=buildNhomWeekMatrix(totalKH, 5);
-
   const slkhAvgG=slkhG?Math.round(volG/slkhG):0;
   const matchWk=(r,w)=>r.tuan===w||(tkMetrics&&String(r.tuan)===String(w));
 
-  let topAmBanMoi=[], topAmGiam=[], nhomWeekGiu=[];
-  if(tkMetrics&&tkMetrics.weekCur){
-    const wCur=tkMetrics.byWeek[tkMetrics.weekCur]||{};
-    const wPrev=tkMetrics.byWeek[tkMetrics.weekPrev]||{};
-    topAmBanMoi=Object.entries(wCur.byAm||{}).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  let topAmBanMoi=[], topAmGiam=[], topAmBanMoiYeu=[], amBanMoiRows=[], nhomWeekGiu=[];
+  const wCmpCur = weekCompareCur || weekCur;
+  const wCmpPrev = weekComparePrev || weekPrev;
+  if(tkMetrics&&wCmpCur){
+    const wCur=tkMetrics.byWeek[wCmpCur]||{};
+    const wPrev=tkMetrics.byWeek[wCmpPrev]||{};
+    const amRank=buildAmBanMoiWeekRank(tkMetrics.byWeek, wCmpCur, wCmpPrev, 5);
+    topAmBanMoi=amRank.top.map(r=>[r.am, r.dt, r]);
+    topAmBanMoiYeu=amRank.yeu;
+    amBanMoiRows=(amRank.rows||[]).slice().sort((a,b)=>b.dt-a.dt||b.kh-a.kh);
     nhomWeekGiu=NHOM_GIU_CU.map(g=>({g, cur:(wCur.byGrp||{})[g]||0, prev:(wPrev.byGrp||{})[g]||0}));
     const amGiamTk={};
     Object.keys({...(wCur.byAmAll||{}),...(wPrev.byAmAll||{})}).forEach(nv=>{
@@ -2350,34 +3443,67 @@ function buildWeeklyReportData(){
   }
   if(!topAmBanMoi.length){
     const amBanMoi={};
-    monthPn.filter(r=>r.grp==='G'&&matchWk(r,weekCur)).forEach(r=>{ amBanMoi[r.am]=(amBanMoi[r.am]||0)+r.dt; });
-    topAmBanMoi=Object.entries(amBanMoi).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    monthPn.filter(r=>r.grp==='G'&&matchWk(r,wCmpCur)&&r.am&&!/^\d+$/.test(r.am)).forEach(r=>{ amBanMoi[r.am]=(amBanMoi[r.am]||0)+r.dt; });
+    topAmBanMoi=Object.entries(amBanMoi).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([am,dt])=>[am,dt,{am,dt,kh:0,vol:0,pctDt:0}]);
+  }
+  if(!topAmBanMoiYeu.length && wCmpCur&&wCmpPrev){
+    // Fallback Phân nhóm: AM nhóm G giảm DT tuần
+    const amCur={}, amPrev={};
+    monthPn.filter(r=>r.grp==='G'&&r.am&&!/^\d+$/.test(r.am)).forEach(r=>{
+      if(matchWk(r,wCmpCur)) amCur[r.am]=(amCur[r.am]||0)+r.dt;
+      if(matchWk(r,wCmpPrev)) amPrev[r.am]=(amPrev[r.am]||0)+r.dt;
+    });
+    topAmBanMoiYeu=uniqueList([...Object.keys(amCur),...Object.keys(amPrev)]).map(am=>{
+      const dt=amCur[am]||0, dtPrev=amPrev[am]||0;
+      const pctDt=dtPrev>0?(dt-dtPrev)/dtPrev*100:(dt>0?100:0);
+      return {am, dt, dtPrev, vol:0, kh:0, pctDt, pctKh:0};
+    }).filter(r=>r.dtPrev>0&&r.dt<r.dtPrev).sort((a,b)=>a.pctDt-b.pctDt).slice(0,5);
   }
   if(!topAmGiam.length){
     const amGiam={};
-    if(weekCur&&weekPrev){
-      const ams=[...new Set(monthPn.map(r=>r.am).filter(Boolean))];
+    if(wCmpCur&&wCmpPrev){
+      const ams=[...new Set(monthPn.map(r=>r.am).filter(am=>am&&!/^\d+$/.test(am)))];
       ams.forEach(am=>{
-        const c=sumPnDt(monthPn,r=>r.am===am&&matchWk(r,weekCur));
-        const p=sumPnDt(monthPn,r=>r.am===am&&matchWk(r,weekPrev));
+        const c=sumPnDt(monthPn,r=>r.am===am&&matchWk(r,wCmpCur));
+        const p=sumPnDt(monthPn,r=>r.am===am&&matchWk(r,wCmpPrev));
         if(p&&c<p) amGiam[am]=((c-p)/p*100);
       });
     }
     topAmGiam=Object.entries(amGiam).sort((a,b)=>a[1]-b[1]).slice(0,5);
   }
   if(!nhomWeekGiu.length){
-    nhomWeekGiu=NHOM_GIU_CU.map(g=>({ g, cur:sumPnDt(monthPn,r=>matchWk(r,weekCur)&&r.grp===g), prev:sumPnDt(monthPn,r=>matchWk(r,weekPrev)&&r.grp===g) }));
+    nhomWeekGiu=NHOM_GIU_CU.map(g=>({ g, cur:sumPnDt(monthPn,r=>matchWk(r,wCmpCur)&&r.grp===g), prev:sumPnDt(monthPn,r=>matchWk(r,wCmpPrev)&&r.grp===g) }));
   }
 
-  let nhomA = { total:0, coDon:0, giamHang:0, nguyCo:0, churnRows:[], weekCur:'', weekPrev:'', wowCoDon:'—', wowGiamHang:'—', wowNguyCo:'—' };
-  const nhomAWeekly = parseKhNhomAWeekly(khNhomA, thang);
+  // Ưu tiên DT đầy đủ theo tuần từ ma trận (không cắt theo tháng) cho WoW Tổng/Giữ cũ/Bán mới
+  if(nhomWeekMatrix&&nhomWeekMatrix.byWeek&&wCmpCur){
+    const c=nhomWeekMatrix.byWeek[wCmpCur]||{};
+    const p=nhomWeekMatrix.byWeek[wCmpPrev]||{};
+    const cTot=c.total||0, pTot=p.total||0;
+    const cGiu=(c.A||0)+(c.BCD||0)+(c.EF||0);
+    const pGiu=(p.A||0)+(p.BCD||0)+(p.EF||0);
+    if(cTot||pTot){
+      wowLtc=pctWoWText(cTot, pTot);
+      wowGiu=pctWoWText(cGiu, pGiu);
+    }
+    if((c.G||0)||(p.G||0)) wowBanMoi=pctWoWText(c.G||0, p.G||0);
+    nhomWeekGiu=NHOM_GIU_CU.map(g=>({g, cur:c[g]||0, prev:p[g]||0}));
+  }
+  let nhomA = { total:0, coDon:0, giamHang:0, giamHangPrev:null, nguyCo:0, churnRows:[], giamDonRows:[], weekCur:'', weekPrev:'', wowCoDon:'—', wowGiamHang:'—', wowNguyCo:'—' };
+  const nhomAWeekly = parseKhNhomAWeekly(totalKH, thang, {elapsed, totalDays}, dtNgay);
   if(nhomAWeekly){
     nhomA = {
       total: nhomAWeekly.total,
       coDon: nhomAWeekly.coDon,
       giamHang: nhomAWeekly.giamHang,
+      giamHangPrev: nhomAWeekly.giamHangPrev,
       nguyCo: nhomAWeekly.nguyCo,
       churnRows: nhomAWeekly.churnRows,
+      giamDonRows: nhomAWeekly.giamDonRows||[],
+      last5: nhomAWeekly.last5,
+      last7: nhomAWeekly.last7,
+      elapsed: nhomAWeekly.elapsed,
+      totalDays: nhomAWeekly.totalDays,
       weekCur: nhomAWeekly.weekCur,
       weekPrev: nhomAWeekly.weekPrev,
       dayCur: nhomAWeekly.dayCur,
@@ -2392,23 +3518,29 @@ function buildWeeklyReportData(){
   }
 
   const dtByDate = buildDtNgayByDate(dtNgay, thang);
-  const weekBreakdown = buildMonthWeekBreakdown(dtByDate, thang, targetThang, totalDays);
+  const weekBreakdown = buildMonthWeekBreakdown(dtByDate, thang, targetPlan, totalDays);
 
   const tiemNang = countKhTiemNangFromTotalKH(totalKH, thang, elapsed, totalDays);
   const amWeekDecline = buildAmWeekDecline(dtNgay, thang, 20);
   const base = {
     vung:VUNG_NAME, thangLabel, thangPrevLabel, weekCur, weekPrev,
+    weekCompareCur: weekCompareCur||weekCur, weekComparePrev: weekComparePrev||weekPrev,
+    weekCurIncomplete,
     weekLabel: weekCur ? weekLabelShort(weekCur) : '—',
+    weekCompareLabel: (weekCompareCur||weekCur) ? weekLabelShort(weekCompareCur||weekCur) : '—',
+    weekComparePrevLabel: (weekComparePrev||weekPrev) ? weekLabelShort(weekComparePrev||weekPrev) : '—',
     nhomAWeekLabel: nhomA.weekCur ? weekLabelShort(nhomA.weekCur) : (weekCur ? weekLabelShort(weekCur) : '—'),
     dateStr: new Date().toISOString().slice(0,10),
     pnMaxDate, elapsed, totalDays,
-    mtdLtc, mtdGtc, targetThang, totalKpiCm, kpiCungKy, pctHoanThanh, pctCungKy,
-    pctHoanThanhGtc: pct(mtdGtc, targetThang),
-    wowLtc, wowGtc: prevGtc?fmtMomPct(projGtc, prevGtc):'—',
-    mtdGiu, mtdBanMoi, wowGiu, wowBanMoi,
-    targetGiuCu, targetBanMoi, targetBanMoiCm, prevLtc, prevGtc, prevGiu, prevBanMoi,
+    mtdLtc, mtdGtc, targetThang: targetPlan, targetVung: targetThang, totalKpiCm, kpiCungKy, pctHoanThanh, pctCungKy,
+    pctHoanThanhGtc: pct(mtdGtc, targetPlan),
+    wowLtc, wowGtc: prevGtc?fmtMomPct(mtdGtc, kpiSamePeriod(prevGtc, elapsed, totalDays)||prevGtc):'—',
+    mtdGiu: mtdGiuCungKy, mtdBanMoi: mtdBanMoiCungKy, mtdBanMoiCungKy, mtdACungKy, mtdBcdCungKy, mtdEfCungKy, wowGiu, wowBanMoi,
+    mtdBanMoiRaw, prevBanMoiRaw, // nhóm G cùng kỳ thuần từ TotalKH (N ngày đầu tháng)
+    targetGiuCu, targetBanMoi, targetBanMoiCungKy, targetBanMoiCm, prevLtc, prevGtc, prevGiu, prevBanMoi,
+    prevBanMoiCungKy, prevACungKy, prevBcdCungKy, prevEfCungKy, prevGiuCungKy,
     projLtc, projGtc, projGiu, projBanMoi, planRows, nhomWeekMatrix,
-    slkhG, volG, slkhAvgG, topAmBanMoi, topAmGiam, nhomWeekGiu, nhomA, tiemNang, weekBreakdown, amWeekDecline
+    slkhG, volG, slkhAvgG, volGSource, topAmBanMoi, topAmBanMoiYeu, amBanMoiRows, topAmGiam, nhomWeekGiu, nhomA, tiemNang, weekBreakdown, amWeekDecline
   };
   base.narratives = buildWeeklyReportNarratives(base);
   return base;
@@ -2418,15 +3550,34 @@ function docRow4(label, actual, target, pctHT, wow){
   return `<tr><td>${docEsc(label)}</td><td align="right">${docEsc(actual)}</td><td align="right">${docEsc(target)}</td><td align="right">${docEsc(pctHT)}</td><td align="right">${docEsc(wow)}</td></tr>`;
 }
 function docRowPlan(r){
+  const hasTarget=r.target!=null&&r.target>0;
+  const red=c=>r.redCells&&r.redCells.includes(c);
+  const cell=(txt,isRed)=>isRed?`<span class="red">${docEsc(txt)}</span>`:docEsc(txt);
   return `<tr>
     <td>${docEsc(r.label)}</td>
-    <td align="right">${docEsc(fmtVnd(r.mtd))}</td>
-    <td align="right">${docEsc(r.target?fmtVnd(r.target):'—')}</td>
-    <td align="right">${docEsc(fmtPctOrDash(r.pctMtd))}</td>
-    <td align="right">${docEsc(fmtVnd(r.projected))}</td>
-    <td align="right">${docEsc(fmtPctOrDash(r.pctProj))}</td>
-    <td align="right">${docEsc(r.mom||'—')}</td>
+    <td align="right" class="red">${cell(r.thucDat!=null?fmtVnd(r.thucDat):'—', true)}</td>
+    <td align="right">${cell(fmtVnd(r.mtd), red('mtd'))}</td>
+    <td align="right">${cell(hasTarget?fmtVnd(r.target):'—', false)}</td>
+    <td align="right">${cell(hasTarget?fmtPctOrDash(r.pctMtd):'—', false)}</td>
+    <td align="right">${cell(fmtVnd(r.projected), false)}</td>
+    <td align="right">${cell(hasTarget?fmtPctOrDash(r.pctProj):'—', red('pctProj'))}</td>
+    <td align="right">${cell(r.mom||'—', red('mom'))}</td>
   </tr>`;
+}
+function docPctDat(cur, prev){
+  if(!prev&&!cur) return '—';
+  if(!prev) return cur>0?'—':'0%';
+  return pct(cur, prev).toFixed(1)+'%';
+}
+function docTrendTotTe(cur, prev){
+  if(prev<=0&&cur<=0) return 'tương đương';
+  if(prev<=0) return 'tốt hơn';
+  return cur>=prev?'tốt hơn':'tệ hơn';
+}
+function docWowVerb(wowText){
+  const n=parseFloat(String(wowText||'').replace(/[^0-9.\-+]/g,''));
+  if(isNaN(n)||n===0) return {verb:'không đổi', pct:wowText||'—'};
+  return {verb:n>0?'tăng':'giảm', pct:wowText};
 }
 function docNhomWeekTable(matrix){
   if(!matrix||!matrix.weeks||!matrix.weeks.length) return '<p><i>Chưa có dữ liệu tuần theo nhóm (TotalKH).</i></p>';
@@ -2452,7 +3603,8 @@ function docNhomWeekTable(matrix){
   return `<table class="doc"><thead>${trHdr}</thead><tbody>${body}</tbody></table>`;
 }
 function docRowNhomA(label, data, wow, note){
-  return `<tr><td>${docEsc(label)}</td><td align="center">${docEsc(data)}</td><td align="center">${docEsc(wow)}</td><td>${docEsc(note||'')}</td></tr>`;
+  const noteHtml=docEsc(note||'').replace(/\n/g,'<br>');
+  return `<tr><td>${docEsc(label)}</td><td align="center">${docEsc(data)}</td><td align="center">${docEsc(wow)}</td><td>${noteHtml}</td></tr>`;
 }
 function docPadRows(htmlRows, cols, minRows){
   let out=htmlRows;
@@ -2461,37 +3613,77 @@ function docPadRows(htmlRows, cols, minRows){
   return out;
 }
 
+
+
 function renderWeeklyReportDocHtml(d){
   const h = (label,val)=>docEsc(val||'');
   const n = d.narratives || buildWeeklyReportNarratives(d);
   const stripHtml = s => String(s||'').replace(/<\/?b>/g,'');
-  const wkLbl = d.nhomA.weekCur ? weekLabelShort(d.nhomA.weekCur) : d.nhomAWeekLabel;
-  const wkPrevLbl = d.nhomA.weekPrev ? weekLabelShort(d.nhomA.weekPrev) : '—';
   const churn = d.nhomA.churnRows || [];
-  const banMoiTot = d.topAmBanMoi.length
-    ? d.topAmBanMoi.map(([am,v],i)=>`${i+1}. ${am}: ${fmtVnd(v)}`).join('; ')
-    : 'Chưa có dữ liệu tuần hiện tại';
-  const banMoiYeu = (d.topAmGiam||[]).length
-    ? d.topAmGiam.slice(0,5).map(([am,p],i)=>`${i+1}. ${am}: ${p.toFixed(1)}%`).join('; ')
-    : 'Không phát hiện AM giảm mạnh tuần bán mới';
+  const giamDon = d.nhomA.giamDonRows || [];
+  const thucDatHdr = `Thực đạt ${shortThangT(d.thangPrevLabel)}`;
+
+  // Bảng AM bán mới (mẫu docs: AM | SLKH G | Vol | Rev | Nhận xét)
+  const amBanMoiList = (d.amBanMoiRows&&d.amBanMoiRows.length)
+    ? d.amBanMoiRows.slice().sort((a,b)=>b.dt-a.dt||b.kh-a.kh)
+    : (d.topAmBanMoi||[]).map(x=>Array.isArray(x)?(x[2]||{am:x[0],dt:x[1],kh:0,vol:0}):x);
+  let amBanMoiRowsHtml = amBanMoiList.map(r=>{
+    const nx = r.nhanXet || suggestAmBanMoiNhanXet(r);
+    return `<tr>
+      <td>${h('',r.am)}</td>
+      <td align="right">${fmt(r.kh||0)}</td>
+      <td align="right">${fmt(r.vol||0)}</td>
+      <td align="right">${h('',fmtVnd(r.dt||0))}</td>
+      <td class="red">${h('',nx)}</td>
+    </tr>`;
+  }).join('');
+  amBanMoiRowsHtml = docPadRows(amBanMoiRowsHtml, 5, Math.max(5, amBanMoiList.length||3));
+
+  const vanDeBanMoiHtml = (n.vanDeBanMoiBullets||[]).map(t=>`<li class="red">${h('',t)}</li>`).join('')
+    || `<li class="red">${h('',n.vanDeBanMoi||'')}</li>`;
+
+  // Pipeline shop dự kiến tuần tới — chỗ trống để điền tay (mục đỏ trên docs)
+  let shopPipelineHtml = '';
+  for(let i=0;i<3;i++){
+    shopPipelineHtml += `<tr>
+      <td class="red">&nbsp;</td><td class="red">&nbsp;</td><td class="red">&nbsp;</td><td class="red">&nbsp;</td><td class="red">&nbsp;</td>
+    </tr>`;
+  }
 
   let churnRows='';
   if(churn.length){
     churn.forEach((r,i)=>{
       churnRows+=`<tr>
         <td align="center">${i+1}</td>
-        <td>${h('',r.ma)}</td>
         <td>${h('',r.ten)}</td>
         <td>${h('',r.am)}</td>
-        <td align="right">${h('',fmtVnd(r.dtMonth))}</td>
-        <td align="center">${h('',suggestChurnNgayNgung(r,wkLbl))}</td>
+        <td align="right">${h('',fmtVnd(r.projected!=null?r.projected:r.dtMonth))}</td>
+        <td align="center">${h('',suggestChurnNgayNgung(r))}</td>
         <td align="center">A</td>
-        <td>${h('',suggestChurnLyDo(r,wkLbl))}</td>
+        <td>${h('',suggestChurnLyDo(r))}</td>
         <td>${h('',suggestChurnAction(r))}</td>
       </tr>`;
     });
   }
-  churnRows=docPadRows(churnRows,9,3);
+  churnRows=docPadRows(churnRows,8,3);
+
+  let giamDonRowsHtml='';
+  if(giamDon.length){
+    giamDon.forEach((r,i)=>{
+      giamDonRowsHtml+=`<tr>
+        <td align="center">${i+1}</td>
+        <td>${h('',r.ma||'')}</td>
+        <td>${h('',r.ten)}</td>
+        <td>${h('',r.am)}</td>
+        <td align="right">${h('',fmtVnd(r.projected!=null?r.projected:r.dtMonth))}</td>
+        <td align="right">${h('',fmtVnd(r.dtMonth||0))}</td>
+        <td align="center">A</td>
+        <td>${h('',suggestGiamDonLyDo(r))}</td>
+        <td>${h('',suggestGiamDonAction(r))}</td>
+      </tr>`;
+    });
+  }
+  giamDonRowsHtml=docPadRows(giamDonRowsHtml,9,3);
 
   const vanDeRows=(n.vanDe||[]).slice(0,3);
   while(vanDeRows.length<3) vanDeRows.push(null);
@@ -2500,12 +3692,16 @@ function renderWeeklyReportDocHtml(d){
     return `<tr><td align="center">${i+1}</td><td>${h('',v.nhom)}</td><td>${h('',v.moTa)}</td><td>${h('',v.tacDong)}</td><td>${h('',v.uuTien)}</td><td>${h('',v.tienDo)}</td></tr>`;
   }).join('');
 
-  const giaiPhapRows=(n.giaiPhap||[]).slice(0,3);
-  while(giaiPhapRows.length<3) giaiPhapRows.push(null);
+  const giaiPhapRows=(n.giaiPhap||[]).slice(0,4);
+  while(giaiPhapRows.length<4) giaiPhapRows.push(null);
   const giaiPhapHtml=giaiPhapRows.map((g,i)=>{
     if(!g) return `<tr><td align="center">${i+1}</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>`;
     return `<tr><td align="center">${i+1}</td><td>${h('',g.gp)}</td><td>${h('',g.doiTuong)}</td><td>${h('',g.mucTieu)}</td><td>${h('',g.ngay)}</td><td>${h('',g.pic)}</td><td>${h('',g.hoTro)}</td></tr>`;
   }).join('');
+
+  const nguyCoNote = d.nhomA.nguyCo>0
+    ? `Không có DT LTC trong 5 ngày: ${(d.nhomA.last5||[]).map(isoShort2).join(' · ')||'—'}`
+    : 'Tất cả khách hàng A đều đang lên đơn';
 
   return `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="utf-8"><title>Báo cáo KD ${h('',d.vung)}</title>
@@ -2523,6 +3719,7 @@ table.doc th{background:#fff;font-weight:bold;text-align:center}
 ul.doc{margin:4px 0 10px 22px;padding:0}
 ul.doc li{margin:4px 0}
 .fill{color:#000}
+.red{color:#c00000;font-weight:bold}
 .meta{font-size:10pt;color:#444;margin-bottom:12px}
 </style></head><body>
 
@@ -2536,6 +3733,7 @@ ul.doc li{margin:4px 0}
 <table class="doc">
 <thead><tr>
   <th>Chỉ tiêu</th>
+  <th class="red">${h('',thucDatHdr)}</th>
   <th>Doanh thu (MTD)</th>
   <th>Target tháng ${h('',d.thangLabel)}</th>
   <th>% Hoàn thành MTD</th>
@@ -2545,31 +3743,72 @@ ul.doc li{margin:4px 0}
 </tr></thead><tbody>
 ${(d.planRows||[]).map(docRowPlan).join('\n')}
 </tbody></table>
+<p>${h('',n.tomTatMtdTong||'')}</p>
+<p class="red">${h('',n.tomTatMtdGiuCu||'')}</p>
+<p class="red">${h('',n.tomTatMtdBanMoi||'')}</p>
 <p>KPI cùng kỳ (${d.elapsed}/${d.totalDays} ngày): <b>${fmtVnd(d.kpiCungKy)}</b> · MTD đạt <b>${d.pctCungKy.toFixed(1)}%</b> KPI cùng kỳ.
- · Target giữ cũ = DT ${h('',d.thangPrevLabel)} (<b>${fmtVnd(d.targetGiuCu||0)}</b>) · Target bán mới = KPI Vùng − giữ cũ (<b>${fmtVnd(d.targetBanMoi||0)}</b>)${d.totalKpiCm?` · KPI CM tháng: <b>${fmtVnd(d.totalKpiCm)}</b>`:''}.</p>
+ · Target tháng = <b>KPI CM</b> (<b>${fmtVnd(d.targetThang||0)}</b>)${d.targetVung&&d.targetVung!==d.targetThang?` · KPI Vùng tham chiếu: <b>${fmtVnd(d.targetVung)}</b>`:''}.
+ · Target giữ cũ = DT ${h('',d.thangPrevLabel)} (<b>${fmtVnd(d.targetGiuCu||0)}</b>) · Target bán mới = KPI CM − giữ cũ (<b>${fmtVnd(d.targetBanMoi||0)}</b>).
+ · Cột <span class="red">${h('',thucDatHdr)}</span> = MTD cùng kỳ ${d.elapsed} ngày tháng trước (so sánh MoM).
+ · So sánh giữ cũ / bán mới / nhóm KH: doanh thu lấy từ <b>TotalKH</b> cùng kỳ ${d.elapsed} ngày; quy về đơn vị triệu đồng bằng tỷ lệ scale khớp LTC (Kết Quả).
+ · Tăng/giảm sv ${h('',d.thangPrevLabel)}: so MTD với MTD cùng kỳ T-1 (TotalKH).</p>
 
-<p><b>Tuần:</b> Doanh thu theo nhóm KH (5 tuần gần nhất · nguồn ${SHEET.totalKH} · % = so với tuần liền trước)</p>
+<p><b>Tuần:</b> Doanh thu theo nhóm KH (5 tuần gần nhất · % = so với tuần liền trước)${d.weekCurIncomplete?` · <i>Comment &amp; số liệu so sánh dùng <b>${h('',d.weekCompareLabel)}</b> vs <b>${h('',d.weekComparePrevLabel)}</b> (đang ở ${h('',d.weekLabel)} — chưa so tuần đang chạy)</i>`:''}</p>
 ${docNhomWeekTable(d.nhomWeekMatrix)}
+<p>${h('',n.tomTatTuanTong||'')}</p>
+<p class="red">${h('',n.tomTatTuanGiuCu||'')}</p>
+<p class="red">${h('',n.tomTatTuanBanMoi||'')}</p>
 
 <h3>1.2. Kết quả Giữ cũ</h3>
-<p><b>Nhận định chung:</b><br><span class="fill">${h('',stripHtml(n.nhanDinhGiuCu))}</span></p>
+<p><b>Nhận định chung:</b></p>
+<ul class="doc">
+<li class="red">${h('',n.nhanDinhGiuCuPrompt||'')}</li>
+<li class="red">${h('',n.nhanDinhGiuCuTuan||'')}</li>
+<li><span class="fill">${h('',stripHtml(n.nhanDinhGiuCu))}</span></li>
+</ul>
 <p><b>Số liệu &amp; Các điểm nổi bật:</b></p>
 <ul class="doc">
-<li><b>Nhóm khách hàng có nguy cơ rời bỏ?</b> <span class="fill">${h('',stripHtml(n.nguyCoRoiBo))}</span></li>
+<li><b>Nhóm khách hàng có nguy cơ rời bỏ?</b> <span class="red">${h('',stripHtml(n.nguyCoRoiBo))}</span></li>
 <li><b>Nhóm khách hàng có dấu hiệu giảm doanh thu?</b> <span class="fill">${h('',n.nhomGiamDt)}</span></li>
 <li><b>Nguyên nhân chính tác động đến kết quả giữ cũ trong tuần?</b> <span class="fill">${h('',n.nguyenNhanGiuCu)}</span></li>
 </ul>
 
 <h3>1.3. Kết quả Bán mới</h3>
-<p><b>Nhận định chung:</b><br><span class="fill">${h('',stripHtml(n.nhanDinhBanMoi))}</span></p>
-<p><b>Số liệu &amp; Các điểm nổi bật:</b></p>
+<p><b>Nhận định chung:</b></p>
 <ul class="doc">
-<li><b>Số lượng khách hàng bán mới phát sinh trong tuần (kèm sản lượng trung bình)?</b> <span class="fill">${fmt(d.slkhG)} KH · Volume ${fmt(d.volG)} đơn · TB ~${fmt(d.slkhAvgG)} đơn/KH (tuần ${h('',d.weekLabel)}).</span></li>
-<li><b>Khu vực/ AM có kết quả bán mới tốt?</b> <span class="fill">${h('',banMoiTot)}</span></li>
-<li><b>Khu vực/ AM có kết quả bán mới chưa đạt tiến độ?</b> <span class="fill">${h('',banMoiYeu)}</span></li>
-<li><b>Các vấn đề đang ảnh hưởng đến tiến độ bán mới tại Vùng?</b> <span class="fill">${h('',n.vanDeBanMoi)}</span></li>
-<li><b>Khách hàng/ Doanh thu bán mới dự kiến phát sinh trong tuần tới?</b> <span class="fill">${h('',n.dtBanMoiDuKien)}</span></li>
+<li><span class="red">${h('',n.nhanDinhBanMoiPrompt||'')}</span></li>
+<li><span class="red">${h('',n.nhanDinhBanMoiTuan||'')}</span></li>
 </ul>
+
+<p class="red"><b>Số liệu &amp; Các điểm nổi bật bán mới theo AM:</b></p>
+<table class="doc">
+<thead><tr>
+  <th class="red">AM</th>
+  <th class="red">SLKH G</th>
+  <th class="red">Vol</th>
+  <th class="red">Rev</th>
+  <th class="red">Nhận xét</th>
+</tr></thead><tbody>
+${amBanMoiRowsHtml}
+</tbody></table>
+<p><b>Nhận xét chung tình hình bán mới của AM:</b> <span class="fill">${h('',n.nhanXetChungAmBanMoi||'')}</span></p>
+<p class="red"><b>Các vấn đề đang ảnh hưởng đến tiến độ bán mới:</b></p>
+<ul class="doc">
+${vanDeBanMoiHtml}
+</ul>
+
+<p class="red"><b>Khách hàng/ Doanh thu bán mới dự kiến phát sinh trong tuần tới:</b></p>
+<p><i>${h('',n.dtBanMoiDuKien||'')}</i></p>
+<table class="doc">
+<thead><tr>
+  <th class="red">Shop</th>
+  <th class="red">Địa chỉ</th>
+  <th class="red">Vol</th>
+  <th class="red">Rev</th>
+  <th class="red">Nhận xét</th>
+</tr></thead><tbody>
+${shopPipelineHtml}
+</tbody></table>
 
 <h2>2. ĐIỂM NỔI BẬT TRONG TUẦN — Khách hàng nhóm A</h2>
 <table class="doc">
@@ -2581,32 +3820,50 @@ ${docNhomWeekTable(d.nhomWeekMatrix)}
 </tr></thead><tbody>
 ${docRowNhomA('Tổng số lượng KH nhóm A đầu tháng', fmt(d.nhomA.total), '—', `Tháng ${d.thangLabel}`)}
 ${docRowNhomA('Số KH có lên đơn đến hiện tại', fmt(d.nhomA.coDon), d.nhomA.wowCoDon, 'MTD tháng hiện tại')}
-${docRowNhomA('1. Số KH A dự kiến giảm hạng', fmt(d.nhomA.giamHang), d.nhomA.wowGiamHang, 'Giảm ≥30% hoặc không lên đơn vs cùng thứ tuần trước')}
-${docRowNhomA('2. Số KH A nguy cơ rời bỏ (không có DT LTC đến hiện tại)', fmt(d.nhomA.nguyCo), d.nhomA.wowNguyCo, d.nhomA.dayCur&&d.nhomA.dayPrev?`${weekdayVi(d.nhomA.dayPrev)} ${isoShort2(d.nhomA.dayPrev)} → ${weekdayVi(d.nhomA.dayCur)} ${isoShort2(d.nhomA.dayCur)}`:`${wkLbl} vs ${wkPrevLbl}`)}
-${docRowNhomA('Số KH tiềm năng lên hạng A', fmt(d.tiemNang.count), '—', `${SHEET.totalKH} · BCD/EF · DT dự kiến ≥ 45 tr`)}
+${docRowNhomA('1. Số KH A dự kiến giảm hạng', fmt(d.nhomA.giamHang), d.nhomA.wowGiamHang, n.ghiChuGiamHang||`DT TB ngày × ${d.nhomA.totalDays||d.totalDays} ngày < 45 tr (qua ${d.nhomA.elapsed||d.elapsed} ngày)`)}
+${docRowNhomA('2. Số KH A nguy cơ rời bỏ', fmt(d.nhomA.nguyCo), d.nhomA.wowNguyCo, nguyCoNote)}
+${docRowNhomA('Số KH tiềm năng lên hạng A', fmt(d.tiemNang.count), '—', d.tiemNang.note||'BCD/EF/G · DT dự kiến ≥ 45 tr')}
 </tbody></table>
 
-<p><b>Nhận định chính:</b><br><span class="fill">${h('',stripHtml(n.nhanDinhNhomA))}</span></p>
+<p><b>Nhận định chính:</b><br><span class="red">${h('',stripHtml(n.nhanDinhNhomA))}</span></p>
 <ul class="doc">
-<li><b>Tình hình nhóm KH A tại Vùng trong tuần?</b> <span class="fill">${h('',n.tinhHinhNhomA||stripHtml(n.nhanDinhNhomA))}</span></li>
-<li><b>Các vấn đề mà nhóm KH A đang gặp phải tại Vùng?</b> <span class="fill">${h('',n.vanDeNhomA||'')}</span></li>
+<li class="red"><b>Tình hình nhóm KH A tại Vùng trong tuần?</b> <span class="fill">${h('',n.tinhHinhNhomA||stripHtml(n.nhanDinhNhomA))}</span></li>
+<li class="red"><b>Các vấn đề mà nhóm KH A đang gặp phải tại Vùng?</b> <span class="fill">${h('',stripHtml(n.vanDeNhomA||''))}</span></li>
 </ul>
 
-<h3>CHI TIẾT KH NHÓM A RỜI BỎ</h3>
-<p><b>Tổng quan nguyên nhân rời bỏ:</b></p>
-<ul class="doc"><li><span class="fill">${h('',stripHtml(n.tongQuanNguyenNhan))}</span></li></ul>
-<p><b>Danh sách khách hàng rời bỏ trong tuần:</b></p>
+<h3>CHI TIẾT KH NHÓM A GIẢM ĐƠN</h3>
+<p><b>Tổng quan nguyên nhân giảm đơn:</b></p>
+<ul class="doc"><li><span class="fill">${h('',stripHtml(n.tongQuanGiamDon||''))}</span></li></ul>
+<p><b>Danh sách khách hàng giảm đơn (DT dự kiến &lt; 45 tr · vẫn còn lên đơn trong 7 ngày):</b></p>
 <table class="doc">
 <thead><tr>
   <th>STT</th>
   <th>Client_ID</th>
   <th>Tên KH</th>
   <th>AM phụ trách</th>
-  <th>Doanh thu bình quân theo tháng</th>
-  <th>Ngày ngưng lên đơn</th>
-  <th>Phân hạng KH trước khi rời bỏ</th>
-  <th>Lý do rời bỏ</th>
+  <th>DT dự kiến tháng</th>
+  <th>DT MTD</th>
+  <th>Phân hạng KH hiện tại</th>
+  <th>Lý do giảm đơn</th>
   <th>Hành động/ hướng xử lý</th>
+</tr></thead><tbody>
+${giamDonRowsHtml}
+</tbody></table>
+
+<h3 class="red">CHI TIẾT KH NHÓM A RỜI BỎ</h3>
+<p class="red"><b>Tổng quan nguyên nhân rời bỏ:</b></p>
+<ul class="doc"><li class="red"><span class="fill">${h('',stripHtml(n.tongQuanNguyenNhan))}</span></li></ul>
+<p class="red"><b>Danh sách khách hàng rời bỏ (7 ngày không lên đơn · ${(d.nhomA.last7||[]).map(isoShort2).join(' → ')||'—'}):</b></p>
+<table class="doc">
+<thead><tr>
+  <th class="red">STT</th>
+  <th class="red">Tên KH</th>
+  <th class="red">AM phụ trách</th>
+  <th class="red">DT dự kiến tháng</th>
+  <th class="red">Ngày ngưng lên đơn</th>
+  <th class="red">Phân hạng KH trước khi rời bỏ</th>
+  <th class="red">Lý do rời bỏ</th>
+  <th class="red">Hành động/ hướng xử lý</th>
 </tr></thead><tbody>
 ${churnRows}
 </tbody></table>
@@ -2642,6 +3899,7 @@ ${giaiPhapHtml}
 
 </body></html>`;
 }
+
 
 function exportWeeklyReportDoc(){
   if(!loaded||!window._DATA.ketQua){

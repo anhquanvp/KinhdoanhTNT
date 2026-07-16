@@ -327,6 +327,29 @@ function buildDtNgayByDate(dtNgay, thang){
   }
   return byDate;
 }
+
+/** DT LTC theo AM trong N ngày đầu tháng (cùng kỳ) — từ DT-Ngày. */
+function sumAmDtNgayCungKy(dtNgay, thang, elapsedDays){
+  const out={};
+  if(!dtNgay||dtNgay.length<2||!thang||!elapsedDays) return out;
+  const h=dtNgay[0], iNgay=idxOf(h,'Ngay'), iDT=idxOf(h,'DoanhThu'), iAM=idxOf(h,'AM Chuẩn');
+  if(iNgay<0||iDT<0||iAM<0) return out;
+  const maxDay=Math.max(1, elapsedDays);
+  for(let i=1;i<dtNgay.length;i++){
+    const r=dtNgay[i];
+    const am=(r[iAM]||'').trim();
+    if(!am) continue;
+    const iso=normalizeNgayToIso(r[iNgay]);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)) continue;
+    const mk=monthKeyFromIso(iso);
+    if(!mk||!thangEq(mk,thang)) continue;
+    const d=+iso.slice(8,10);
+    if(d<1||d>maxDay) continue;
+    out[am]=(out[am]||0)+parseVNNum(r[iDT]);
+  }
+  return out;
+}
+
 function buildMonthWeekBreakdown(byDate, thang, targetThang, totalDays){
   const weeks={};
   Object.entries(byDate).forEach(([iso,dt])=>{
@@ -919,85 +942,154 @@ function renderOverviewBanMoiDaySection(bm){
   html+=`</div>${analysisQuick(`So sánh DT bán mới nhóm G theo AM · ngày <b>${isoShort2(bm.isoN1)}</b> vs <b>${isoShort2(bm.isoN2)}</b>${bm.scaled?' · đã scale khớp DT-Ngày vùng':''}.`)}</div>`;
   return html;
 }
-function renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc){
-  const withKpi=rows.filter(r=>r.kpiCm>0);
-  // % Đạt dự kiến = Dự kiến DT LTC / KPI Cty (tháng)
-  const list=withKpi.slice().map(r=>{
-    const proj=r.projected!=null?r.projected:(elapsed?r.actual/elapsed*totalDays:0);
-    const rateProjCty=pct(proj, r.kpiCm);
-    return {...r, projected:proj, rateProjCty};
-  }).sort((a,b)=>b.rateProjCty-a.rateProjCty);
-  const nDat=list.filter(r=>r.rateProjCty>=100).length;
-  const nKhong=list.length-nDat;
+function buildAmNhomWow(totalKH, thang, elapsed){
+  const thangPrevM=prevThang(thang);
+  const {recs}=parseTotalKHNhomRecs(totalKH);
+  const maxDay=Math.max(1, elapsed||1);
+  const dayOk=r=>{
+    const d=+String(r.ngay||'').slice(8,10);
+    return d>=1&&d<=maxDay;
+  };
+  const byAm={};
+  const bump=(am,grp,side,dt)=>{
+    if(!am||!grp) return;
+    if(!byAm[am]) byAm[am]={A:{cur:0,prev:0},BCD:{cur:0,prev:0},EF:{cur:0,prev:0},G:{cur:0,prev:0}};
+    if(!byAm[am][grp]) return;
+    byAm[am][grp][side]+=dt;
+  };
+  recs.forEach(r=>{
+    if(!r.am||!r.grp||!dayOk(r)) return;
+    if(r.thang&&thangEq(r.thang,thang)) bump(r.am,r.grp,'cur',r.dt);
+    else if(thangPrevM&&r.thang&&thangEq(r.thang,thangPrevM)) bump(r.am,r.grp,'prev',r.dt);
+  });
+  const out={};
+  Object.keys(byAm).forEach(am=>{
+    const g=byAm[am];
+    const parts={};
+    let totCur=0, totPrev=0;
+    NHOM_LABELS.forEach(k=>{
+      const cur=g[k].cur, prev=g[k].prev;
+      totCur+=cur; totPrev+=prev;
+      const pctW=prev>0?(cur-prev)/prev*100:(cur>0?100:0);
+      parts[k]={cur,prev,pctW,dir:pctW>0.5?'up':pctW<-0.5?'down':'flat'};
+    });
+    const pctTot=totPrev>0?(totCur-totPrev)/totPrev*100:(totCur>0?100:0);
+    parts.TOTAL={cur:totCur,prev:totPrev,pctW:pctTot,dir:pctTot>0.5?'up':pctTot<-0.5?'down':'flat'};
+    out[am]=parts;
+  });
+  const regionParts={};
+  let vCur=0, vPrev=0;
+  NHOM_LABELS.forEach(k=>{
+    let c=0, pr=0;
+    Object.values(out).forEach(parts=>{
+      c+=(parts[k]&&parts[k].cur)||0;
+      pr+=(parts[k]&&parts[k].prev)||0;
+    });
+    vCur+=c; vPrev+=pr;
+    const pctW=pr>0?(c-pr)/pr*100:(c>0?100:0);
+    regionParts[k]={cur:c,prev:pr,pctW,dir:pctW>0.5?'up':pctW<-0.5?'down':'flat'};
+  });
+  const pctV=vPrev>0?(vCur-vPrev)/vPrev*100:(vCur>0?100:0);
+  regionParts.TOTAL={cur:vCur,prev:vPrev,pctW:pctV,dir:pctV>0.5?'up':pctV<-0.5?'down':'flat'};
+  return {
+    thangCur:thang, thangPrev:thangPrevM, elapsed,
+    byAm:out, regionParts, regionTotal:regionParts.TOTAL,
+    label:`cùng kỳ ${elapsed}N · ${formatThangLabel(thangPrevM)}→${formatThangLabel(thang)}`
+  };
+}
+function fmtNhomTrendBadge(label, p){
+  if(!p||(p.cur===0&&p.prev===0)) return `<span class="nhom-wow flat">${label}: —</span>`;
+  const arrow=p.dir==='up'?'▲':p.dir==='down'?'▼':'—';
+  const cls=p.dir==='up'?'up':p.dir==='down'?'down':'flat';
+  const pctTxt=`${p.pctW>=0?'+':''}${p.pctW.toFixed(0)}%`;
+  return `<span class="nhom-wow ${cls}">${label} ${arrow}${pctTxt}</span>`;
+}
+function fmtNhomWowCell(parts){
+  if(!parts) return '<span class="empty-val">—</span>';
+  const badges=NHOM_LABELS.map(g=>fmtNhomTrendBadge(g, parts[g]));
+  badges.push(fmtNhomTrendBadge('Tổng', parts.TOTAL));
+  return badges.join(' ');
+}
+function renderOverviewProjectionSection(rows, totalActual, totalKpiCm, totalProjected, elapsed, totalDays, thangLabel, amNhomWow){
   const pctCls=p=>p>=100?'pct-g':p>=70?'pct-y':'pct-r';
-  const totalActual=rows.reduce((s,r)=>s+r.actual,0);
-  const totalProj=rows.reduce((s,r)=>s+(r.projected||0),0);
-  const rateLtcCk=pct(totalActual, totalKpiCmPeriod);
-  const rateCtyCk=pct(totalGtc||0, totalKpiCmPeriod);
-  const rateProjCty=pct(totalProj, totalKpiCm);
-  const colDat=p=>p>=100?'down':'up';
+  const withKpi=rows.filter(r=>r.kpiCm>0).map(r=>{
+    const projRateCm=pct(r.projected, r.kpiCm);
+    const prevLtcCk=r.prevLtcCk||0;
+    const curLtcCk=r.actualCk||0;
+    const rateLtcVsPrev=pct(curLtcCk, prevLtcCk);
+    return {...r, projRateCm, prevLtcCk, curLtcCk, rateLtcVsPrev};
+  }).sort((a,b)=>b.projRateCm-a.projRateCm);
+  const dat=withKpi.filter(r=>r.projRateCm>=100);
+  const thieu=withKpi.filter(r=>r.projRateCm<100);
+  const projRateCmTotal=pct(totalProjected, totalKpiCm);
+  const totalCurLtcCk=rows.reduce((s,r)=>s+(r.actualCk||0),0);
+  const totalPrevLtcCk=rows.reduce((s,r)=>s+(r.prevLtcCk||0),0);
+  const rateLtcVsPrevTotal=pct(totalCurLtcCk, totalPrevLtcCk);
+  const nhomLbl=(amNhomWow&&amNhomWow.label)||'cùng kỳ';
+  const thangPrevLbl=amNhomWow&&amNhomWow.thangPrev?formatThangLabel(amNhomWow.thangPrev):'T-1';
   let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--yellow)">📈</div>DT Thực Đạt — Dự Kiến Đủ Tháng</div><span class="badge">${thangLabel} · KPI Cty · ${elapsed}/${totalDays} ngày</span></div>`;
   html+=`<div class="kpi-grid" style="margin:16px 22px 0;padding:0">
-    <div class="kpi-card" style="margin:0">
-      <div class="lbl">KPI Cty</div>
-      <div class="val">${fmtVndHero(totalKpiCm)}</div>
-      <div class="cmp">Số dự kiến đạt của Vùng: <b>${fmtVnd(totalProj)}</b><br>
-        Tỷ lệ (dự kiến/KPI): <b class="${colDat(rateProjCty)}">${rateProjCty.toFixed(0)}%</b></div>
-    </div>
-    <div class="kpi-card" style="margin:0">
-      <div class="lbl">KPI Cty<span class="ck">(cùng kỳ)</span></div>
-      <div class="val">${fmtVndHero(totalKpiCmPeriod)}</div>
-      <div class="sub">KPI Cty × ${elapsed}/${totalDays}</div>
-    </div>
-    <div class="kpi-card" style="margin:0">
-      <div class="lbl">% Đạt dự kiến / KPI Cty</div>
-      <div class="val"><span class="hero-amt">${rateProjCty.toFixed(0)}</span><span class="hero-unit">%</span></div>
-      <div class="cmp">AM ≥100%: <b class="down">${nDat}</b> · &lt;100%: <b class="up">${nKhong}</b>
-        <div class="sub" style="margin-top:6px">% Đạt KPI Cty <span class="ck" style="display:inline">(cùng kỳ)</span>: <b class="${colDat(rateCtyCk)}">${rateCtyCk.toFixed(0)}%</b></div></div>
-    </div>
-    <div class="kpi-card" style="margin:0">
-      <div class="lbl">MTD LTC / Dự kiến</div>
-      <div class="val">${fmtVndHero(totalActual)}</div>
-      <div class="cmp">Số dự kiến đạt của Vùng: <b>${fmtVnd(totalProj)}</b><br>
-        Tỷ lệ (dự kiến/KPI): <b class="${colDat(rateProjCty)}">${rateProjCty.toFixed(0)}%</b><br>
-        % Đạt KPI LTC <span class="ck" style="display:inline">(cùng kỳ)</span>: <b class="${colDat(rateLtcCk)}">${rateLtcCk.toFixed(0)}%</b></div>
-    </div>
+    <div class="kpi-card" style="margin:0"><div class="lbl">Target Tháng (${thangLabel})</div><div class="val">${fmtVndHero(totalKpiCm)}</div>
+      <div class="sub">Est Full M (Rev): ${fmtVnd(totalProjected)}</div>
+      <div class="cmp">Est Full M (%): <b class="${projRateCmTotal>=100?'down':'up'}">${projRateCmTotal.toFixed(0)}%</b></div></div>
+    <div class="kpi-card" style="margin:0"><div class="lbl">MTD M</div><div class="val">${fmtVndHero(totalCurLtcCk||totalActual)}</div>
+      <div class="sub">DT-Ngày ${elapsed}N · ${thangLabel}</div></div>
+    <div class="kpi-card" style="margin:0"><div class="lbl">MTD-1</div><div class="val">${fmtVndHero(totalPrevLtcCk)}</div>
+      <div class="sub">Cùng kỳ ${thangPrevLbl}</div></div>
+    <div class="kpi-card" style="margin:0"><div class="lbl">Diff MTD vs MTD-1</div><div class="val"><span class="hero-amt">${rateLtcVsPrevTotal.toFixed(0)}</span><span class="hero-unit">%</span></div>
+      <div class="cmp">AM ≥100% Est: <b class="down">${dat.length}</b> · &lt;100%: <b class="up">${thieu.length}</b></div></div>
   </div>`;
-  html+=`<div style="margin:16px 0 0;padding:0 0 8px">`;
-  if(!list.length){
-    html+=`<div class="section-note" style="padding:12px 22px">Chưa có AM có KPI Cty.</div>`;
-  } else {
-    html+=`<div class="table-wrap"><table class="tbl-pro compact"><thead><tr>
-      <th style="width:40px">#</th>
-      <th>AM</th>
-      <th class="num">KPI Cty</th>
-      <th class="num">Dự kiến DT LTC</th>
-      <th class="num">MTD LTC</th>
-      <th class="num">DT GTTC<span class="ck">(cùng kỳ)</span></th>
-      <th class="num">KPI Cty<span class="ck">(cùng kỳ)</span></th>
-      <th class="num">% Đạt KPI LTC<span class="ck">(cùng kỳ)</span></th>
-      <th class="num">% Đạt KPI Cty<span class="ck">(cùng kỳ)</span></th>
-      <th class="num">% Đạt dự kiến</th>
-    </tr></thead><tbody>`;
-    list.forEach((r,i)=>{
-      const weak=r.rateProjCty<100;
-      html+=`<tr class="${weak?'row-warn':''}">
-        <td><span class="rank-num${i<3?' top3':''}">${i+1}</span></td>
-        <td><span class="lbl-name">${r.am}</span></td>
-        <td class="num">${fmtVndCell(r.kpiCm)}</td>
-        <td class="num">${fmtVndCell(r.projected)}</td>
-        <td class="num">${fmtVndCell(r.actual)}</td>
-        <td class="num">${r.gtc?fmtVndCell(r.gtc):'<span class="empty-val">—</span>'}</td>
-        <td class="num">${fmtVndCell(r.kpiCmPeriod)}</td>
-        <td class="num"><span class="pct-pill ${pctCls(r.rateCmPeriod)}">${r.rateCmPeriod.toFixed(0)}%</span></td>
-        <td class="num">${r.kpiCmPeriod?`<span class="pct-pill ${pctCls(r.rateGtcCmPeriod)}">${r.rateGtcCmPeriod.toFixed(0)}%</span>`:'—'}</td>
-        <td class="num"><span class="pct-pill ${pctCls(r.rateProjCty)}">${r.rateProjCty.toFixed(0)}%</span></td>
-      </tr>`;
-    });
-    html+=`</tbody></table></div>`;
-  }
-  html+=`</div>`;
-  html+=analysisQuick(`Một bảng tất cả AM · sắp xếp theo <b>% Đạt dự kiến / KPI Cty</b> cao→thấp. Dự kiến DT LTC = MTD LTC ÷ ${elapsed} × ${totalDays}. Tỷ lệ dự kiến Vùng = Dự kiến DT LTC / KPI Cty.`);
+  html+=`<div class="table-wrap" style="margin-top:16px"><table class="tbl-pro compact"><thead><tr>
+    <th style="width:40px">#</th><th>AM</th>
+    <th class="num">Target Tháng<span class="ck">(${thangLabel})</span></th>
+    <th class="num">Est Full M (Rev)</th>
+    <th class="num">MTD M</th>
+    <th class="num">MTD-1</th>
+    <th class="num">Diff MTD vs MTD-1</th>
+    <th class="num">Est Full M (%)</th>
+    <th>Phân nhóm KH<br><span style="font-weight:500;font-size:10px;color:#64748B">${nhomLbl}</span></th>
+  </tr></thead><tbody>`;
+  withKpi.forEach((r,i)=>{
+    const ok=r.projRateCm>=100;
+    const nhom=amNhomWow&&amNhomWow.byAm?amNhomWow.byAm[r.am]:null;
+    html+=`<tr class="${ok?'':'row-warn'}"><td><span class="rank-num${i<3?' top3':''}">${i+1}</span></td>
+      <td><span class="lbl-name">${r.am}</span></td>
+      <td class="num">${fmtVndCell(r.kpiCm)}</td>
+      <td class="num">${fmtVndCell(r.projected)}</td>
+      <td class="num">${fmtVndCell(r.actualCk||0)}</td>
+      <td class="num">${fmtVndCell(r.prevLtcCk||0)}</td>
+      <td class="num"><span class="pct-pill ${pctCls(r.rateLtcVsPrev)}">${r.rateLtcVsPrev.toFixed(0)}%</span></td>
+      <td class="num"><span class="pct-pill ${pctCls(r.projRateCm)}">${r.projRateCm.toFixed(0)}%</span></td>
+      <td class="nhom-wow-cell">${fmtNhomWowCell(nhom)}</td>
+    </tr>`;
+  });
+  const regionBadge=fmtNhomWowCell(amNhomWow&&amNhomWow.regionParts);
+  html+=`<tr class="tot"><td></td><td>TỔNG VÙNG</td>
+    <td class="num">${fmtVndCell(totalKpiCm)}</td>
+    <td class="num">${fmtVndCell(totalProjected)}</td>
+    <td class="num">${fmtVndCell(totalCurLtcCk)}</td>
+    <td class="num">${fmtVndCell(totalPrevLtcCk)}</td>
+    <td class="num"><span class="pct-pill ${pctCls(rateLtcVsPrevTotal)}">${rateLtcVsPrevTotal.toFixed(0)}%</span></td>
+    <td class="num"><span class="pct-pill ${pctCls(projRateCmTotal)}">${projRateCmTotal.toFixed(0)}%</span></td>
+    <td class="nhom-wow-cell">${regionBadge}</td></tr>`;
+  html+=`</tbody></table></div>`;
+  const amByPrev=withKpi.filter(r=>r.prevLtcCk>0).slice().sort((a,b)=>b.rateLtcVsPrev-a.rateLtcVsPrev);
+  const amTot=amByPrev.filter(r=>r.rateLtcVsPrev>=100).slice(0,3);
+  const amTe=amByPrev.filter(r=>r.rateLtcVsPrev<100).slice().sort((a,b)=>a.rateLtcVsPrev-b.rateLtcVsPrev).slice(0,3);
+  const grpParts=amNhomWow&&amNhomWow.regionParts;
+  const grpRank=NHOM_LABELS.map(g=>({g, ...(grpParts&&grpParts[g]?grpParts[g]:{pctW:0,dir:'flat'})})).sort((a,b)=>b.pctW-a.pctW);
+  const grpTot=grpRank.filter(x=>x.dir==='up').slice(0,2);
+  const grpTe=grpRank.filter(x=>x.dir==='down').slice().sort((a,b)=>a.pctW-b.pctW).slice(0,2);
+  const fmtAmList=arr=>arr.length?arr.map(r=>`${r.am} (${r.rateLtcVsPrev.toFixed(0)}%)`).join(', '):'—';
+  const fmtGrpList=arr=>arr.length?arr.map(x=>`Nhóm ${x.g} (${x.pctW>=0?'+':''}${x.pctW.toFixed(0)}%)`).join(', '):'—';
+  html+=analysisQuick(`
+    <b>Nhận định nhanh (vs cùng kỳ ${thangPrevLbl}):</b><br>
+    · AM đang làm tốt: <b>${fmtAmList(amTot)}</b><br>
+    · AM đang kém: <b>${fmtAmList(amTe)}</b><br>
+    · Nhóm KH tăng: <b>${fmtGrpList(grpTot)}</b><br>
+    · Nhóm KH giảm: <b>${fmtGrpList(grpTe)}</b><br>
+    · Vùng Diff MTD vs MTD-1: <b>${rateLtcVsPrevTotal.toFixed(0)}%</b> (DT-Ngày ${elapsed}N: ${fmtVnd(totalCurLtcCk)} vs ${fmtVnd(totalPrevLtcCk)}) · Est Full M: <b>${projRateCmTotal.toFixed(0)}%</b> Target.
+  `);
   html+=`</div>`;
   return html;
 }
@@ -2530,6 +2622,9 @@ function renderOverview(){
 
   const allAM = [...new Set([...Object.keys(actualByAM), ...Object.keys(kpiVungByAM), ...Object.keys(kpiCmByAM), ...Object.keys(volByAM), ...Object.keys(gtcByAM)])].sort();
   let totalActual=0, totalKPIPeriod=0, totalProjected=0, totalKpiCmPeriod=0;
+  const thangPrevM = prevThang(thang);
+  const prevLtcByAM = sumAmDtNgayCungKy(dtNgay, thangPrevM, elapsed);
+  const curLtcByAMCk = sumAmDtNgayCungKy(dtNgay, thang, elapsed);
   const rows = allAM.map(am=>{
     const actual = actualByAM[am]||0;
     const vol = volByAM[am]||0;
@@ -2539,13 +2634,16 @@ function renderOverview(){
     const kpiVungPeriod = kpiSamePeriod(kpiVung, elapsed, totalDays);
     const kpiCmPeriod = kpiSamePeriod(kpiCm, elapsed, totalDays);
     const projected = actual/elapsed*totalDays;
+    const prevLtcCk = prevLtcByAM[am]||0;
+    const actualCk = curLtcByAMCk[am]||0;
     totalActual+=actual; totalKPIPeriod+=kpiVungPeriod; totalProjected+=projected; totalKpiCmPeriod+=kpiCmPeriod;
     return {
-      am, actual, vol, gtc,
+      am, actual, actualCk, vol, gtc, prevLtcCk,
       kpi: kpiVung, kpiPeriod: kpiVungPeriod, ratePeriod: pct(actual, kpiVungPeriod),
       kpiVung, kpiVungPeriod, projRateVung: pct(projected, kpiVung),
       kpiCm, kpiCmPeriod, rateCmPeriod: pct(actual, kpiCmPeriod),
       rateGtcCmPeriod: pct(gtc, kpiCmPeriod),
+      rateLtcVsPrev: pct(actualCk, prevLtcCk),
       projected, projRate: pct(projected, kpiVung)
     };
   }).sort((a,b)=>b.actual-a.actual);
@@ -2566,7 +2664,8 @@ function renderOverview(){
   const nhom14dSection = renderOverviewNhom14dSection(nhom14dSeries);
   const khASection = renderOverviewKhASection(buildKhAAlertByAm(totalKH, thang, monthProgress, dtNgay));
   const banMoiDaySection = renderOverviewBanMoiDaySection(buildBanMoiDayCompare(totalKH, thang, dtNgay));
-  const projectionSection = renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc);
+  const amNhomWow = buildAmNhomWow(totalKH, thang, elapsed);
+  const projectionSection = renderOverviewProjectionSection(rows, totalActual, totalKpiCm||totalKpiVung, totalProjected, elapsed, totalDays, thangLabel, amNhomWow);
   const kpiCmSection = renderOverviewKpiCmSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc);
   const kpiCards = `
   <div class="kpi-grid">
@@ -3202,9 +3301,16 @@ function buildWeeklyReportData(){
   let pnMaxDate = pnMaxDateInit;
   const { elapsed, totalDays } = getMonthProgress(dtNgay);
 
+  // LTC cùng kỳ N ngày (từ DT-Ngày) — dùng để so sánh MTD vs MTD-1
+  const sumObj = o => Object.values(o||{}).reduce((s,x)=>s+(+x||0),0);
+  const curLtcCungKyByAm = sumAmDtNgayCungKy(dtNgay, thang, elapsed);
+  const prevLtcCungKyByAm = thangPrevM ? sumAmDtNgayCungKy(dtNgay, thangPrevM, elapsed) : {};
+  const mtdLtcDtNgay = sumObj(curLtcCungKyByAm);
+  const prevLtcCungKyDtNgay = sumObj(prevLtcCungKyByAm);
+
   const mtdKetQua = sumKetQuaMonth(ketQua, thang);
   const mtdLtcThang = dtThangRecs.filter(r=>thangEq(`${r.y}/${r.m}`, thang)).reduce((s,r)=>s+r.dt,0);
-  const mtdLtc = mtdLtcThang || mtdKetQua;
+  const mtdLtc = mtdLtcDtNgay>0 ? mtdLtcDtNgay : (mtdLtcThang || mtdKetQua);
   const mtdGtc = sumSheetDtMonth(dtGtc, thang);
   const prevLtc = thangPrevM ? sumKetQuaMonth(ketQua, thangPrevM) : 0;
   const prevGtc = thangPrevM ? sumSheetDtMonth(dtGtc, thangPrevM) : 0;
@@ -3358,7 +3464,7 @@ function buildWeeklyReportData(){
   const mtdBcdCungKy=mtdGiuRaw>0?mtdGiuCungKy*(mtdBcdRaw/mtdGiuRaw):0;
   const mtdEfCungKy=mtdGiuRaw>0?mtdGiuCungKy*(mtdEfRaw/mtdGiuRaw):0;
   // Cơ sở T-1 cùng kỳ = DT tháng trước × (elapsed/totalDays) — cùng cách tính MoM của LTC
-  const prevLtcCungKy=kpiSamePeriod(prevLtc, elapsed, totalDays);
+  const prevLtcCungKy = prevLtcCungKyDtNgay>0 ? prevLtcCungKyDtNgay : kpiSamePeriod(prevLtc, elapsed, totalDays);
   const allocPrev=allocateGiuBanMoi(prevLtcCungKy||(prevGiuRaw+prevBanMoiRaw), prevGiuRaw, prevBanMoiRaw);
   const prevGiuCungKy=allocPrev.mtdGiu;
   const prevBanMoiCungKy=allocPrev.mtdBanMoi;
@@ -3384,27 +3490,29 @@ function buildWeeklyReportData(){
   const projGiu=projectMonth(mtdGiuCungKy,elapsed,totalDays);
   const projBanMoi=projectMonth(mtdBanMoiCungKy,elapsed,totalDays);
 
+  const prevGtcCungKy = kpiSamePeriod(prevGtc, elapsed, totalDays)||prevGtc;
+
   const planRows=[
     {
       label:'Tổng doanh thu LTC',
       thucDat: prevLtcCungKy||prevLtc,
-      mtd:mtdLtc, target:targetPlan,
+      mtd:mtdLtc, mtdPrev:prevLtcCungKy||prevLtc, target:targetPlan,
       pctMtd:pct(mtdLtc,targetPlan),
       projected:projLtc, pctProj:pct(projLtc,targetPlan),
       mom:fmtMomPct(mtdLtc, prevLtcCungKy||prevLtc)
     },
     {
       label:'Tổng doanh thu GTC',
-      thucDat: kpiSamePeriod(prevGtc, elapsed, totalDays)||prevGtc,
-      mtd:mtdGtc, target:targetPlan,
+      thucDat: prevGtcCungKy,
+      mtd:mtdGtc, mtdPrev:prevGtcCungKy, target:targetPlan,
       pctMtd:pct(mtdGtc,targetPlan),
       projected:projGtc, pctProj:pct(projGtc,targetPlan),
-      mom:fmtMomPct(mtdGtc, kpiSamePeriod(prevGtc, elapsed, totalDays)||prevGtc)
+      mom:fmtMomPct(mtdGtc, prevGtcCungKy)
     },
     {
       label:'Doanh thu giữ cũ (A/BCD/EF)',
       thucDat: prevGiuCungKy,
-      mtd:mtdGiuCungKy, target:targetGiuCu,
+      mtd:mtdGiuCungKy, mtdPrev:prevGiuCungKy, target:targetGiuCu,
       pctMtd:pct(mtdGiuCungKy,targetGiuCu),
       projected:projGiu, pctProj:pct(projGiu,targetGiuCu),
       mom:fmtMomPct(mtdGiuCungKy, prevGiuCungKy),
@@ -3413,7 +3521,7 @@ function buildWeeklyReportData(){
     {
       label:'Doanh thu bán mới (Nhóm G)',
       thucDat: prevBanMoiCungKy,
-      mtd:mtdBanMoiCungKy, target:targetBanMoi,
+      mtd:mtdBanMoiCungKy, mtdPrev:prevBanMoiCungKy, target:targetBanMoi,
       pctMtd:pct(mtdBanMoiCungKy,targetBanMoi),
       projected:projBanMoi, pctProj:pct(projBanMoi,targetBanMoi),
       mom:fmtMomPct(mtdBanMoiCungKy, prevBanMoiCungKy),
@@ -3557,6 +3665,22 @@ function docRowPlan(r){
     <td>${docEsc(r.label)}</td>
     <td align="right" class="red">${cell(r.thucDat!=null?fmtVnd(r.thucDat):'—', true)}</td>
     <td align="right">${cell(fmtVnd(r.mtd), red('mtd'))}</td>
+    <td align="right">${cell(hasTarget?fmtVnd(r.target):'—', false)}</td>
+    <td align="right">${cell(hasTarget?fmtPctOrDash(r.pctMtd):'—', false)}</td>
+    <td align="right">${cell(fmtVnd(r.projected), false)}</td>
+    <td align="right">${cell(hasTarget?fmtPctOrDash(r.pctProj):'—', red('pctProj'))}</td>
+    <td align="right">${cell(r.mom||'—', red('mom'))}</td>
+  </tr>`;
+}
+function docRowPlanV2(r){
+  const hasTarget=r.target!=null&&r.target>0;
+  const red=c=>r.redCells&&r.redCells.includes(c);
+  const cell=(txt,isRed)=>isRed?`<span class="red">${docEsc(txt)}</span>`:docEsc(txt);
+  const mtdPrev = (r.thucDat!=null) ? fmtVnd(r.thucDat) : '—';
+  return `<tr>
+    <td>${docEsc(r.label)}</td>
+    <td align="right">${cell(fmtVnd(r.mtd), red('mtd'))}</td>
+    <td align="right" class="red">${cell(mtdPrev, true)}</td>
     <td align="right">${cell(hasTarget?fmtVnd(r.target):'—', false)}</td>
     <td align="right">${cell(hasTarget?fmtPctOrDash(r.pctMtd):'—', false)}</td>
     <td align="right">${cell(fmtVnd(r.projected), false)}</td>
@@ -3733,6 +3857,19 @@ ul.doc li{margin:4px 0}
 <table class="doc">
 <thead><tr>
   <th>Chỉ tiêu</th>
+  <th>MTD M</th>
+  <th class="red">MTD-1</th>
+  <th>Target Tháng (${h('',d.thangLabel)})</th>
+  <th>% Hoàn thành MTD</th>
+  <th>Est Full M (Rev)</th>
+  <th>Est Full M (%)</th>
+  <th>Diff MTD vs MTD-1</th>
+</tr></thead><tbody>
+${(d.planRows||[]).map(docRowPlanV2).join('\n')}
+</tbody></table>
+<table class="doc">
+<thead><tr>
+  <th>Chỉ tiêu</th>
   <th class="red">${h('',thucDatHdr)}</th>
   <th>Doanh thu (MTD)</th>
   <th>Target tháng ${h('',d.thangLabel)}</th>
@@ -3749,7 +3886,7 @@ ${(d.planRows||[]).map(docRowPlan).join('\n')}
 <p>KPI cùng kỳ (${d.elapsed}/${d.totalDays} ngày): <b>${fmtVnd(d.kpiCungKy)}</b> · MTD đạt <b>${d.pctCungKy.toFixed(1)}%</b> KPI cùng kỳ.
  · Target tháng = <b>KPI CM</b> (<b>${fmtVnd(d.targetThang||0)}</b>)${d.targetVung&&d.targetVung!==d.targetThang?` · KPI Vùng tham chiếu: <b>${fmtVnd(d.targetVung)}</b>`:''}.
  · Target giữ cũ = DT ${h('',d.thangPrevLabel)} (<b>${fmtVnd(d.targetGiuCu||0)}</b>) · Target bán mới = KPI CM − giữ cũ (<b>${fmtVnd(d.targetBanMoi||0)}</b>).
- · Cột <span class="red">${h('',thucDatHdr)}</span> = MTD cùng kỳ ${d.elapsed} ngày tháng trước (so sánh MoM).
+ · Cột <span class="red">MTD-1</span> = MTD cùng kỳ ${d.elapsed} ngày tháng trước (so sánh MoM).
  · So sánh giữ cũ / bán mới / nhóm KH: doanh thu lấy từ <b>TotalKH</b> cùng kỳ ${d.elapsed} ngày; quy về đơn vị triệu đồng bằng tỷ lệ scale khớp LTC (Kết Quả).
  · Tăng/giảm sv ${h('',d.thangPrevLabel)}: so MTD với MTD cùng kỳ T-1 (TotalKH).</p>
 

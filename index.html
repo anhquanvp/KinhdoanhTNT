@@ -158,14 +158,28 @@ table.tbl-pro.compact td,table.tbl-pro.compact th{padding:8px 12px;font-size:12p
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://accounts.google.com/gsi/client?hl=vi" async defer onload="initGoogleLogin()"></script>
 </head>
 <body>
+<div id="loginOverlay" style="position:fixed;inset:0;background:#0F172A;display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:20px;">
+  <div style="text-align:center;color:#fff;">
+    <div style="font-size:20px;font-weight:800;margin-bottom:6px;">📦 GHN — Báo Cáo Doanh Thu Vùng TNT</div>
+    <div style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:28px;">Vui lòng đăng nhập bằng email @ghn.vn để truy cập báo cáo</div>
+  </div>
+  <div id="gsiButtonContainer"></div>
+  <div id="loginError" style="display:none;color:#FCA5A5;font-size:13px;font-weight:600;background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.35);padding:10px 16px;border-radius:8px;max-width:360px;text-align:center;"></div>
+</div>
+<div id="appContent" style="display:none">
 
 <div class="sidebar">
   <div class="logo-area">
     <div class="logo-title">📦 GHN — Vùng TNT</div>
     <div class="logo-sub">Báo cáo Doanh Thu</div>
     <div class="logo-author">AM Vùng: Phan Văn Quân</div>
+  </div>
+  <div style="padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.08);">
+    <div id="userEmailDisplay" style="color:rgba(255,255,255,.75);font-size:11px;font-weight:600;margin-bottom:8px;word-break:break-all;"></div>
+    <button onclick="doLogout()" style="width:100%;padding:8px 10px;border-radius:8px;background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.3);color:#FCA5A5;font-size:12px;font-weight:600;cursor:pointer;">🚪 Đăng xuất</button>
   </div>
   <div class="nav-section">Báo cáo</div>
   <button class="nav-item active" data-page="overview" onclick="showPage('overview')"><span class="icon">📌</span> Tổng Quan</button>
@@ -4070,7 +4084,60 @@ function exportWeeklyReportDoc(){
 }
 
 /* ===================== INIT ===================== */
-loadAll();
+/* ===================== GOOGLE LOGIN ===================== */
+const ALLOWED_DOMAIN = '@ghn.vn';
+const GOOGLE_CLIENT_ID = '96848780552-lqiuph9dquisn0e1rt8vea0h023491lm.apps.googleusercontent.com';
+
+function decodeJwt(token){
+  try{
+    const base64 = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    const json = decodeURIComponent(atob(base64).split('').map(c=>'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    return JSON.parse(json);
+  }catch(e){ return null; }
+}
+
+function handleGoogleLogin(response){
+  const payload = decodeJwt(response.credential);
+  const errBox = document.getElementById('loginError');
+  errBox.style.display='none';
+  if(!payload || !payload.email){
+    errBox.textContent = 'Không đọc được thông tin tài khoản. Vui lòng thử lại.';
+    errBox.style.display='block';
+    return;
+  }
+  if(!payload.email.toLowerCase().endsWith(ALLOWED_DOMAIN)){
+    errBox.textContent = 'Tài khoản "'+payload.email+'" không có quyền truy cập báo cáo này.';
+    errBox.style.display='block';
+    google.accounts.id.disableAutoSelect();
+    return;
+  }
+  document.getElementById('loginOverlay').style.display='none';
+  document.getElementById('appContent').style.display='';
+  document.getElementById('userEmailDisplay').textContent = '👤 '+payload.email;
+  loadAll();
+}
+
+function doLogout(){
+  if(window.google && google.accounts) google.accounts.id.disableAutoSelect();
+  location.reload();
+}
+
+function initGoogleLogin(){
+  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleLogin });
+  google.accounts.id.renderButton(document.getElementById('gsiButtonContainer'), { theme:'filled_blue', size:'large', text:'signin_with', shape:'pill' });
+  google.accounts.id.prompt();
+}
+
+/* ===== Hạn chế sao chép (chỉ mang tính ngăn cản cơ bản) ===== */
+document.addEventListener('contextmenu', e=>e.preventDefault());
+document.addEventListener('copy', e=>e.preventDefault());
+document.addEventListener('cut', e=>e.preventDefault());
+document.addEventListener('keydown', function(e){
+  const k = e.key.toLowerCase();
+  if((e.ctrlKey||e.metaKey) && ['c','x','u','s','p'].includes(k)) e.preventDefault();
+});
+document.body.style.userSelect='none';
 </script>
+</div><!-- /#appContent -->
 </body>
 </html>

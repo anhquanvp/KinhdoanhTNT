@@ -36,7 +36,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .refresh-btn.spinning .spin{animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .last-update{color:rgba(255,255,255,.28);font-size:10px;text-align:center;padding:8px 12px 18px}
-.main{margin-left:var(--sidebar-w);flex:1;padding:28px 32px 72px;max-width:1480px}
+.main{margin-left:var(--sidebar-w);flex:1;padding:28px 32px 72px;max-width:none;width:calc(100% - var(--sidebar-w))}
 .page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;padding-bottom:20px;border-bottom:1px solid var(--border)}
 .page-title{font-size:22px;font-weight:800;letter-spacing:-.4px;color:var(--ink)}
 .page-sub{color:var(--text-sub);font-size:13px;margin-top:5px;font-weight:400}
@@ -67,21 +67,21 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .card-icon{width:28px;height:28px;border-radius:8px;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 table.tbl-pro{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
-table.tbl-pro th{padding:11px 16px;text-align:left;font-weight:600;font-size:11px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap;background:#F8FAFC;position:sticky;top:0;z-index:2}
+table.tbl-pro th{padding:11px 16px;text-align:left;font-weight:600;font-size:11px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.5px;border:1px solid var(--border);white-space:nowrap;background:#F8FAFC;position:sticky;top:0;z-index:2}
 table.tbl-pro th .ck{display:block;font-style:italic;font-weight:500;text-transform:none;letter-spacing:0;font-size:10px;color:var(--text-muted);margin-top:2px}
 .kpi-card .lbl .ck{display:block;font-style:italic;font-weight:500;color:var(--text-muted);margin-top:2px}
 table.tbl-pro th.num{text-align:right}
-table.tbl-pro th.grp-hdr{text-align:center;background:#EFF6FF;color:var(--blue-dark);font-size:10px;letter-spacing:.6px;border-bottom:1px solid var(--blue-mid)}
-table.tbl-pro td{padding:12px 16px;border-bottom:1px solid var(--border-light);vertical-align:middle}
+table.tbl-pro th.grp-hdr{text-align:center;background:#EFF6FF;color:var(--blue-dark);font-size:10px;letter-spacing:.6px;border:1px solid var(--blue-mid)}
+table.tbl-pro td{padding:12px 16px;border:1px solid var(--border-light);vertical-align:middle}
 table.tbl-pro tbody tr:hover td{background:#F8FAFC}
 table.tbl-pro tbody tr:nth-child(even):not(.tot):not(.row-grp-tot) td{background:#FAFBFC}
 table.tbl-pro tbody tr:hover:nth-child(even):not(.tot) td{background:#F1F5F9}
 table.tbl-pro .col-sticky{position:sticky;left:0;background:inherit;z-index:1;box-shadow:2px 0 4px rgba(15,23,42,.04)}
 table.tbl-pro .col-sticky-2{position:sticky;left:120px;background:inherit;z-index:1}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th{padding:11px 16px;text-align:left;font-weight:600;font-size:11px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border);white-space:nowrap;background:#F8FAFC}
-td{padding:12px 16px;border-bottom:1px solid var(--border-light);vertical-align:middle}
-tr:last-child td{border-bottom:none}
+th{padding:11px 16px;text-align:left;font-weight:600;font-size:11px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.4px;border:1px solid var(--border);white-space:nowrap;background:#F8FAFC}
+td{padding:12px 16px;border:1px solid var(--border-light);vertical-align:middle}
+tr:last-child td{}
 tr.row-warn td{background:var(--yellow-bg)!important}
 tr.row-danger td{background:var(--red-bg)!important;color:#991B1B;font-weight:600}
 tr.row-danger td:first-child{border-left:3px solid var(--red)}
@@ -1269,13 +1269,13 @@ function renderOverviewInsightCard(opts){
   </div>`;
 
   // 2) Theo nhóm KH — chỉ bảng tổng vùng (gọn)
-  html+=`<div class="am-title">2. Theo nhóm khách hàng · 3 ngày / 3 tuần / 2 tháng gần nhất</div>`;
-  html+=`<div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none">${nhomPeriodBanner(per)} · đã scale khớp DT-Ngày · ô gom <b>A · BCD</b> / <b>EF · G</b> (tr)</div>`;
+  html+=`<div class="am-title">2. Theo nhóm khách hàng</div>`;
+  
   if(scaledRecs.length) html+=renderNhomCombinedTable(scaledRecs, per, null, (window.IS_FULL_ACCESS?'Vùng':'AM'));
   else html+=`<div class="section-note" style="padding:12px 22px">Chưa có dữ liệu nhóm KH.</div>`;
 
   // 3) Theo bưu cục — chỉ top 12 bưu cục theo DT 3 ngày gần nhất
-  html+=`<div class="am-title">3. Theo bưu cục · 3 ngày / 3 tuần / 2 tháng gần nhất (Top 12)</div>`;
+  html+=`<div class="am-title">3. Theo bưu cục (Top 12)</div>`;
   const khoRecsAll=scaledRecs.filter(r=>r.kho&&r.kho!=='—');
   if(khoRecsAll.length){
     const khoTot={};

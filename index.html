@@ -105,7 +105,7 @@ tr.row-grp-tot td{background:#F1F5F9!important;font-weight:600}
 .nhom-gom .ng.g-bcd{color:#047857;background:#F0FDF4}
 .nhom-gom .ng.g-ef{color:#C2410C;background:#FFF7ED}
 .nhom-gom .ng.g-g{color:#7C3AED;background:#F5F3FF}
-.nhom-gom .ng .nv{font-weight:700;color:var(--ink);margin-left:2px}
+.nhom-gom .ng .nv{font-weight:700;color:var(--ink);margin-left:2px} .nhom-gom .ng-total{font-weight:800;font-size:13px;color:var(--ink);margin-bottom:3px} .nhom-gom .ng-detail{display:flex;flex-direction:column;gap:3px;opacity:.82;font-size:11px} .nhom-gom .ng-detail .ng{padding:1px 6px;font-size:11px}
 .nhom-tag.g-a{background:#EFF6FF;color:#1D4ED8}
 .nhom-tag.g-bcd{background:#F0FDF4;color:#047857}
 .nhom-tag.g-ef{background:#FFFBEB;color:#B45309}
@@ -121,7 +121,7 @@ tr.row-grp-tot td{background:#F1F5F9!important;font-weight:600}
 .trend-tag{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;white-space:nowrap}
 .trend-tag.up{background:var(--red-bg);color:var(--red)}
 .trend-tag.down{background:var(--green-bg);color:var(--green)}
-.trend-tag.flat{background:#F1F5F9;color:var(--text-muted)}
+.trend-tag.flat{background:#F1F5F9;color:var(--text-muted)} .trend-tag .trend-abs{font-size:9px;font-weight:600;opacity:.75;margin-left:2px}
 .pct-pill{display:inline-block;padding:4px 10px;border-radius:99px;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;min-width:52px;text-align:center}
 .pct-g{background:var(--green-bg);color:var(--green)}
 .pct-y{background:var(--yellow-bg);color:var(--yellow)}
@@ -284,7 +284,7 @@ function nhomGomCell(recs, dimKey, dimVal, matchFn, bucket){
     const cls={A:'g-a',BCD:'g-bcd',EF:'g-ef',G:'g-g'}[g]||'';
     return `<span class="ng ${cls}">${g}: <span class="nv">${fmtNhomParenNum(v)}</span></span>`;
   });
-  return `<div class="nhom-gom"><div class="row">${parts[0]}${parts[1]}</div><div class="row">${parts[2]}${parts[3]}</div></div>`;
+  const total=NHOM_LABELS.reduce((s,g)=>s+(dtOne(recs, dimKey, dimVal, g, matchFn, bucket)||0),0); return `<div class="nhom-gom"><div class="ng-total">${fmtNhomParenNum(total)}</div><div class="ng-detail"><div class="row">${parts[0]}${parts[1]}</div><div class="row">${parts[2]}${parts[3]}</div></div></div>`;
 }
 function pct(n,d){ if(!d) return 0; return n/d*100; }
 function idxOfLast(header,name){
@@ -321,12 +321,12 @@ function normNhom(n){
 }
 const NHOM_LABELS=['A','BCD','EF','G'];
 function trendArrow(cur,prev){
-  if(prev===0 && cur===0) return '<span class="trend-tag flat">— 0%</span>';
-  if(prev===0) return '<span class="trend-tag up">▲ mới</span>';
-  const d=(cur-prev)/prev*100;
-  if(d>0.5) return `<span class="trend-tag up">▲ ${d.toFixed(0)}%</span>`;
-  if(d<-0.5) return `<span class="trend-tag down">▼ ${Math.abs(d).toFixed(0)}%</span>`;
-  return `<span class="trend-tag flat">— ${d.toFixed(0)}%</span>`;
+  if(prev===0 && cur===0) return '<span class="trend-tag flat">— 0% <span class="trend-abs">(0tr)</span></span>';
+  if(prev===0) return `<span class="trend-tag up">▲ mới <span class="trend-abs">(+${fmtNhomParenNum(cur)}tr)</span></span>`;
+  const d=(cur-prev)/prev*100; const diff=cur-prev; const diffStr=(diff>=0?'+':'-')+fmtNhomParenNum(Math.abs(diff))+'tr';
+  if(d>0.5) return `<span class="trend-tag up">▲ ${d.toFixed(0)}% <span class="trend-abs">(${diffStr})</span></span>`;
+  if(d<-0.5) return `<span class="trend-tag down">▼ ${Math.abs(d).toFixed(0)}% <span class="trend-abs">(${diffStr})</span></span>`;
+  return `<span class="trend-tag flat">— ${d.toFixed(0)}% <span class="trend-abs">(${diffStr})</span></span>`;
 }
 function weekSortKey(w){ const m=(w||'').match(/^(\d+)\/(\d+)$/); return m? parseInt(m[1])*100+parseInt(m[2]) : 0; }
 function weekSortKeyIso(w){
@@ -3350,7 +3350,7 @@ function docEsc(s){
 function pctWoWText(cur, prev){
   if(!prev && !cur) return '—';
   if(!prev) return 'Mới';
-  const d=(cur-prev)/prev*100;
+  const d=(cur-prev)/prev*100; const diff=cur-prev; const diffStr=(diff>=0?'+':'-')+fmtNhomParenNum(Math.abs(diff))+'tr';
   return (d>=0?'+':'')+d.toFixed(1)+'%';
 }
 function weekLabelShort(w){

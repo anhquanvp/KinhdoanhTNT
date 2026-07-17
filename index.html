@@ -1201,8 +1201,9 @@ function buildOverviewNoteText(ctx){
   return lines.join('\n');
 }
 function renderOverviewInsightCard(opts){
+  try{
   const {
-    rows, totalActual, totalKpiCm, totalProjected, elapsed, totalDays, thangLabel,
+    totalActual, totalKpiCm, totalProjected, elapsed, totalDays, thangLabel,
     totalKH, dtNgay, banMoiMtd
   }=opts;
   const thangN=thangNumLabel(thangLabel);
@@ -1245,17 +1246,26 @@ function renderOverviewInsightCard(opts){
       <div class="sub">Theo TotalKH · scale khớp LTC</div></div>
   </div>`;
 
-  // 2) Theo nhóm KH
+  // 2) Theo nhóm KH — chỉ bảng tổng vùng (gọn)
   html+=`<div class="am-title">2. Theo nhóm khách hàng · 3 ngày / 3 tuần / 2 tháng gần nhất</div>`;
   html+=`<div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none">${nhomPeriodBanner(per)} · đã scale khớp DT-Ngày</div>`;
   if(scaledRecs.length) html+=renderNhomCombinedTable(scaledRecs, per, null, 'Vùng');
   else html+=`<div class="section-note" style="padding:12px 22px">Chưa có dữ liệu nhóm KH.</div>`;
 
-  // 3) Theo bưu cục
-  html+=`<div class="am-title">3. Theo bưu cục · 3 ngày / 3 tuần / 2 tháng gần nhất</div>`;
-  const khoRecs=scaledRecs.filter(r=>r.kho&&r.kho!=='—');
-  if(khoRecs.length) html+=renderNhomCombinedTable(khoRecs, per, 'kho', 'Bưu cục');
-  else html+=`<div class="section-note" style="padding:12px 22px">Chưa có cột Kho Chuẩn / bưu cục trên TotalKH.</div>`;
+  // 3) Theo bưu cục — chỉ top 12 bưu cục theo DT 3 ngày gần nhất
+  html+=`<div class="am-title">3. Theo bưu cục · 3 ngày / 3 tuần / 2 tháng gần nhất (Top 12)</div>`;
+  const khoRecsAll=scaledRecs.filter(r=>r.kho&&r.kho!=='—');
+  if(khoRecsAll.length){
+    const khoTot={};
+    khoRecsAll.filter(r=>per.last3d.includes(r.ngay)).forEach(r=>{
+      khoTot[r.kho]=(khoTot[r.kho]||0)+(r.dt||0);
+    });
+    const topKho=Object.entries(khoTot).sort((a,b)=>b[1]-a[1]).slice(0,12).map(x=>x[0]);
+    const khoRecs=khoRecsAll.filter(r=>topKho.includes(r.kho));
+    html+=renderNhomCombinedTable(khoRecs, per, 'kho', 'Bưu cục');
+  } else {
+    html+=`<div class="section-note" style="padding:12px 22px">Chưa có cột Kho Chuẩn / bưu cục trên TotalKH.</div>`;
+  }
 
   // 4) Nhận xét copy được
   html+=`<div class="am-title">4. Nhận xét (N-1 vs N-2) — cho phép copy</div>`;
@@ -1270,6 +1280,11 @@ function renderOverviewInsightCard(opts){
   </div>`;
   html+=`</div>`;
   return html;
+  }catch(err){
+    console.error('renderOverviewInsightCard', err);
+    return `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:#0F766E">📝</div>Tổng Quan · Nhóm KH · Bưu Cục · Nhận Xét</div></div>
+      <div class="data-banner err" style="margin:16px 22px">Không render được thẻ nhận xét: ${String(err&&err.message||err)}</div></div>`;
+  }
 }
 function copyOverviewNote(id){
   const el=document.getElementById(id);
@@ -2845,18 +2860,31 @@ function renderOverview(){
   const nhom14dSection = renderOverviewNhom14dSection(nhom14dSeries);
   const khASection = renderOverviewKhASection(buildKhAAlertByAm(totalKH, thang, monthProgress, dtNgay));
   const banMoiDaySection = renderOverviewBanMoiDaySection(buildBanMoiDayCompare(totalKH, thang, dtNgay));
-  const banMoiMtd = (()=>{
+  let banMoiMtd=0;
+  try{
     const rawG=sumNhomDtCungKy(totalKH, thang, 'G', elapsed);
     const rawA=sumNhomDtCungKy(totalKH, thang, 'A', elapsed);
     const rawB=sumNhomDtCungKy(totalKH, thang, 'BCD', elapsed);
     const rawE=sumNhomDtCungKy(totalKH, thang, 'EF', elapsed);
-    return allocateGiuBanMoi(totalActual, rawA+rawB+rawE, rawG).mtdBanMoi;
-  })();
-  const projectionSection = renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc);
-  const insightSection = renderOverviewInsightCard({
-    rows, totalActual, totalKpiCm: totalKpiCm||totalKpiVung, totalProjected,
-    elapsed, totalDays, thangLabel, totalKH, dtNgay, banMoiMtd
-  });
+    banMoiMtd=allocateGiuBanMoi(totalActual, rawA+rawB+rawE, rawG).mtdBanMoi||0;
+  }catch(e){ console.warn('banMoiMtd', e); }
+  let projectionSection='';
+  try{
+    projectionSection=renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc);
+  }catch(e){
+    console.error('projectionSection', e);
+    projectionSection=`<div class="data-banner err">Lỗi render KPI AM Tháng: ${String(e&&e.message||e)}</div>`;
+  }
+  let insightSection='';
+  try{
+    insightSection=renderOverviewInsightCard({
+      totalActual, totalKpiCm: totalKpiCm||totalKpiVung, totalProjected,
+      elapsed, totalDays, thangLabel, totalKH, dtNgay, banMoiMtd
+    });
+  }catch(e){
+    console.error('insightSection', e);
+    insightSection=`<div class="data-banner err">Lỗi render thẻ Tổng quan/Nhận xét: ${String(e&&e.message||e)}</div>`;
+  }
   const kpiCards = `
   <div class="kpi-grid">
     <div class="kpi-card">
@@ -2963,7 +2991,7 @@ function renderOverview(){
   const hangSection = renderHangNangNheSection(dtThangRecs);
 
   el.innerHTML = `
-  <div class="page-header"><div><div class="page-title">Tổng Quan Doanh Thu</div><div class="page-sub">Vùng TNT · Tháng ${thangLabel} · DT: <span class="unit-note">triệu đồng (tr)</span> · Volume: <span class="unit-note">đơn</span></div></div></div>
+  <div class="page-header"><div><div class="page-title">Tổng Quan Doanh Thu</div><div class="page-sub">Vùng TNT · Tháng ${thangLabel} · DT: <span class="unit-note">triệu đồng (tr)</span> · Volume: <span class="unit-note">đơn</span> · <span class="lbl-sub">UI KPI AM · insight 18/07</span></div></div></div>
   ${noDataBanner}
   ${kpiCards}
   ${weekSection}

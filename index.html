@@ -99,13 +99,13 @@ tr.row-grp-tot td{background:#F1F5F9!important;font-weight:600}
 .lbl-name{font-weight:600;color:var(--ink);white-space:nowrap}
 .lbl-sub{font-size:11px;color:var(--text-muted);font-weight:500}
 .nhom-tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;background:#F1F5F9;color:var(--text-sub)}
-.nhom-gom{font-size:11px;line-height:1.55;text-align:left;white-space:nowrap}
-.nhom-gom .ng{font-weight:600;margin-right:6px}
-.nhom-gom .ng.g-a{color:#1D4ED8}
-.nhom-gom .ng.g-bcd{color:#047857}
-.nhom-gom .ng.g-ef{color:#C2410C}
-.nhom-gom .ng.g-g{color:#7C3AED}
-.nhom-gom .ng .nv{font-weight:500;color:var(--ink)}
+.nhom-gom{font-size:12px;line-height:1.9;text-align:left}
+.nhom-gom .ng{font-weight:700;padding:2px 7px;border-radius:6px;display:inline-flex;align-items:center;gap:3px} .nhom-gom .row{display:flex;gap:8px;white-space:nowrap} .nhom-gom .row+.row{margin-top:4px}
+.nhom-gom .ng.g-a{color:#1D4ED8;background:#EFF6FF}
+.nhom-gom .ng.g-bcd{color:#047857;background:#F0FDF4}
+.nhom-gom .ng.g-ef{color:#C2410C;background:#FFF7ED}
+.nhom-gom .ng.g-g{color:#7C3AED;background:#F5F3FF}
+.nhom-gom .ng .nv{font-weight:700;color:var(--ink);margin-left:2px}
 .nhom-tag.g-a{background:#EFF6FF;color:#1D4ED8}
 .nhom-tag.g-bcd{background:#F0FDF4;color:#047857}
 .nhom-tag.g-ef{background:#FFFBEB;color:#B45309}
@@ -282,9 +282,9 @@ function nhomGomCell(recs, dimKey, dimVal, matchFn, bucket){
   const parts=NHOM_LABELS.map(g=>{
     const v=dtOne(recs, dimKey, dimVal, g, matchFn, bucket);
     const cls={A:'g-a',BCD:'g-bcd',EF:'g-ef',G:'g-g'}[g]||'';
-    return `<span class="ng ${cls}">${g}(<span class="nv">${fmtNhomParenNum(v)}</span>)</span>`;
+    return `<span class="ng ${cls}">${g}: <span class="nv">${fmtNhomParenNum(v)}</span></span>`;
   });
-  return `<div class="nhom-gom">${parts[0]}${parts[1]}<br>${parts[2]}${parts[3]}</div>`;
+  return `<div class="nhom-gom"><div class="row">${parts[0]}${parts[1]}</div><div class="row">${parts[2]}${parts[3]}</div></div>`;
 }
 function pct(n,d){ if(!d) return 0; return n/d*100; }
 function idxOfLast(header,name){
@@ -1271,7 +1271,7 @@ function renderOverviewInsightCard(opts){
   // 2) Theo nhóm KH — chỉ bảng tổng vùng (gọn)
   html+=`<div class="am-title">2. Theo nhóm khách hàng · 3 ngày / 3 tuần / 2 tháng gần nhất</div>`;
   html+=`<div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none">${nhomPeriodBanner(per)} · đã scale khớp DT-Ngày · ô gom <b>A · BCD</b> / <b>EF · G</b> (tr)</div>`;
-  if(scaledRecs.length) html+=renderNhomCombinedTable(scaledRecs, per, null, 'Vùng');
+  if(scaledRecs.length) html+=renderNhomCombinedTable(scaledRecs, per, null, (window.IS_FULL_ACCESS?'Vùng':'AM'));
   else html+=`<div class="section-note" style="padding:12px 22px">Chưa có dữ liệu nhóm KH.</div>`;
 
   // 3) Theo bưu cục — chỉ top 12 bưu cục theo DT 3 ngày gần nhất
@@ -1290,7 +1290,7 @@ function renderOverviewInsightCard(opts){
   }
 
   // 4) Nhận xét copy được
-  html+=`<div class="am-title">4. Nhận xét (N-1 vs N-2) — cho phép copy</div>`;
+  html+=`<div class="am-title">4. Nhận xét nhanh N-1</div>`;
   const noteSafe=String(noteText).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   html+=`<div class="note-copy-wrap">
     <div class="note-copy-hd">
@@ -1489,7 +1489,7 @@ function renderNhomCombinedTable(recs, per, dimKey, dimLabel){
   dims.forEach(dim=>{
     const dKey=dimKey||null, dVal=dimKey?dim:'';
     const sumAll=(matchFn,buckets)=>NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,dKey,dVal,g,matchFn,buckets),0);
-    const dimShow=dimKey?`<span class="lbl-name">${dim}</span>`:'<span class="lbl-name">Vùng TNT</span>';
+    const dimShow=dimKey?`<span class="lbl-name">${dim}</span>`:`<span class="lbl-name">${(window.MY_AM_NAME||(window.IS_FULL_ACCESS?'Vùng TNT':'AM'))}</span>`;
     const dCells=per.last3d.map(b=>`<td>${nhomGomCell(recs,dKey,dVal,matchDay,b)}</td>`).join('');
     const wCells=per.last3w.map(b=>`<td>${nhomGomCell(recs,dKey,dVal,matchWeek,b)}</td>`).join('');
     const mCells=per.last2m.map(b=>`<td>${nhomGomCell(recs,dKey,dVal,matchMonth,b)}</td>`).join('');

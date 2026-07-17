@@ -2580,7 +2580,10 @@ function filterKpiAM(rows, amName){
   })];
 }
 function applyAmScope(data){
-  if(window.IS_FULL_ACCESS || !window.MY_AM_NAME) return data;
+  if(window.IS_FULL_ACCESS) return data;
+  if(!window.MY_AM_NAME){
+    return { ketQua:[], kpiAM:[], dtNgay:[], phanNhom:[], khNhomA:[], dtThang:[], dtThang2025:[], dtGtc:[], totalKH:[] };
+  }
   const am = window.MY_AM_NAME;
   return {
     ketQua: filterRowsByAM(data.ketQua, am),
@@ -4147,6 +4150,7 @@ const EMAIL_TO_AM = {
   'linhph@ghn.vn': 'Phạm Hoài Linh',
   'linhdh@ghn.vn': 'Đặng Hồng Lĩnh',
   'anhquan.94vp@gmail.com':'Phan Văn Quân',
+  'duypk@ghn.vn': 'Phạm Khương Duy',
 };
 
 function decodeJwt(token){

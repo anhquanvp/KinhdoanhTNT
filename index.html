@@ -175,7 +175,7 @@ table.tbl-pro.compact td,table.tbl-pro.compact th{padding:8px 12px;font-size:12p
   <div class="logo-area">
     <div class="logo-title">📦 GHN — Vùng TNT</div>
     <div class="logo-sub">Báo cáo Doanh Thu</div>
-    <div class="logo-author">AM Vùng: Phan Văn Quân</div>
+    <div class="logo-author" id="logoAuthorText">AM Vùng: Phan Văn Quân</div>
   </div>
   <div style="padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.08);">
     <div id="userEmailDisplay" style="color:rgba(255,255,255,.75);font-size:11px;font-weight:600;margin-bottom:8px;word-break:break-all;"></div>
@@ -2550,6 +2550,51 @@ async function fetchTotalKH(){
     return fetchSheet(SHEET.totalKH);
   }
 }
+/*                       AM DATA SCOPE (phân quyền xem theo AM)                       */
+function findAmColIndex(header){
+  let i = header.indexOf('AM Chuẩn');
+  if(i>=0) return i;
+  i = header.indexOf('Tỉnh Chuẩn');
+  if(i>0) return i-1;
+  const khoCount = header.filter(h=>String(h||'').trim()==='Kho Chuẩn').length;
+  if(khoCount>=2) return header.length-2;
+  return -1;
+}
+function filterRowsByAM(rows, amName){
+  if(!rows || rows.length<2 || !amName) return rows;
+  const header = rows[0];
+  const idx = findAmColIndex(header);
+  if(idx<0) return rows;
+  return [header, ...rows.slice(1).filter(r=>String(r[idx]||'').trim()===amName)];
+}
+function filterKpiAM(rows, amName){
+  if(!rows || rows.length<2 || !amName) return rows;
+  const header = rows[0];
+  const idxA = header.indexOf('AM');
+  const idxB = header.indexOf('AM', idxA+1);
+  return [header, ...rows.slice(1).map(r=>{
+    const row = r.slice();
+    if(idxA>=0 && row[idxA] && row[idxA]!==amName){ row[1]=''; row[2]=''; row[3]=''; }
+    if(idxB>=0 && row[idxB] && row[idxB]!==amName){ for(let c=8;c<=16 && c<row.length;c++) row[c]=''; }
+    return row;
+  })];
+}
+function applyAmScope(data){
+  if(window.IS_FULL_ACCESS || !window.MY_AM_NAME) return data;
+  const am = window.MY_AM_NAME;
+  return {
+    ketQua: filterRowsByAM(data.ketQua, am),
+    kpiAM: filterKpiAM(data.kpiAM, am),
+    dtNgay: filterRowsByAM(data.dtNgay, am),
+    phanNhom: filterRowsByAM(data.phanNhom, am),
+    khNhomA: filterRowsByAM(data.khNhomA, am),
+    dtThang: filterRowsByAM(data.dtThang, am),
+    dtThang2025: filterRowsByAM(data.dtThang2025, am),
+    dtGtc: filterRowsByAM(data.dtGtc, am),
+    totalKH: filterRowsByAM(data.totalKH, am)
+  };
+}
+
 async function loadAll(){
   const btn=document.getElementById('refreshBtn');
   btn.classList.add('spinning');
@@ -2558,7 +2603,7 @@ async function loadAll(){
     const [ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH] = await Promise.all([
       fetchGid(GID.ketQua), fetchGid(GID.kpiAM), fetchGid(GID.dtNgay), fetchGid(GID.phanNhom), fetchGid(GID.khNhomA), fetchDtThang2026(), fetchSheet(SHEET.dtThang2025), fetchSheet(SHEET.doanhThuGTC), fetchTotalKH()
     ]);
-    window._DATA = { ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH };
+    window._DATA = applyAmScope({ ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH });
     loaded = true;
     document.getElementById('exportDocBtn').disabled = false;
     document.getElementById('lastUpdate').textContent = 'Tải lúc: ' + new Date().toLocaleString('vi-VN');
@@ -4087,6 +4132,21 @@ function exportWeeklyReportDoc(){
 /* ===================== GOOGLE LOGIN ===================== */
 const ALLOWED_DOMAIN = '@ghn.vn';
 const GOOGLE_CLIENT_ID = '96848780552-lqiuph9dquisn0e1rt8vea0h023491lm.apps.googleusercontent.com';
+const FULL_ACCESS_EMAILS = ['quanpv@ghn.vn','doanhnv@ghn.vn','khiempg@ghn.vn'];
+const EMAIL_TO_AM = {
+  'binhpt@ghn.vn': 'Phạm Tiến Bình',
+  'ducbv@ghn.vn': 'Bùi Việt Đức',
+  'tuanlt@ghn.vn': 'Lê Thanh Tuấn',
+  'hoanpn@ghn.vn': 'Phạm Ngọc Hoàn',
+  'sonlv@ghn.vn': 'Lê Văn Sơn',
+  'giapnv1@ghn.vn': 'Nguyễn Văn Giáp',
+  'khanhnt@ghn.vn': 'Nguyễn Tài Khánh',
+  'tuanpt@ghn.vn': 'Phạm Thế Tuấn',
+  'bacpv@ghn.vn': 'Phạm Văn Bắc',
+  'dongpv@ghn.vn': 'Phùng Văn Đồng',
+  'linhph@ghn.vn': 'Phạm Hoài Linh',
+  'linhdh@ghn.vn': 'Đặng Hồng Lĩnh'
+};
 
 function decodeJwt(token){
   try{
@@ -4113,6 +4173,13 @@ function handleGoogleLogin(response){
   }
   document.getElementById('loginOverlay').style.display='none';
   document.getElementById('appContent').style.display='';
+  window.CURRENT_USER_EMAIL = payload.email.toLowerCase();
+  window.IS_FULL_ACCESS = FULL_ACCESS_EMAILS.includes(window.CURRENT_USER_EMAIL);
+  window.MY_AM_NAME = EMAIL_TO_AM[window.CURRENT_USER_EMAIL] || null;
+  var logoAuthorEl = document.getElementById('logoAuthorText');
+  if(logoAuthorEl){
+    logoAuthorEl.textContent = window.IS_FULL_ACCESS ? 'Toàn Vùng TNT' : (window.MY_AM_NAME ? ('AM: '+window.MY_AM_NAME) : ('Tài khoản: '+payload.email));
+  }
   document.getElementById('userEmailDisplay').textContent = '👤 '+payload.email;
   loadAll();
 }

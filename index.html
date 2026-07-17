@@ -99,6 +99,13 @@ tr.row-grp-tot td{background:#F1F5F9!important;font-weight:600}
 .lbl-name{font-weight:600;color:var(--ink);white-space:nowrap}
 .lbl-sub{font-size:11px;color:var(--text-muted);font-weight:500}
 .nhom-tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;background:#F1F5F9;color:var(--text-sub)}
+.nhom-gom{font-size:11px;line-height:1.55;text-align:left;white-space:nowrap}
+.nhom-gom .ng{font-weight:600;margin-right:6px}
+.nhom-gom .ng.g-a{color:#1D4ED8}
+.nhom-gom .ng.g-bcd{color:#047857}
+.nhom-gom .ng.g-ef{color:#C2410C}
+.nhom-gom .ng.g-g{color:#7C3AED}
+.nhom-gom .ng .nv{font-weight:500;color:var(--ink)}
 .nhom-tag.g-a{background:#EFF6FF;color:#1D4ED8}
 .nhom-tag.g-bcd{background:#F0FDF4;color:#047857}
 .nhom-tag.g-ef{background:#FFFBEB;color:#B45309}
@@ -263,6 +270,21 @@ function pctCell(p){
 function nhomTag(g){
   const cls={A:'g-a',BCD:'g-bcd',EF:'g-ef',G:'g-g'}[g]||'';
   return `<span class="nhom-tag ${cls}">${g}</span>`;
+}
+/** Số ngắn trong ngoặc: A(10,5) — không kèm đơn vị "tr". */
+function fmtNhomParenNum(n){
+  if(n==null||isNaN(n)||!n) return '—';
+  const v=n/1e6;
+  return v>=100?v.toLocaleString('vi-VN',{maximumFractionDigits:0}):v.toLocaleString('vi-VN',{minimumFractionDigits:1,maximumFractionDigits:1});
+}
+/** Gom A·BCD / EF·G trong 1 ô theo ngày (hoặc tuần/tháng). */
+function nhomGomCell(recs, dimKey, dimVal, matchFn, bucket){
+  const parts=NHOM_LABELS.map(g=>{
+    const v=dtOne(recs, dimKey, dimVal, g, matchFn, bucket);
+    const cls={A:'g-a',BCD:'g-bcd',EF:'g-ef',G:'g-g'}[g]||'';
+    return `<span class="ng ${cls}">${g}(<span class="nv">${fmtNhomParenNum(v)}</span>)</span>`;
+  });
+  return `<div class="nhom-gom">${parts[0]}${parts[1]}<br>${parts[2]}${parts[3]}</div>`;
 }
 function pct(n,d){ if(!d) return 0; return n/d*100; }
 function idxOfLast(header,name){
@@ -1248,7 +1270,7 @@ function renderOverviewInsightCard(opts){
 
   // 2) Theo nhóm KH — chỉ bảng tổng vùng (gọn)
   html+=`<div class="am-title">2. Theo nhóm khách hàng · 3 ngày / 3 tuần / 2 tháng gần nhất</div>`;
-  html+=`<div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none">${nhomPeriodBanner(per)} · đã scale khớp DT-Ngày</div>`;
+  html+=`<div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none">${nhomPeriodBanner(per)} · đã scale khớp DT-Ngày · ô gom <b>A · BCD</b> / <b>EF · G</b> (tr)</div>`;
   if(scaledRecs.length) html+=renderNhomCombinedTable(scaledRecs, per, null, 'Vùng');
   else html+=`<div class="section-note" style="padding:12px 22px">Chưa có dữ liệu nhóm KH.</div>`;
 
@@ -1455,39 +1477,51 @@ function renderNhomCombinedTable(recs, per, dimKey, dimLabel){
   const dHdr=per.last3d.map(d=>`<th class="num">${isoShort2(d)}</th>`).join('');
   const wHdr=per.last3w.map(w=>`<th class="num">T.${w.split('/').pop()||w}</th>`).join('');
   const mHdr=per.last2m.map(m=>`<th class="num">${formatThangLabel(m)}</th>`).join('');
-  let html=`<div class="table-wrap"><table class="tbl-pro"><thead>
-    <tr><th class="col-sticky" rowspan="2">${dimLabel}</th><th rowspan="2">Nhóm</th>
-    ${nd?`<th class="grp-hdr num" colspan="${nd}">3 ngày gần nhất</th>`:''}<th class="grp-hdr num" rowspan="2">Δ</th>
-    ${nw?`<th class="grp-hdr num" colspan="${nw}">3 tuần gần nhất</th>`:''}<th class="grp-hdr num" rowspan="2">Δ</th>
-    ${nm?`<th class="grp-hdr num" colspan="${nm}">2 tháng gần nhất</th>`:''}<th class="grp-hdr num" rowspan="2">Δ</th></tr>
+  // Gom A·BCD / EF·G trong từng ô ngày/tuần/tháng — 1 dòng / bưu cục (hoặc AM / Vùng)
+  let html=`<div class="table-wrap"><table class="tbl-pro compact"><thead>
+    <tr><th class="col-sticky" rowspan="2">${dimLabel}</th>
+    ${nd?`<th class="grp-hdr num" colspan="${nd}">3 ngày gần nhất <span class="lbl-sub">(tr)</span></th>`:''}<th class="grp-hdr num" rowspan="2">Δ</th>
+    ${nw?`<th class="grp-hdr num" colspan="${nw}">3 tuần gần nhất <span class="lbl-sub">(tr)</span></th>`:''}<th class="grp-hdr num" rowspan="2">Δ</th>
+    ${nm?`<th class="grp-hdr num" colspan="${nm}">2 tháng gần nhất <span class="lbl-sub">(tr)</span></th>`:''}<th class="grp-hdr num" rowspan="2">Δ</th></tr>
     <tr>${dHdr}${wHdr}${mHdr}</tr>
   </thead><tbody>`;
   const matchDay=(r,b)=>r.ngay===b, matchWeek=(r,b)=>r.tuan===b, matchMonth=(r,b)=>thangEq(r.thang,b);
   dims.forEach(dim=>{
     const dKey=dimKey||null, dVal=dimKey?dim:'';
-    NHOM_LABELS.forEach((g,gi)=>{
-      const dCells=per.last3d.map(b=>`<td class="num">${fmtVndCell(dtOne(recs,dKey,dVal,g,matchDay,b))}</td>`).join('');
-      const wCells=per.last3w.map(b=>`<td class="num">${fmtVndCell(dtOne(recs,dKey,dVal,g,matchWeek,b))}</td>`).join('');
-      const mCells=per.last2m.map(b=>`<td class="num">${fmtVndCell(dtOne(recs,dKey,dVal,g,matchMonth,b))}</td>`).join('');
-      const dCur=dtFor(recs,dKey,dVal,g,matchDay,per.last3d), dPrev=dtFor(recs,dKey,dVal,g,matchDay,per.prev3d);
-      const wCur=dtFor(recs,dKey,dVal,g,matchWeek,per.last3w), wPrev=dtFor(recs,dKey,dVal,g,matchWeek,per.prev3w);
-      const mCur=dtFor(recs,dKey,dVal,g,matchMonth,per.last2m), mPrev=dtFor(recs,dKey,dVal,g,matchMonth,per.prev2m);
-      const dimShow=dimKey?(gi===0?`<span class="lbl-name">${dim}</span>`:''):(gi===0?'<span class="lbl-name">Vùng TNT</span>':'');
-      html+=`<tr><td class="col-sticky">${dimShow}</td><td>${nhomTag(g)}</td>${dCells}
-        <td class="num">${trendArrow(dCur,dPrev)}</td>${wCells}<td class="num">${trendArrow(wCur,wPrev)}</td>${mCells}<td class="num">${trendArrow(mCur,mPrev)}</td></tr>`;
-    });
-    const tDC=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,dKey,dVal,g,matchDay,per.last3d),0);
-    const tDP=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,dKey,dVal,g,matchDay,per.prev3d),0);
-    const tWC=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,dKey,dVal,g,matchWeek,per.last3w),0);
-    const tWP=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,dKey,dVal,g,matchWeek,per.prev3w),0);
-    const tMC=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,dKey,dVal,g,matchMonth,per.last2m),0);
-    const tMP=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,dKey,dVal,g,matchMonth,per.prev2m),0);
-    const tDCells=per.last3d.map(b=>{ const v=NHOM_LABELS.reduce((s,g)=>s+dtOne(recs,dKey,dVal,g,matchDay,b),0); return `<td class="num">${fmtVndCell(v)}</td>`; }).join('');
-    const tWCells=per.last3w.map(b=>{ const v=NHOM_LABELS.reduce((s,g)=>s+dtOne(recs,dKey,dVal,g,matchWeek,b),0); return `<td class="num">${fmtVndCell(v)}</td>`; }).join('');
-    const tMCells=per.last2m.map(b=>{ const v=NHOM_LABELS.reduce((s,g)=>s+dtOne(recs,dKey,dVal,g,matchMonth,b),0); return `<td class="num">${fmtVndCell(v)}</td>`; }).join('');
-    const totLbl=dimKey?`Tổng ${dim}`:'TỔNG VÙNG';
-    html+=`<tr class="tot row-grp-tot"><td class="col-sticky"></td><td>${totLbl}</td>${tDCells}<td class="num">${trendArrow(tDC,tDP)}</td>${tWCells}<td class="num">${trendArrow(tWC,tWP)}</td>${tMCells}<td class="num">${trendArrow(tMC,tMP)}</td></tr>`;
+    const sumAll=(matchFn,buckets)=>NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,dKey,dVal,g,matchFn,buckets),0);
+    const dimShow=dimKey?`<span class="lbl-name">${dim}</span>`:'<span class="lbl-name">Vùng TNT</span>';
+    const dCells=per.last3d.map(b=>`<td>${nhomGomCell(recs,dKey,dVal,matchDay,b)}</td>`).join('');
+    const wCells=per.last3w.map(b=>`<td>${nhomGomCell(recs,dKey,dVal,matchWeek,b)}</td>`).join('');
+    const mCells=per.last2m.map(b=>`<td>${nhomGomCell(recs,dKey,dVal,matchMonth,b)}</td>`).join('');
+    const tDC=sumAll(matchDay,per.last3d), tDP=sumAll(matchDay,per.prev3d);
+    const tWC=sumAll(matchWeek,per.last3w), tWP=sumAll(matchWeek,per.prev3w);
+    const tMC=sumAll(matchMonth,per.last2m), tMP=sumAll(matchMonth,per.prev2m);
+    html+=`<tr>
+      <td class="col-sticky">${dimShow}</td>
+      ${dCells}<td class="num">${trendArrow(tDC,tDP)}</td>
+      ${wCells}<td class="num">${trendArrow(tWC,tWP)}</td>
+      ${mCells}<td class="num">${trendArrow(tMC,tMP)}</td>
+    </tr>`;
   });
+  // Dòng tổng (khi nhiều chiều: AM / bưu cục)
+  if(dimKey && dims.length>1){
+    const dKey=null, dVal='';
+    const tDCells=per.last3d.map(b=>`<td>${nhomGomCell(recs,null,'',matchDay,b)}</td>`).join('');
+    const tWCells=per.last3w.map(b=>`<td>${nhomGomCell(recs,null,'',matchWeek,b)}</td>`).join('');
+    const tMCells=per.last2m.map(b=>`<td>${nhomGomCell(recs,null,'',matchMonth,b)}</td>`).join('');
+    const tDC=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,matchDay,per.last3d),0);
+    const tDP=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,matchDay,per.prev3d),0);
+    const tWC=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,matchWeek,per.last3w),0);
+    const tWP=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,matchWeek,per.prev3w),0);
+    const tMC=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,matchMonth,per.last2m),0);
+    const tMP=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,matchMonth,per.prev2m),0);
+    html+=`<tr class="tot row-grp-tot">
+      <td class="col-sticky"><b>TỔNG</b></td>
+      ${tDCells}<td class="num">${trendArrow(tDC,tDP)}</td>
+      ${tWCells}<td class="num">${trendArrow(tWC,tWP)}</td>
+      ${tMCells}<td class="num">${trendArrow(tMC,tMP)}</td>
+    </tr>`;
+  }
   html+=`</tbody></table></div>`;
   return html;
 }

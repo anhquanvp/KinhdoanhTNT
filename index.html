@@ -127,6 +127,13 @@ tr.row-grp-tot td{background:#F1F5F9!important;font-weight:600}
 .pct-fill.pct-r{background:var(--red)}
 .analysis-box{margin:0 22px 20px;padding:14px 18px;background:var(--blue-light);border-radius:10px;font-size:13px;line-height:1.7;color:var(--text-main);border:1px solid var(--blue-mid)}
 .analysis-box b{color:var(--blue-dark);font-weight:700}
+.note-copy-wrap{margin:0 22px 20px;padding:14px 18px;background:#F8FAFC;border-radius:10px;border:1px solid var(--border);user-select:text;-webkit-user-select:text}
+.note-copy-wrap .note-copy-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.note-copy-wrap .note-copy-hd b{font-size:13px;color:var(--ink)}
+.note-copy-wrap textarea.note-copy{width:100%;min-height:220px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;line-height:1.65;color:var(--ink);background:#fff;resize:vertical;user-select:text;-webkit-user-select:text}
+.note-copy-wrap .btn-copy{padding:7px 14px;border-radius:8px;border:1px solid var(--blue-mid);background:var(--blue-light);color:var(--blue-dark);font-size:12px;font-weight:600;cursor:pointer}
+.note-copy-wrap .btn-copy:hover{background:#DBEAFE}
+.note-copy-wrap .note-hint{font-size:11px;color:var(--text-muted);margin-top:8px}
 .section-note{padding:18px 22px;color:var(--text-sub);font-size:13px;line-height:1.55}
 .overview-split{display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--border-light)}
 .overview-half{padding:0 0 16px;border-right:1px solid var(--border-light)}
@@ -1028,92 +1035,12 @@ function fmtNhomWowCell(parts){
   badges.push(fmtNhomTrendBadge('Tổng', parts.TOTAL));
   return badges.join(' ');
 }
-function renderOverviewProjectionSection(rows, totalActual, totalKpiCm, totalProjected, elapsed, totalDays, thangLabel, amNhomWow){
-  const pctCls=p=>p>=100?'pct-g':p>=70?'pct-y':'pct-r';
-  const withKpi=rows.filter(r=>r.kpiCm>0).map(r=>{
-    const projRateCm=pct(r.projected, r.kpiCm);
-    const prevLtcCk=r.prevLtcCk||0;
-    const curLtcCk=r.actualCk||0;
-    const rateLtcVsPrev=pct(curLtcCk, prevLtcCk);
-    return {...r, projRateCm, prevLtcCk, curLtcCk, rateLtcVsPrev};
-  }).sort((a,b)=>b.projRateCm-a.projRateCm);
-  const dat=withKpi.filter(r=>r.projRateCm>=100);
-  const thieu=withKpi.filter(r=>r.projRateCm<100);
-  const projRateCmTotal=pct(totalProjected, totalKpiCm);
-  const totalCurLtcCk=rows.reduce((s,r)=>s+(r.actualCk||0),0);
-  const totalPrevLtcCk=rows.reduce((s,r)=>s+(r.prevLtcCk||0),0);
-  const rateLtcVsPrevTotal=pct(totalCurLtcCk, totalPrevLtcCk);
-  const nhomLbl=(amNhomWow&&amNhomWow.label)||'cùng kỳ';
-  const thangPrevLbl=amNhomWow&&amNhomWow.thangPrev?formatThangLabel(amNhomWow.thangPrev):'T-1';
-  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--yellow)">📈</div>DT Thực Đạt — Dự Kiến Đủ Tháng</div><span class="badge">${thangLabel} · KPI Cty · ${elapsed}/${totalDays} ngày</span></div>`;
-  html+=`<div class="kpi-grid" style="margin:16px 22px 0;padding:0">
-    <div class="kpi-card" style="margin:0"><div class="lbl">Target Tháng (${thangLabel})</div><div class="val">${fmtVndHero(totalKpiCm)}</div>
-      <div class="sub">Est Full M (Rev): ${fmtVnd(totalProjected)}</div>
-      <div class="cmp">Est Full M (%): <b class="${projRateCmTotal>=100?'down':'up'}">${projRateCmTotal.toFixed(0)}%</b></div></div>
-    <div class="kpi-card" style="margin:0"><div class="lbl">MTD M</div><div class="val">${fmtVndHero(totalCurLtcCk||totalActual)}</div>
-      <div class="sub">DT-Ngày ${elapsed}N · ${thangLabel}</div></div>
-    <div class="kpi-card" style="margin:0"><div class="lbl">MTD-1</div><div class="val">${fmtVndHero(totalPrevLtcCk)}</div>
-      <div class="sub">Cùng kỳ ${thangPrevLbl}</div></div>
-    <div class="kpi-card" style="margin:0"><div class="lbl">Diff MTD vs MTD-1</div><div class="val"><span class="hero-amt">${rateLtcVsPrevTotal.toFixed(0)}</span><span class="hero-unit">%</span></div>
-      <div class="cmp">AM ≥100% Est: <b class="down">${dat.length}</b> · &lt;100%: <b class="up">${thieu.length}</b></div></div>
-  </div>`;
-  html+=`<div class="table-wrap" style="margin-top:16px"><table class="tbl-pro compact"><thead><tr>
-    <th style="width:40px">#</th><th>AM</th>
-    <th class="num">Target Tháng<span class="ck">(${thangLabel})</span></th>
-    <th class="num">Est Full M (Rev)</th>
-    <th class="num">MTD M</th>
-    <th class="num">MTD-1</th>
-    <th class="num">Diff MTD vs MTD-1</th>
-    <th class="num">Est Full M (%)</th>
-    <th>Phân nhóm KH<br><span style="font-weight:500;font-size:10px;color:#64748B">${nhomLbl}</span></th>
-  </tr></thead><tbody>`;
-  withKpi.forEach((r,i)=>{
-    const ok=r.projRateCm>=100;
-    const nhom=amNhomWow&&amNhomWow.byAm?amNhomWow.byAm[r.am]:null;
-    html+=`<tr class="${ok?'':'row-warn'}"><td><span class="rank-num${i<3?' top3':''}">${i+1}</span></td>
-      <td><span class="lbl-name">${r.am}</span></td>
-      <td class="num">${fmtVndCell(r.kpiCm)}</td>
-      <td class="num">${fmtVndCell(r.projected)}</td>
-      <td class="num">${fmtVndCell(r.actualCk||0)}</td>
-      <td class="num">${fmtVndCell(r.prevLtcCk||0)}</td>
-      <td class="num"><span class="pct-pill ${pctCls(r.rateLtcVsPrev)}">${r.rateLtcVsPrev.toFixed(0)}%</span></td>
-      <td class="num"><span class="pct-pill ${pctCls(r.projRateCm)}">${r.projRateCm.toFixed(0)}%</span></td>
-      <td class="nhom-wow-cell">${fmtNhomWowCell(nhom)}</td>
-    </tr>`;
-  });
-  const regionBadge=fmtNhomWowCell(amNhomWow&&amNhomWow.regionParts);
-  html+=`<tr class="tot"><td></td><td>TỔNG VÙNG</td>
-    <td class="num">${fmtVndCell(totalKpiCm)}</td>
-    <td class="num">${fmtVndCell(totalProjected)}</td>
-    <td class="num">${fmtVndCell(totalCurLtcCk)}</td>
-    <td class="num">${fmtVndCell(totalPrevLtcCk)}</td>
-    <td class="num"><span class="pct-pill ${pctCls(rateLtcVsPrevTotal)}">${rateLtcVsPrevTotal.toFixed(0)}%</span></td>
-    <td class="num"><span class="pct-pill ${pctCls(projRateCmTotal)}">${projRateCmTotal.toFixed(0)}%</span></td>
-    <td class="nhom-wow-cell">${regionBadge}</td></tr>`;
-  html+=`</tbody></table></div>`;
-  const amByPrev=withKpi.filter(r=>r.prevLtcCk>0).slice().sort((a,b)=>b.rateLtcVsPrev-a.rateLtcVsPrev);
-  const amTot=amByPrev.filter(r=>r.rateLtcVsPrev>=100).slice(0,3);
-  const amTe=amByPrev.filter(r=>r.rateLtcVsPrev<100).slice().sort((a,b)=>a.rateLtcVsPrev-b.rateLtcVsPrev).slice(0,3);
-  const grpParts=amNhomWow&&amNhomWow.regionParts;
-  const grpRank=NHOM_LABELS.map(g=>({g, ...(grpParts&&grpParts[g]?grpParts[g]:{pctW:0,dir:'flat'})})).sort((a,b)=>b.pctW-a.pctW);
-  const grpTot=grpRank.filter(x=>x.dir==='up').slice(0,2);
-  const grpTe=grpRank.filter(x=>x.dir==='down').slice().sort((a,b)=>a.pctW-b.pctW).slice(0,2);
-  const fmtAmList=arr=>arr.length?arr.map(r=>`${r.am} (${r.rateLtcVsPrev.toFixed(0)}%)`).join(', '):'—';
-  const fmtGrpList=arr=>arr.length?arr.map(x=>`Nhóm ${x.g} (${x.pctW>=0?'+':''}${x.pctW.toFixed(0)}%)`).join(', '):'—';
-  html+=analysisQuick(`
-    <b>Nhận định nhanh (vs cùng kỳ ${thangPrevLbl}):</b><br>
-    · AM đang làm tốt: <b>${fmtAmList(amTot)}</b><br>
-    · AM đang kém: <b>${fmtAmList(amTe)}</b><br>
-    · Nhóm KH tăng: <b>${fmtGrpList(grpTot)}</b><br>
-    · Nhóm KH giảm: <b>${fmtGrpList(grpTe)}</b><br>
-    · Vùng Diff MTD vs MTD-1: <b>${rateLtcVsPrevTotal.toFixed(0)}%</b> (DT-Ngày ${elapsed}N: ${fmtVnd(totalCurLtcCk)} vs ${fmtVnd(totalPrevLtcCk)}) · Est Full M: <b>${projRateCmTotal.toFixed(0)}%</b> Target.
-  `);
-  html+=`</div>`;
-  return html;
+function thangNumLabel(thangOrLabel){
+  const m=String(thangOrLabel||'').match(/\/0?(\d+)$/);
+  return m?String(+m[1]):String(thangOrLabel||'');
 }
-function renderOverviewKpiCmSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc){
+function renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc){
   const withKpi=rows.filter(r=>r.kpiCm>0);
-  // Một bảng tất cả AM — sắp xếp % Đạt KPI Cty cao → thấp
   const list=withKpi.slice().sort((a,b)=>b.rateGtcCmPeriod-a.rateGtcCmPeriod);
   const nDat=list.filter(r=>r.rateGtcCmPeriod>=100).length;
   const nKhong=list.length-nDat;
@@ -1124,7 +1051,8 @@ function renderOverviewKpiCmSection(rows, elapsed, totalDays, thangLabel, totalK
   const rateCtyCk=pct(totalGtc||0, totalKpiCmPeriod);
   const rateProjCty=pct(totalProj, totalKpiCm);
   const colDat=p=>p>=100?'down':'up';
-  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">🎯</div>KPI Tháng Hiện Tại — Theo AM</div><span class="badge">${thangLabel} · KPI Cty · ${elapsed}/${totalDays} ngày</span></div>`;
+  const thangN=thangNumLabel(thangLabel);
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--yellow)">📈</div>KPI AM Tháng ${thangN}</div><span class="badge">${thangLabel} · KPI Cty · ${elapsed}/${totalDays} ngày</span></div>`;
   html+=`<div class="kpi-grid" style="margin:16px 22px 0;padding:0">
     <div class="kpi-card" style="margin:0">
       <div class="lbl">KPI Cty</div>
@@ -1180,12 +1108,186 @@ function renderOverviewKpiCmSection(rows, elapsed, totalDays, thangLabel, totalK
         <td class="num">${r.kpiCmPeriod?`<span class="pct-pill ${pctCls(r.rateGtcCmPeriod)}">${r.rateGtcCmPeriod.toFixed(0)}%</span>`:'—'}</td>
       </tr>`;
     });
+    html+=`<tr class="tot"><td></td><td>TỔNG VÙNG</td>
+      <td class="num">${fmtVndCell(totalKpiCm)}</td>
+      <td class="num">${fmtVndCell(totalProj)}</td>
+      <td class="num">${fmtVndCell(totalActual)}</td>
+      <td class="num">${fmtVndCell(totalGtc||0)}</td>
+      <td class="num">${fmtVndCell(totalKpiCmPeriod)}</td>
+      <td class="num"><span class="pct-pill ${pctCls(rateLtcCk)}">${rateLtcCk.toFixed(0)}%</span></td>
+      <td class="num"><span class="pct-pill ${pctCls(rateCtyCk)}">${rateCtyCk.toFixed(0)}%</span></td>
+    </tr>`;
     html+=`</tbody></table></div>`;
   }
   html+=`</div>`;
-  html+=analysisQuick(`Một bảng tất cả AM · sắp xếp theo <b>% Đạt KPI Cty (cùng kỳ)</b> cao→thấp. Dự kiến DT LTC = MTD LTC ÷ ${elapsed} × ${totalDays}. Tỷ lệ dự kiến Vùng = Dự kiến DT LTC / KPI Cty.`);
+  html+=analysisQuick(`KPI AM Tháng ${thangN} · sắp xếp theo <b>% Đạt KPI Cty (cùng kỳ)</b> cao→thấp. Dự kiến DT LTC = MTD LTC ÷ ${elapsed} × ${totalDays}. Tỷ lệ dự kiến Vùng = Dự kiến DT LTC / KPI Cty.`);
   html+=`</div>`;
   return html;
+}
+/** So sánh DT ngày N-1 vs N-2 theo nhóm + KH (TotalKH đã scale nếu có). */
+function buildDayN1N2Insight(recs, dayScale){
+  const empty={isoN1:'',isoN2:'',dtN1:0,dtN2:0,delta:0,grpDrops:[],topDrop:[],aDrops:[]};
+  if(!recs||!recs.length) return empty;
+  const dates=[...new Set(recs.map(r=>r.ngay).filter(Boolean))].sort();
+  if(dates.length<2) return empty;
+  const isoN1=dates[dates.length-1], isoN2=dates[dates.length-2];
+  const kOf=iso=>(dayScale&&dayScale[iso]!=null)?dayScale[iso]:1;
+  const byKh={};
+  const gN1={A:0,BCD:0,EF:0,G:0}, gN2={A:0,BCD:0,EF:0,G:0};
+  let dtN1=0, dtN2=0;
+  recs.forEach(r=>{
+    if(r.ngay!==isoN1&&r.ngay!==isoN2) return;
+    const k=kOf(r.ngay);
+    const dt=(r.dt||0)*k;
+    if(r.ngay===isoN1){
+      dtN1+=dt;
+      if(r.grp&&gN1[r.grp]!=null) gN1[r.grp]+=dt;
+    } else {
+      dtN2+=dt;
+      if(r.grp&&gN2[r.grp]!=null) gN2[r.grp]+=dt;
+    }
+    const key=r.ma||(`${r.ten||''}|${r.am||''}`);
+    if(!key||key==='|') return;
+    if(!byKh[key]) byKh[key]={ma:r.ma,ten:r.ten||r.ma||'—',am:r.am||'—',grp:r.grp||'',n1:0,n2:0};
+    if(r.grp) byKh[key].grp=r.grp;
+    if(r.ten) byKh[key].ten=r.ten;
+    if(r.am) byKh[key].am=r.am;
+    if(r.ngay===isoN1) byKh[key].n1+=dt;
+    else byKh[key].n2+=dt;
+  });
+  const grpDrops=NHOM_LABELS.map(g=>{
+    const d=gN1[g]-gN2[g];
+    return {g, delta:d, n1:gN1[g], n2:gN2[g], pct:gN2[g]>0?d/gN2[g]*100:0};
+  }).filter(x=>x.delta<0).sort((a,b)=>a.delta-b.delta);
+  const drops=Object.values(byKh).map(x=>{
+    const delta=x.n1-x.n2;
+    return {...x, delta, pct:x.n2>0?delta/x.n2*100:(x.n1>0?100:0)};
+  }).filter(x=>x.delta<0).sort((a,b)=>a.delta-b.delta);
+  return {
+    isoN1, isoN2, dtN1, dtN2, delta:dtN1-dtN2,
+    grpDrops, topDrop:drops.slice(0,5), aDrops:drops.filter(x=>x.grp==='A')
+  };
+}
+function buildOverviewNoteText(ctx){
+  const {
+    title, thangN, kpi, mtd, proj, banMoi,
+    isoN1, isoN2, dayDelta, grpDrops, topDrop, aDrops
+  }=ctx;
+  const lines=[];
+  lines.push(title||'Vùng TNT');
+  lines.push(`Doanh thu mục tiêu tháng ${thangN}:  ${fmtVnd(kpi||0)}`);
+  lines.push(`Doanh thu thực Đạt MTD     :    ${fmtVnd(mtd||0)}`);
+  lines.push(`Doanh thu dự kiến Full T${thangN}    :  ${fmtVnd(proj||0)}`);
+  lines.push(`Doanh Thu bán mới T${thangN}: ${fmtVnd(banMoi||0)}`);
+  const dAbs=Math.abs(dayDelta||0);
+  const dayVerb=(dayDelta||0)>=0?'tăng':'giảm';
+  let dayLine=`Doanh thu ngày ${isoShort2(isoN1)||'N-1'} ${dayVerb} ~${fmtVnd(dAbs)} so với ${isoShort2(isoN2)||'N-2'}`;
+  if((dayDelta||0)<0 && (grpDrops||[]).length){
+    dayLine+=` · giảm ở nhóm ${(grpDrops||[]).map(x=>`${x.g} (${fmtVnd(x.delta)})`).join(', ')}`;
+  } else if((dayDelta||0)>=0){
+    dayLine+='.';
+  }
+  lines.push(dayLine);
+  if((topDrop||[]).length){
+    lines.push(`Top KH giảm nhiều: ${(topDrop||[]).map((x,i)=>`${i+1}. ${x.ten||x.ma} [${x.grp||'?'}] ${fmtVnd(x.delta)}`).join('; ')}`);
+  }
+  if((aDrops||[]).length){
+    lines.push(`KH nhóm A giảm: ${(aDrops||[]).map(x=>`${x.ten||x.ma} (${fmtVnd(x.delta)})`).join('; ')}`);
+  } else if((dayDelta||0)<0){
+    lines.push('KH nhóm A giảm: không có.');
+  }
+  lines.push('Đề Xuất: Chưa có.');
+  lines.push('Kế hoạch tuần tới: … (điền kết quả cần đạt)');
+  return lines.join('\n');
+}
+function renderOverviewInsightCard(opts){
+  const {
+    rows, totalActual, totalKpiCm, totalProjected, elapsed, totalDays, thangLabel,
+    totalKH, dtNgay, banMoiMtd
+  }=opts;
+  const thangN=thangNumLabel(thangLabel);
+  const rateProj=pct(totalProjected, totalKpiCm);
+  const rateMtd=pct(totalActual, totalKpiCm);
+  const {recs, maxDate}=parseTotalKHNhomRecs(totalKH);
+  const dayScale=buildDayScaleFromDtNgay(totalKH, dtNgay, currentThang());
+  // Scale DT trên recs cho bảng nhóm / bưu cục
+  const scaledRecs=recs.map(r=>{
+    const k=dayScale[r.ngay]!=null?dayScale[r.ngay]:1;
+    return {...r, dt:(r.dt||0)*k};
+  });
+  const per=buildNhomCombinedPeriod(scaledRecs);
+  const dayIns=buildDayN1N2Insight(recs, dayScale);
+  const noteText=buildOverviewNoteText({
+    title:'Vùng TNT',
+    thangN,
+    kpi:totalKpiCm,
+    mtd:totalActual,
+    proj:totalProjected,
+    banMoi:banMoiMtd||0,
+    isoN1:dayIns.isoN1,
+    isoN2:dayIns.isoN2,
+    dayDelta:dayIns.delta,
+    grpDrops:dayIns.grpDrops,
+    topDrop:dayIns.topDrop,
+    aDrops:dayIns.aDrops
+  });
+  const noteId='overviewNoteCopy';
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:#0F766E">📝</div>Tổng Quan · Nhóm KH · Bưu Cục · Nhận Xét</div><span class="badge">Mới nhất: ${isoShort2(maxDate||dayIns.isoN1)}</span></div>`;
+
+  // 1) Tổng quan
+  html+=`<div class="am-title">1. Tổng quan doanh thu</div>`;
+  html+=`<div class="kpi-grid" style="margin:12px 22px 8px;padding:0">
+    <div class="kpi-card" style="margin:0"><div class="lbl">DT lấy thành công (MTD)</div><div class="val">${fmtVndHero(totalActual)}</div>
+      <div class="cmp">So KPI Cty: <b class="${rateMtd>=100?'down':'up'}">${rateMtd.toFixed(0)}%</b> · KPI <b>${fmtVnd(totalKpiCm)}</b></div></div>
+    <div class="kpi-card" style="margin:0"><div class="lbl">Số dự kiến đạt cuối tháng</div><div class="val">${fmtVndHero(totalProjected)}</div>
+      <div class="cmp">Est / KPI: <b class="${rateProj>=100?'down':'up'}">${rateProj.toFixed(0)}%</b> · ${elapsed}/${totalDays} ngày</div></div>
+    <div class="kpi-card" style="margin:0"><div class="lbl">DT bán mới (nhóm G) MTD</div><div class="val">${fmtVndHero(banMoiMtd||0)}</div>
+      <div class="sub">Theo TotalKH · scale khớp LTC</div></div>
+  </div>`;
+
+  // 2) Theo nhóm KH
+  html+=`<div class="am-title">2. Theo nhóm khách hàng · 3 ngày / 3 tuần / 2 tháng gần nhất</div>`;
+  html+=`<div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none">${nhomPeriodBanner(per)} · đã scale khớp DT-Ngày</div>`;
+  if(scaledRecs.length) html+=renderNhomCombinedTable(scaledRecs, per, null, 'Vùng');
+  else html+=`<div class="section-note" style="padding:12px 22px">Chưa có dữ liệu nhóm KH.</div>`;
+
+  // 3) Theo bưu cục
+  html+=`<div class="am-title">3. Theo bưu cục · 3 ngày / 3 tuần / 2 tháng gần nhất</div>`;
+  const khoRecs=scaledRecs.filter(r=>r.kho&&r.kho!=='—');
+  if(khoRecs.length) html+=renderNhomCombinedTable(khoRecs, per, 'kho', 'Bưu cục');
+  else html+=`<div class="section-note" style="padding:12px 22px">Chưa có cột Kho Chuẩn / bưu cục trên TotalKH.</div>`;
+
+  // 4) Nhận xét copy được
+  html+=`<div class="am-title">4. Nhận xét (N-1 vs N-2) — cho phép copy</div>`;
+  const noteSafe=String(noteText).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  html+=`<div class="note-copy-wrap">
+    <div class="note-copy-hd">
+      <b>So sánh ${isoShort2(dayIns.isoN1)||'N-1'} vs ${isoShort2(dayIns.isoN2)||'N-2'}</b>
+      <button type="button" class="btn-copy" onclick="copyOverviewNote('${noteId}')">📋 Copy nhận xét</button>
+    </div>
+    <textarea id="${noteId}" class="note-copy" spellcheck="false">${noteSafe}</textarea>
+    <div class="note-hint">Có thể sửa trực tiếp ô trên rồi Copy. Đề xuất / Kế hoạch tuần tới để trống để tự điền.</div>
+  </div>`;
+  html+=`</div>`;
+  return html;
+}
+function copyOverviewNote(id){
+  const el=document.getElementById(id);
+  if(!el) return;
+  const text=el.value||'';
+  const done=()=>{
+    const btn=el.parentElement&&el.parentElement.querySelector('.btn-copy');
+    if(btn){ const t=btn.textContent; btn.textContent='✓ Đã copy'; setTimeout(()=>btn.textContent=t,1500); }
+  };
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(()=>{
+      el.focus(); el.select();
+      try{ document.execCommand('copy'); done(); }catch(e){}
+    });
+  } else {
+    el.focus(); el.select();
+    try{ document.execCommand('copy'); done(); }catch(e){}
+  }
 }
 function idxTinhCol(header){ const i=idxOf(header,'Tỉnh Chuẩn'); return i>=0?i:16; }
 function parsePhanNhomRecs(phanNhom){
@@ -1213,6 +1315,7 @@ function parseTotalKHNhomRecs(totalKH){
   const iNgayChuan=idxNgayChuanHoa(h);
   const iNgay=idxOf(h,'Ngay');
   const iAM=idxOf(h,'AM Chuẩn'), iTinh=idxOf(h,'Tỉnh Chuẩn');
+  const iKho=idxOf(h,'Kho Chuẩn');
   const iMa=idxOf(h,'MaKH');
   const iTen=idxOf(h,'TenKH');
   const iVol=idxVolumeCol(h);
@@ -1233,12 +1336,15 @@ function parseTotalKHNhomRecs(totalKH){
     if(rv.source==='Volume') volFromCol+=rv.vol;
     else if(rv.source==='DT/AOV') volFromAov+=rv.vol;
     const slkh=iSLKH>=0?Math.round(parseVNNum(r[iSLKH])):0;
+    const khoRaw=iKho>=0?(r[iKho]||'').trim():'';
     recs.push({
       grp, ngay,
       ma:iMa>=0?(r[iMa]||'').trim():'',
       ten:iTen>=0?(r[iTen]||'').trim():'',
       am:(iAM>=0?(r[iAM]||'').trim():''),
       tinh:(iTinh>=0?(r[iTinh]||'').trim():''),
+      kho:shortKhoLabel(khoRaw),
+      khoRaw,
       dt,
       slkh, vol:rv.vol, volSource:rv.source,
       tuan:wk,
@@ -1246,6 +1352,14 @@ function parseTotalKHNhomRecs(totalKH){
     });
   }
   return {recs,maxDate,volFromAov,volFromCol};
+}
+function shortKhoLabel(s){
+  s=String(s||'').trim();
+  if(!s) return '—';
+  // "22610000 - (HBI) Tân Hòa" → "(HBI) Tân Hòa" hoặc giữ nguyên nếu ngắn
+  const m=s.match(/\)\s*(.+)$/)||s.match(/-\s*(.+)$/);
+  if(m&&m[1]&&m[1].trim().length>=3) return m[1].trim();
+  return s.length>36?s.slice(0,34)+'…':s;
 }
 /** Hệ số scale từng ngày: tổng TotalKH → khớp DT-Ngày vùng. */
 function buildDayScaleFromDtNgay(totalKH, dtNgay, thang){
@@ -2731,9 +2845,18 @@ function renderOverview(){
   const nhom14dSection = renderOverviewNhom14dSection(nhom14dSeries);
   const khASection = renderOverviewKhASection(buildKhAAlertByAm(totalKH, thang, monthProgress, dtNgay));
   const banMoiDaySection = renderOverviewBanMoiDaySection(buildBanMoiDayCompare(totalKH, thang, dtNgay));
-  const amNhomWow = buildAmNhomWow(totalKH, thang, elapsed);
-  const projectionSection = renderOverviewProjectionSection(rows, totalActual, totalKpiCm||totalKpiVung, totalProjected, elapsed, totalDays, thangLabel, amNhomWow);
-  const kpiCmSection = renderOverviewKpiCmSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc);
+  const banMoiMtd = (()=>{
+    const rawG=sumNhomDtCungKy(totalKH, thang, 'G', elapsed);
+    const rawA=sumNhomDtCungKy(totalKH, thang, 'A', elapsed);
+    const rawB=sumNhomDtCungKy(totalKH, thang, 'BCD', elapsed);
+    const rawE=sumNhomDtCungKy(totalKH, thang, 'EF', elapsed);
+    return allocateGiuBanMoi(totalActual, rawA+rawB+rawE, rawG).mtdBanMoi;
+  })();
+  const projectionSection = renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc);
+  const insightSection = renderOverviewInsightCard({
+    rows, totalActual, totalKpiCm: totalKpiCm||totalKpiVung, totalProjected,
+    elapsed, totalDays, thangLabel, totalKH, dtNgay, banMoiMtd
+  });
   const kpiCards = `
   <div class="kpi-grid">
     <div class="kpi-card">
@@ -2848,7 +2971,7 @@ function renderOverview(){
   ${khASection}
   ${banMoiDaySection}
   ${projectionSection}
-  ${kpiCmSection}
+  ${insightSection}
   ${table}
   ${chartSection}
   ${slkhSection}
@@ -4202,15 +4325,28 @@ function initGoogleLogin(){
   google.accounts.id.prompt();
 }
 
-/* ===== Hạn chế sao chép (chỉ mang tính ngăn cản cơ bản) ===== */
-document.addEventListener('contextmenu', e=>e.preventDefault());
-document.addEventListener('copy', e=>e.preventDefault());
-document.addEventListener('cut', e=>e.preventDefault());
+/* ===== Hạn chế sao chép (cho phép copy ô nhận xét) ===== */
+document.addEventListener('contextmenu', e=>{
+  if(e.target&&e.target.closest&&e.target.closest('.note-copy-wrap')) return;
+  e.preventDefault();
+});
+document.addEventListener('copy', e=>{
+  if(e.target&&e.target.closest&&e.target.closest('.note-copy-wrap')) return;
+  e.preventDefault();
+});
+document.addEventListener('cut', e=>{
+  if(e.target&&e.target.closest&&e.target.closest('.note-copy-wrap')) return;
+  e.preventDefault();
+});
 document.addEventListener('keydown', function(e){
   const k = e.key.toLowerCase();
+  if((e.ctrlKey||e.metaKey) && ['c','x'].includes(k) && e.target&&e.target.closest&&e.target.closest('.note-copy-wrap')) return;
   if((e.ctrlKey||e.metaKey) && ['c','x','u','s','p'].includes(k)) e.preventDefault();
 });
 document.body.style.userSelect='none';
+const _noteStyle=document.createElement('style');
+_noteStyle.textContent='.note-copy-wrap,.note-copy-wrap *{user-select:text!important;-webkit-user-select:text!important}';
+document.head.appendChild(_noteStyle);
 </script>
 </div><!-- /#appContent -->
 </body>

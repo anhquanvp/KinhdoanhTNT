@@ -99,13 +99,14 @@ tr.row-grp-tot td{background:#F1F5F9!important;font-weight:600}
 .lbl-name{font-weight:600;color:var(--ink);white-space:nowrap}
 .lbl-sub{font-size:11px;color:var(--text-muted);font-weight:500}
 .nhom-tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;background:#F1F5F9;color:var(--text-sub)}
-.nhom-gom{font-size:12px;line-height:1.9;text-align:left}
-.nhom-gom .ng{font-weight:700;padding:2px 7px;border-radius:6px;display:inline-flex;align-items:center;gap:3px} .nhom-gom .row{display:flex;gap:8px;white-space:nowrap} .nhom-gom .row+.row{margin-top:4px}
+.nhom-gom{font-size:12px;line-height:1.9;text-align:center}
+.nhom-gom .ng{font-weight:700;padding:2px 7px;border-radius:6px;display:inline-flex;align-items:center;gap:3px} .nhom-gom .row{display:flex;gap:8px;white-space:nowrap;justify-content:center} .nhom-gom .row+.row{margin-top:4px}
 .nhom-gom .ng.g-a{color:#1D4ED8;background:#EFF6FF}
 .nhom-gom .ng.g-bcd{color:#047857;background:#F0FDF4}
 .nhom-gom .ng.g-ef{color:#C2410C;background:#FFF7ED}
 .nhom-gom .ng.g-g{color:#7C3AED;background:#F5F3FF}
-.nhom-gom .ng .nv{font-weight:700;color:var(--ink);margin-left:2px} .nhom-gom .ng-total{font-weight:800;font-size:13px;color:var(--ink);margin-bottom:3px} .nhom-gom .ng-detail{display:flex;flex-direction:column;gap:3px;opacity:.82;font-size:11px} .nhom-gom .ng-detail .ng{padding:1px 6px;font-size:11px}
+.nhom-gom .ng .nv{font-weight:700;color:var(--ink);margin-left:2px} .nhom-gom .ng-total{font-weight:800;font-size:13px;color:var(--ink);margin-bottom:3px;text-align:center} .nhom-gom .ng-detail{display:flex;flex-direction:column;align-items:center;gap:3px;opacity:.82;font-size:11px} .nhom-gom .ng-detail .ng{padding:1px 6px;font-size:11px}
+table.tbl-pro td:has(.nhom-gom){text-align:center;vertical-align:middle}
 .nhom-tag.g-a{background:#EFF6FF;color:#1D4ED8}
 .nhom-tag.g-bcd{background:#F0FDF4;color:#047857}
 .nhom-tag.g-ef{background:#FFFBEB;color:#B45309}
@@ -119,8 +120,8 @@ tr.row-grp-tot td{background:#F1F5F9!important;font-weight:600}
 .nhom-wow.down{background:var(--red-bg);color:var(--red)}
 .nhom-wow.flat{background:#F1F5F9;color:var(--text-muted)}
 .trend-tag{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;white-space:nowrap}
-.trend-tag.up{background:var(--red-bg);color:var(--red)}
-.trend-tag.down{background:var(--green-bg);color:var(--green)}
+.trend-tag.up{background:var(--green-bg);color:var(--green)}
+.trend-tag.down{background:var(--red-bg);color:var(--red)}
 .trend-tag.flat{background:#F1F5F9;color:var(--text-muted)} .trend-tag .trend-abs{font-size:9px;font-weight:600;opacity:.75;margin-left:2px}
 .pct-pill{display:inline-block;padding:4px 10px;border-radius:99px;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;min-width:52px;text-align:center}
 .pct-g{background:var(--green-bg);color:var(--green)}
@@ -1226,7 +1227,7 @@ function renderOverviewInsightCard(opts){
   try{
   const {
     totalActual, totalKpiCm, totalProjected, elapsed, totalDays, thangLabel,
-    totalKH, dtNgay, banMoiMtd
+    totalKH, dtNgay, banMoiMtd, banMoiMtdPrev
   }=opts;
   const thangN=thangNumLabel(thangLabel);
   const rateProj=pct(totalProjected, totalKpiCm);
@@ -1265,7 +1266,17 @@ function renderOverviewInsightCard(opts){
     <div class="kpi-card" style="margin:0"><div class="lbl">Số dự kiến đạt cuối tháng</div><div class="val">${fmtVndHero(totalProjected)}</div>
       <div class="cmp">Est / KPI: <b class="${rateProj>=100?'down':'up'}">${rateProj.toFixed(0)}%</b> · ${elapsed}/${totalDays} ngày</div></div>
     <div class="kpi-card" style="margin:0"><div class="lbl">DT bán mới (nhóm G) MTD</div><div class="val">${fmtVndHero(banMoiMtd||0)}</div>
-      <div class="sub">Theo TotalKH · scale khớp LTC</div></div>
+      ${(()=>{
+        const prev=banMoiMtdPrev||0;
+        const cur=banMoiMtd||0;
+        if(!prev && !cur) return `<div class="cmp">MTD-1: <b>—</b> · chưa có dữ liệu cùng kỳ T-1</div>`;
+        const d=prev?((cur-prev)/prev*100):0;
+        const arrow=d>0.5?'▲':(d<-0.5?'▼':'—');
+        const cls=d>0.5?'trend-tag up':(d<-0.5?'trend-tag down':'trend-tag flat');
+        const pctStr=prev?`${arrow} ${Math.abs(d).toFixed(0)}%`:(cur?'▲ mới':'—');
+        return `<div class="cmp">MTD-1: <b>${fmtVnd(prev)}</b> · <span class="${cls}">${pctStr}</span></div>
+          <div class="sub">Doanh thu LTC nhóm G cùng kỳ tháng trước</div>`;
+      })()}</div>
   </div>`;
 
   // 2) Theo nhóm KH — chỉ bảng tổng vùng (gọn)
@@ -2894,13 +2905,21 @@ function renderOverview(){
   const nhom14dSection = renderOverviewNhom14dSection(nhom14dSeries);
   const khASection = renderOverviewKhASection(buildKhAAlertByAm(totalKH, thang, monthProgress, dtNgay));
   const banMoiDaySection = renderOverviewBanMoiDaySection(buildBanMoiDayCompare(totalKH, thang, dtNgay));
-  let banMoiMtd=0;
+  let banMoiMtd=0, banMoiMtdPrev=0;
   try{
     const rawG=sumNhomDtCungKy(totalKH, thang, 'G', elapsed);
     const rawA=sumNhomDtCungKy(totalKH, thang, 'A', elapsed);
     const rawB=sumNhomDtCungKy(totalKH, thang, 'BCD', elapsed);
     const rawE=sumNhomDtCungKy(totalKH, thang, 'EF', elapsed);
     banMoiMtd=allocateGiuBanMoi(totalActual, rawA+rawB+rawE, rawG).mtdBanMoi||0;
+    if(thangPrevM){
+      const prevLtcCk=Object.values(prevLtcByAM||{}).reduce((s,v)=>s+(+v||0),0);
+      const pG=sumNhomDtCungKy(totalKH, thangPrevM, 'G', elapsed);
+      const pA=sumNhomDtCungKy(totalKH, thangPrevM, 'A', elapsed);
+      const pB=sumNhomDtCungKy(totalKH, thangPrevM, 'BCD', elapsed);
+      const pE=sumNhomDtCungKy(totalKH, thangPrevM, 'EF', elapsed);
+      banMoiMtdPrev=allocateGiuBanMoi(prevLtcCk||(pA+pB+pE+pG), pA+pB+pE, pG).mtdBanMoi||0;
+    }
   }catch(e){ console.warn('banMoiMtd', e); }
   let projectionSection='';
   try{
@@ -2913,7 +2932,7 @@ function renderOverview(){
   try{
     insightSection=renderOverviewInsightCard({
       totalActual, totalKpiCm: totalKpiCm||totalKpiVung, totalProjected,
-      elapsed, totalDays, thangLabel, totalKH, dtNgay, banMoiMtd
+      elapsed, totalDays, thangLabel, totalKH, dtNgay, banMoiMtd, banMoiMtdPrev
     });
   }catch(e){
     console.error('insightSection', e);

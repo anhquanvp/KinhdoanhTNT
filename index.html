@@ -4166,7 +4166,8 @@ function handleGoogleLogin(response){
     errBox.style.display='block';
     return;
   }
-  if(!payload.email.toLowerCase().endsWith(ALLOWED_DOMAIN)){
+  const _emailLower = payload.email.toLowerCase();
+  if(!_emailLower.endsWith(ALLOWED_DOMAIN) && !(_emailLower in EMAIL_TO_AM) && FULL_ACCESS_EMAILS.indexOf(_emailLower)===-1){
     errBox.textContent = 'Tài khoản "'+payload.email+'" không có quyền truy cập báo cáo này.';
     errBox.style.display='block';
     google.accounts.id.disableAutoSelect();

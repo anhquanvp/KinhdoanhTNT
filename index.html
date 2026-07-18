@@ -1506,8 +1506,8 @@ function renderNhomCombinedTable(recs, per, dimKey, dimLabel){
     const dCells=per.last3d.map(b=>`<td>${nhomGomCell(recs,dKey,dVal,matchDay,b)}</td>`).join('');
     const wCells=per.last3w.map(b=>`<td>${nhomGomCell(recs,dKey,dVal,matchWeek,b)}</td>`).join('');
     const mCells=per.last2m.map(b=>`<td>${nhomGomCell(recs,dKey,dVal,matchMonth,b)}</td>`).join('');
-    const tDC=sumAll(matchDay,per.last3d), tDP=sumAll(matchDay,per.prev3d);
-    const tWC=sumAll(matchWeek,per.last3w), tWP=sumAll(matchWeek,per.prev3w);
+    const tDC=sumAll(matchDay,[per.last3d[per.last3d.length-1]]), tDP=sumAll(matchDay,[per.last3d[per.last3d.length-2]]);
+    const tWC=sumAll(matchWeek,[per.last3w[per.last3w.length-1]]), tWP=sumAll(matchWeek,[per.last3w[per.last3w.length-2]]);
     const tMC=sumAll(matchMonth,per.last2m), tMP=sumAll(matchMonth,per.prev2m);
     html+=`<tr>
       <td class="col-sticky">${dimShow}</td>
@@ -1522,10 +1522,10 @@ function renderNhomCombinedTable(recs, per, dimKey, dimLabel){
     const tDCells=per.last3d.map(b=>`<td>${nhomGomCell(recs,null,'',matchDay,b)}</td>`).join('');
     const tWCells=per.last3w.map(b=>`<td>${nhomGomCell(recs,null,'',matchWeek,b)}</td>`).join('');
     const tMCells=per.last2m.map(b=>`<td>${nhomGomCell(recs,null,'',matchMonth,b)}</td>`).join('');
-    const tDC=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,matchDay,per.last3d),0);
-    const tDP=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,matchDay,per.prev3d),0);
-    const tWC=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,matchWeek,per.last3w),0);
-    const tWP=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,matchWeek,per.prev3w),0);
+    const tDC=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,matchDay,[per.last3d[per.last3d.length-1]]),0);
+    const tDP=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,matchDay,[per.last3d[per.last3d.length-2]]),0);
+    const tWC=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,matchWeek,[per.last3w[per.last3w.length-1]]),0);
+    const tWP=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,matchWeek,[per.last3w[per.last3w.length-2]]),0);
     const tMC=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,matchMonth,per.last2m),0);
     const tMP=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,matchMonth,per.prev2m),0);
     html+=`<tr class="tot row-grp-tot">
@@ -1548,7 +1548,7 @@ function renderNhomKHCard(recs, maxDate){
   const totPrev=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,(r,b)=>r.ngay===b,per.prev3d),0);
   const dPct=totPrev>0?((totCur-totPrev)/totPrev*100):0;
   let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">👥</div>Doanh Thu Theo Nhóm Khách Hàng</div><span class="badge">${isoShort2(maxDate)}</span></div>
-  <div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📊 ${nhomPeriodBanner(per)} · Δ = so với kỳ liền trước · Đơn vị: triệu đồng</div>`;
+  <div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📊 ${nhomPeriodBanner(per)} · Δ = so với ngày/tuần liền kề trước đó · Đơn vị: triệu đồng</div>`;
   html+=`<div class="am-title">Tổng Hợp Toàn Vùng TNT</div>`;
   html+=renderNhomCombinedTable(recs,per,null,'Vùng');
   html+=`<div class="am-title" style="font-size:11px;background:var(--card);color:var(--text-sub)">Theo AM · Ngày + Tuần + Tháng liền một bảng</div>`;
@@ -1567,7 +1567,7 @@ function renderNhomTinhCard(recs, maxDate){
   });
   const topTinh=Object.entries(byTinh).sort((a,b)=>b[1]-a[1])[0];
   let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">🗺️</div>Doanh Thu Khách Hàng Theo Tỉnh</div><span class="badge">${isoShort2(maxDate)}</span></div>
-  <div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📊 ${nhomPeriodBanner(per)} · Δ = so với kỳ liền trước · Đơn vị: triệu đồng</div>`;
+  <div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📊 ${nhomPeriodBanner(per)} · Δ = so với ngày/tuần liền kề trước đó · Đơn vị: triệu đồng</div>`;
   html+=`<div class="am-title">Theo Tỉnh · Ngày + Tuần + Tháng liền một bảng</div>`;
   html+=renderNhomCombinedTable(recs,per,'tinh','Tỉnh');
   html+=analysisQuick(`3 ngày gần nhất <b>${per.last3d.map(isoShort2).join(' · ')||'—'}</b>. Tỉnh dẫn đầu: <b>${topTinh?topTinh[0]:'—'}</b>${topTinh?` (${fmtVnd(topTinh[1])})`:''}.`);

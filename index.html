@@ -66,6 +66,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .card-title{display:flex;align-items:center;gap:10px;font-weight:700;font-size:14px;color:var(--ink);letter-spacing:-.2px}
 .card-icon{width:28px;height:28px;border-radius:8px;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.scroll-hint{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--blue-dark);background:var(--blue-light);padding:6px 12px;border-radius:7px;margin:10px 22px 16px;letter-spacing:.2px}
+.scroll-hint::before{content:"\21c6"}
 table.tbl-pro{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
 table.tbl-pro th{padding:11px 16px;text-align:left;font-weight:600;font-size:11px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.5px;border:1px solid var(--border);white-space:nowrap;background:#F8FAFC;position:sticky;top:0;z-index:2}
 table.tbl-pro th .ck{display:block;font-style:italic;font-weight:500;text-transform:none;letter-spacing:0;font-size:10px;color:var(--text-muted);margin-top:2px}
@@ -99,13 +101,13 @@ tr.row-grp-tot td{background:#F1F5F9!important;font-weight:600}
 .lbl-name{font-weight:600;color:var(--ink);white-space:nowrap}
 .lbl-sub{font-size:11px;color:var(--text-muted);font-weight:500}
 .nhom-tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;background:#F1F5F9;color:var(--text-sub)}
-.nhom-gom{font-size:12px;line-height:1.9;text-align:center}
+.nhom-gom{font-size:13px;line-height:1.95;text-align:center}
 .nhom-gom .ng{font-weight:700;padding:2px 7px;border-radius:6px;display:inline-flex;align-items:center;gap:3px} .nhom-gom .row{display:flex;gap:8px;white-space:nowrap;justify-content:center} .nhom-gom .row+.row{margin-top:4px}
 .nhom-gom .ng.g-a{color:#1D4ED8;background:#EFF6FF}
 .nhom-gom .ng.g-bcd{color:#047857;background:#F0FDF4}
 .nhom-gom .ng.g-ef{color:#C2410C;background:#FFF7ED}
 .nhom-gom .ng.g-g{color:#7C3AED;background:#F5F3FF}
-.nhom-gom .ng .nv{font-weight:700;color:var(--ink);margin-left:2px} .nhom-gom .ng-total{font-weight:800;font-size:13px;color:var(--ink);margin-bottom:3px;text-align:center} .nhom-gom .ng-detail{display:flex;flex-direction:column;align-items:center;gap:3px;opacity:.82;font-size:11px} .nhom-gom .ng-detail .ng{padding:1px 6px;font-size:11px}
+.nhom-gom .ng .nv{font-weight:700;color:var(--ink);margin-left:2px} .nhom-gom .ng-total{font-weight:800;font-size:14px;color:var(--ink);margin-bottom:3px;text-align:center} .nhom-gom .ng-detail{display:flex;flex-direction:column;align-items:center;gap:3px;opacity:.9;font-size:12px} .nhom-gom .ng-detail .ng{padding:2px 7px;font-size:12px}
 table.tbl-pro td:has(.nhom-gom){text-align:center;vertical-align:middle}
 .nhom-tag.g-a{background:#EFF6FF;color:#1D4ED8}
 .nhom-tag.g-bcd{background:#F0FDF4;color:#047857}
@@ -3329,6 +3331,33 @@ function renderNhomA(){
   }
   tableCur += `</div>`;
 
+  const ltc14 = buildNhomDtLastNDays(totalKH, 14, dtNgay);
+  const d14 = (ltc14 && ltc14.dates && ltc14.dates.length) ? ltc14.dates : [];
+  let table14 = '';
+  if(d14.length && activeCur.length){
+    const sumTotals = d14.map(()=>0);
+    let grandSum = 0;
+    let body14 = '';
+    activeCur.forEach((r)=>{
+      const vals = d14.map(iso=>(r.dates && r.dates[iso]) || 0);
+      const rowSum = vals.reduce((s,v)=>s+v,0);
+      grandSum += rowSum;
+      vals.forEach((v,idx)=>{ sumTotals[idx]+=v; });
+      body14 += `<tr><td class="col-sticky"><span class="lbl-name">${r.ten||r.ma}</span></td><td class="num" style="font-weight:700">${fmtVndCell(rowSum)}</td>${vals.map(v=>`<td class="num">${fmtVndCell(v)}</td>`).join('')}</tr>`;
+    });
+    table14 = `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">📅</div>Doanh Thu LTC Theo 14 Ngày Gần Nhất — Nhóm A</div><span class="badge">${isoShort2(d14[0])} → ${isoShort2(d14[d14.length-1])}</span></div>
+    <div class="table-wrap"><table class="tbl-pro compact"><thead><tr>
+      <th class="col-sticky">Tên KH</th><th class="num">Sum</th>
+      ${d14.map(iso=>`<th class="num">${isoShort2(iso)}</th>`).join('')}
+    </tr></thead><tbody>
+    ${body14}
+    <tr class="tot"><td>TỔNG ${activeCur.length} KH</td><td class="num">${fmtVndCell(grandSum)}</td>
+      ${sumTotals.map(v=>`<td class="num">${fmtVndCell(v)}</td>`).join('')}</tr>
+    </tbody></table></div>
+    ${analysisQuick(`Doanh thu LTC theo ngày (${isoShort2(d14[0])} → ${isoShort2(d14[d14.length-1])}) của ${activeCur.length} KH nhóm A đang có doanh thu · cột <b>Sum</b> là tổng doanh thu 14 ngày gần nhất.`)}
+    </div>`;
+  }
+
   let tableChurn = `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--red)">🚨</div>Có Lên Đơn ${thangPrevLabel} — Chưa Có ${thangCurLabel}</div><span class="badge">${churnRows.length} KH</span></div>`;
   if(!churnRows.length){
     tableChurn += `<div class="section-note">✅ Tất cả KH có DT tháng ${thangPrevLabel} đều đã phát sinh DT trong tháng ${thangCurLabel}.</div>`;
@@ -3353,6 +3382,7 @@ function renderNhomA(){
   <div class="data-banner">📅 Đếm KH <b>Nhom = A</b> trên TotalKH (Vùng TNT). DT tháng lấy cột <b>MTD</b>. Giảm hạng: <b>DT TB ngày × ${totalDays} ngày &lt; 45 tr</b> (qua ${elapsed} ngày).</div>
   ${kpiCards}
   ${tableCur}
+  ${table14}
   ${tableChurn}
   <div class="foot-note">Giảm hạng = (MTD ÷ ${elapsed}) × ${totalDays} &lt; 45 triệu đồng.</div>`;
 }
@@ -4428,6 +4458,26 @@ document.body.style.userSelect='none';
 const _noteStyle=document.createElement('style');
 _noteStyle.textContent='.note-copy-wrap,.note-copy-wrap *{user-select:text!important;-webkit-user-select:text!important}';
 document.head.appendChild(_noteStyle);
+
+function _attachScrollHints(){
+  document.querySelectorAll('.table-wrap').forEach(function(tw){
+    var needHint = tw.scrollWidth > tw.clientWidth + 2;
+    var next = tw.nextElementSibling;
+    var hasHint = next && next.classList && next.classList.contains('scroll-hint');
+    if(needHint && !hasHint){
+      var hint = document.createElement('div');
+      hint.className = 'scroll-hint';
+      hint.textContent = 'Kéo ngang để xem đầy đủ dữ liệu';
+      tw.parentNode.insertBefore(hint, tw.nextSibling);
+    } else if(!needHint && hasHint){
+      next.remove();
+    }
+  });
+}
+window.addEventListener('resize', _attachScrollHints);
+window.addEventListener('load', _attachScrollHints);
+setInterval(_attachScrollHints, 1200);
+new MutationObserver(function(){ _attachScrollHints(); }).observe(document.body, {childList:true, subtree:true});
 </script>
 </div><!-- /#appContent -->
 </body>

@@ -177,6 +177,14 @@ table.tbl-pro.compact td,table.tbl-pro.compact th{padding:6px 7px;font-size:11px
 .chart-wrap{position:relative;height:300px}
 .chart-wrap.tall{height:360px}
 .chart-box.full{margin-bottom:20px}
+.banmoi-flt{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:flex-end;padding:14px 16px;margin-bottom:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+.banmoi-flt .flt-field{display:flex;flex-direction:column;gap:5px;min-width:140px}
+.banmoi-flt label{font-size:10px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:.4px}
+.banmoi-flt select,.banmoi-flt input[type="date"]{padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-size:12.5px;font-weight:600;color:var(--ink);background:#fff;font-family:inherit}
+.banmoi-flt .flt-actions{display:flex;gap:8px;align-items:center;margin-left:auto}
+.banmoi-flt .flt-btn{padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:12px;font-weight:700;cursor:pointer;color:var(--text-main)}
+.banmoi-flt .flt-btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.banmoi-flt .flt-meta{font-size:11px;color:var(--text-muted);width:100%;margin:0}
 .rank-num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;background:#F1F5F9;color:var(--text-sub);font-size:11px;font-weight:700}
 .rank-num.top3{background:var(--blue-light);color:var(--blue-dark)}
 @media(max-width:900px){.sidebar{display:none}.main{margin-left:0;padding:20px 16px 48px}}
@@ -1080,6 +1088,7 @@ function parseBanMoiSheet(banmoi){
     first: idxFindAny(h,['Ngày LTC đầu tiên','Ngay LTC dau tien','Ngày đầu tiên','Ngày lên đơn đầu','Ngày quay lại','FirstOrder','Ngày đầu'],-1),
     ngay: idxFindAny(h,['Ngày chuẩn hóa','Ngay chuan hoa','Ngày','Ngay','Ngày giao','Ngày lấy','Ngày thành công','OrderDate'],2),
     am: idxFindAny(h,['AM Chuẩn','AM','Sale_Owner','Sale Owner','Nhanvien','Nhân viên','Tên AM'],3),
+    kho: idxFindAny(h,['Kho Chuẩn','Kho','Bưu cục','Buu cuc','Bưu Cục','Station','Hub','Post Office','PostOffice','Trạm'],-1),
     dt: idxFindAny(h,['DoanhThu_NoVAT','Doanh thu chưa VAT','DT chưa VAT','DT_NoVAT','Doanh thu KHM','DoanhThu','DT','Doanh thu'],7),
     status: idxFindAny(h,['Trạng thái','TrangThai','Status','Trạng thái đơn','Loại trạng thái'],-1),
     // Cột J = index 9 — ngày để suy tuần (cố định theo cột, không theo tên header)
@@ -1097,6 +1106,8 @@ function parseBanMoiSheet(banmoi){
     if(!r||!r.length) continue;
     const ma=String(r[cols.ma]||'').trim();
     const am=cleanAmName(r[cols.am]);
+    const khoRaw=cols.kho>=0?String(r[cols.kho]||'').trim():'';
+    const kho=khoRaw?shortKhoLabel(khoRaw):'';
     const iso=normalizeNgayToIso(r[cols.ngay]);
     const firstIso=cols.first>=0?normalizeNgayToIso(r[cols.first]):'';
     const dt=dayDt(r[cols.dt]);
@@ -1118,6 +1129,8 @@ function parseBanMoiSheet(banmoi){
       ma:ma||'—',
       ten:String(r[cols.ten]||'').trim(),
       am:am||'—',
+      kho:kho||'—',
+      khoRaw,
       iso,
       firstIso:firstIso||'',
       dt:dt||0,
@@ -1146,30 +1159,61 @@ function parseBanMoiSheet(banmoi){
       : 'Sheet Banmoi không có dòng KHM hợp lệ trong cửa sổ 30 ngày'
   };
 }
-function buildBanMoiAmCompare(banmoi, nDays, nWeeks){
+function getBanMoiFilter(){
+  return window._banMoiFlt||{am:'',from:'',to:''};
+}
+function setBanMoiFilter(patch){
+  window._banMoiFlt={...getBanMoiFilter(),...(patch||{})};
+}
+function filterBanMoiRecs(recs, flt){
+  const f=flt||getBanMoiFilter();
+  return (recs||[]).filter(r=>{
+    if(f.am && r.am!==f.am) return false;
+    if(f.from && r.iso<f.from) return false;
+    if(f.to && r.iso>f.to) return false;
+    return true;
+  });
+}
+function banMoiFilterLabel(flt){
+  const f=flt||getBanMoiFilter();
+  const parts=[];
+  if(f.am) parts.push(`AM: ${f.am}`);
+  if(f.from||f.to) parts.push(`Ngày: ${f.from?isoShort2(f.from):'…'} → ${f.to?isoShort2(f.to):'…'}`);
+  return parts.length?parts.join(' · '):'Tất cả AM · mọi ngày';
+}
+function onBanMoiFilterChange(){
+  const amEl=document.getElementById('bmFltAm');
+  const fromEl=document.getElementById('bmFltFrom');
+  const toEl=document.getElementById('bmFltTo');
+  setBanMoiFilter({
+    am:amEl?amEl.value:'',
+    from:fromEl?fromEl.value:'',
+    to:toEl?toEl.value:''
+  });
+  renderBanMoi();
+}
+function resetBanMoiFilter(){
+  setBanMoiFilter({am:'',from:'',to:''});
+  renderBanMoi();
+}
+/** Gom DT theo chiều (AM / bưu cục) × ngày / tuần gần nhất. */
+function buildBanMoiDimCompare(recs, dimKey, nDays, nWeeks, note){
   const daysN=Math.max(0, nDays==null?3:nDays);
   const weeksN=Math.max(0, nWeeks==null?3:nWeeks);
-  const parsed=parseBanMoiSheet(banmoi);
-  const empty={days:[],weeks:[],dayRows:[],weekRows:[],goodDay:[],badDay:[],goodWeek:[],badWeek:[],totals:{},note:parsed.note||'',parsed};
-  if(!parsed.recs.length) return empty;
+  const empty={days:[],weeks:[],dayRows:[],weekRows:[],goodDay:[],badDay:[],goodWeek:[],badWeek:[],totals:{},note:note||'',maxIso:'',maxWeekIso:''};
+  if(!recs||!recs.length) return empty;
 
-  // Ngày gần nhất = N ngày lịch liên tiếp kết thúc tại ngày đơn max (kể cả ngày DT = 0)
-  const maxIso=parsed.recs.reduce((m,r)=>r.iso>m?r.iso:m,'');
+  const maxIso=recs.reduce((m,r)=>r.iso>m?r.iso:m,'');
   const days=daysN&&maxIso?isoEachDay(isoShiftDays(maxIso,-(daysN-1)), maxIso):[];
 
-  // Tuần gần nhất = N tuần ISO liên tiếp, neo theo ngày mới nhất ở cột J
   let maxWeekIso='';
-  parsed.recs.forEach(r=>{
-    if(r.weekIso && r.weekIso>maxWeekIso) maxWeekIso=r.weekIso;
-  });
-  // Nếu cột J toàn text số tuần (không phải ngày) → lấy tuần max rồi suy 1 ngày đại diện
+  recs.forEach(r=>{ if(r.weekIso && r.weekIso>maxWeekIso) maxWeekIso=r.weekIso; });
   if(!maxWeekIso){
-    const weekKeys=sortedWeekKeys(parsed.recs.map(r=>r.tuan).filter(Boolean));
+    const weekKeys=sortedWeekKeys(recs.map(r=>r.tuan).filter(Boolean));
     if(weekKeys.length){
       const last=weekKeys[weekKeys.length-1];
       const m=String(last).match(/^(\d{4})\/(\d+)$/);
       if(m){
-        // Thứ 5 của ISO week → luôn thuộc đúng tuần
         const y=+m[1], w=+m[2];
         const jan4=new Date(Date.UTC(y,0,4));
         const dow=jan4.getUTCDay()||7;
@@ -1183,20 +1227,20 @@ function buildBanMoiAmCompare(banmoi, nDays, nWeeks){
   }
   const weeks=weeksN&&maxWeekIso?lastNIsoWeekKeys(maxWeekIso, weeksN):[];
 
-  const byAmDay={}, byAmWeek={};
-  const bump=(map,am,key,dt,ma)=>{
-    if(!am||am==='—') return;
-    if(!map[am]) map[am]={am, vals:{}, kh:{}};
-    map[am].vals[key]=(map[am].vals[key]||0)+dt;
-    if(!map[am].kh[key]) map[am].kh[key]=new Set();
-    if(ma&&ma!=='—') map[am].kh[key].add(ma);
+  const byDay={}, byWeek={};
+  const bump=(map,dim,key,dt,ma)=>{
+    if(!dim||dim==='—') return;
+    if(!map[dim]) map[dim]={am:dim, vals:{}, kh:{}};
+    map[dim].vals[key]=(map[dim].vals[key]||0)+dt;
+    if(!map[dim].kh[key]) map[dim].kh[key]=new Set();
+    if(ma&&ma!=='—') map[dim].kh[key].add(ma);
   };
   const daySet=new Set(days);
   const weekSet=new Set(weeks);
-  parsed.recs.forEach(r=>{
-    if(daySet.has(r.iso)) bump(byAmDay,r.am,r.iso,r.dt,r.ma);
-    // Chỉ gom tuần khi có key từ cột J
-    if(r.tuan && weekSet.has(r.tuan)) bump(byAmWeek,r.am,r.tuan,r.dt,r.ma);
+  recs.forEach(r=>{
+    const dim=r[dimKey];
+    if(daySet.has(r.iso)) bump(byDay,dim,r.iso,r.dt,r.ma);
+    if(r.tuan && weekSet.has(r.tuan)) bump(byWeek,dim,r.tuan,r.dt,r.ma);
   });
   const mkRows=(map,keys)=>{
     return Object.values(map).map(x=>{
@@ -1209,8 +1253,8 @@ function buildBanMoiAmCompare(banmoi, nDays, nWeeks){
       return {am:x.am, vals, khs, last, prev, delta, pctD, total:vals.reduce((s,v)=>s+v,0)};
     }).filter(r=>r.total>0).sort((a,b)=>b.delta-a.delta||b.last-a.last);
   };
-  const dayRows=mkRows(byAmDay,days);
-  const weekRows=mkRows(byAmWeek,weeks);
+  const dayRows=mkRows(byDay,days);
+  const weekRows=mkRows(byWeek,weeks);
   const totDay=days.map((d,i)=>dayRows.reduce((s,r)=>s+(r.vals[i]||0),0));
   const totWeek=weeks.map((w,i)=>weekRows.reduce((s,r)=>s+(r.vals[i]||0),0));
   return {
@@ -1220,10 +1264,67 @@ function buildBanMoiAmCompare(banmoi, nDays, nWeeks){
     goodWeek:weekRows.filter(r=>r.delta>0).sort((a,b)=>b.delta-a.delta),
     badWeek:weekRows.filter(r=>r.delta<0).sort((a,b)=>a.delta-b.delta),
     totals:{day:totDay, week:totWeek},
-    note:parsed.note,
-    parsed,
-    maxIso,
-    maxWeekIso
+    note:note||'',
+    maxIso, maxWeekIso
+  };
+}
+function buildBanMoiAmCompare(banmoi, nDays, nWeeks, flt){
+  const parsed=parseBanMoiSheet(banmoi);
+  const recs=filterBanMoiRecs(parsed.recs, flt);
+  const out=buildBanMoiDimCompare(recs, 'am', nDays, nWeeks, parsed.note);
+  out.parsed=parsed;
+  out.filteredCount=recs.length;
+  return out;
+}
+function buildBanMoiKhoCompare(banmoi, nWeeks, flt){
+  const parsed=parseBanMoiSheet(banmoi);
+  const hasKho=parsed.cols&&parsed.cols.kho>=0;
+  const recs=filterBanMoiRecs(parsed.recs, flt).filter(r=>r.kho&&r.kho!=='—');
+  const note=hasKho
+    ? (parsed.note||'')
+    : 'Sheet Banmoi chưa có cột Kho Chuẩn / Bưu cục';
+  const out=buildBanMoiDimCompare(recs, 'kho', 0, nWeeks||4, note);
+  out.hasKho=!!hasKho;
+  out.parsed=parsed;
+  return out;
+}
+/** Trend theo bưu cục: cùng kỳ tháng trước + dự kiến full tháng. */
+function buildBanMoiKhoTrend(banmoi, thang, elapsed, totalDays, flt){
+  const parsed=parseBanMoiSheet(banmoi);
+  const recs=filterBanMoiRecs(parsed.recs, flt).filter(r=>r.kho&&r.kho!=='—');
+  const thangPrev=prevThang(thang);
+  const maxD=Math.max(1, elapsed||1);
+  const daysInMonth=Math.max(1, totalDays||30);
+  const byCur={}, byPrev={};
+  recs.forEach(r=>{
+    const mk=monthKeyFromIso(r.iso);
+    const d=+String(r.iso).slice(8,10);
+    if(!(d>=1&&d<=maxD)) return;
+    if(thangEq(mk,thang)) byCur[r.kho]=(byCur[r.kho]||0)+(r.dt||0);
+    else if(thangPrev&&thangEq(mk,thangPrev)) byPrev[r.kho]=(byPrev[r.kho]||0)+(r.dt||0);
+  });
+  const khos=uniqueList([...Object.keys(byCur),...Object.keys(byPrev)]).sort((a,b)=>a.localeCompare(b,'vi'));
+  const rows=khos.map(kho=>{
+    const cur=byCur[kho]||0;
+    const prev=byPrev[kho]||0;
+    const delta=cur-prev;
+    const pctMom=prev>0?delta/prev*100:(cur>0?100:0);
+    const proj=elapsed>0?cur/elapsed*daysInMonth:0;
+    return {am:kho, kho, cur, prev, delta, pctMom, proj, up:delta>0};
+  });
+  const upRows=rows.filter(r=>r.up).sort((a,b)=>b.pctMom-a.pctMom||b.delta-a.delta);
+  const allSorted=rows.slice().sort((a,b)=>{
+    if(a.up!==b.up) return a.up?-1:1;
+    if(a.up) return b.pctMom-a.pctMom||b.delta-a.delta;
+    return a.pctMom-b.pctMom||b.cur-a.cur;
+  });
+  return {
+    rows:allSorted, upRows,
+    hasKho:parsed.cols&&parsed.cols.kho>=0,
+    thang, thangPrev, elapsed, totalDays:daysInMonth,
+    thangLabel:formatThangLabel(thang),
+    thangPrevLabel:formatThangLabel(thangPrev||''),
+    note:parsed.note
   };
 }
 /** Tổng DT KHM trong tháng (cùng kỳ N ngày đầu) từ Banmoi — đã lọc cửa sổ 30 ngày. */
@@ -1412,9 +1513,10 @@ function buildBanMoiWeekMatrix(banmoi, nWeeks){
  * AM tăng vs cùng kỳ tháng trước + dự kiến đạt tháng hiện tại (vd. T7).
  * Target bán mới AM ≈ max(0, KPI CM − DT tháng trước).
  */
-function buildBanMoiTrendProj(banmoi, kpiAM, ketQua, thang, elapsed, totalDays){
+function buildBanMoiTrendProj(banmoi, kpiAM, ketQua, thang, elapsed, totalDays, flt){
   const thangPrev=prevThang(thang);
-  const {recs}=parseBanMoiSheet(banmoi);
+  const {recs:allRecs}=parseBanMoiSheet(banmoi);
+  const recs=filterBanMoiRecs(allRecs, flt);
   const maxD=Math.max(1, elapsed||1);
   const daysInMonth=Math.max(1, totalDays||30);
   const byAmCur={}, byAmPrev={};
@@ -1456,11 +1558,14 @@ function buildBanMoiTrendProj(banmoi, kpiAM, ketQua, thang, elapsed, totalDays){
       prevDtByAM[am]=(prevDtByAM[am]||0)+parseVNNum(r[iDT]);
     }
   }
-  // Tất cả AM: có DT Banmoi (T / T-1) hoặc có trong KPI / Kết Quả
-  const ams=uniqueList([
+  // Tất cả AM: có DT Banmoi (T / T-1) hoặc có trong KPI / Kết Quả (trừ khi đang lọc 1 AM)
+  const f=flt||getBanMoiFilter();
+  let ams=uniqueList([
     ...Object.keys(byAmCur),...Object.keys(byAmPrev),
-    ...Object.keys(kpiCmByAM),...Object.keys(prevDtByAM)
+    ...(f.am?[]:[...Object.keys(kpiCmByAM),...Object.keys(prevDtByAM)])
   ]).filter(am=>am&&am!=='—').sort((a,b)=>a.localeCompare(b,'vi'));
+  if(f.am) ams=ams.filter(a=>a===f.am);
+  if(f.am && !ams.includes(f.am)) ams=[f.am];
   const rows=ams.map(am=>{
     const cur=byAmCur[am]||0;
     const prev=byAmPrev[am]||0;
@@ -1487,12 +1592,13 @@ function buildBanMoiTrendProj(banmoi, kpiAM, ketQua, thang, elapsed, totalDays){
     thangPrevLabel:formatThangLabel(thangPrev||'')
   };
 }
-function renderBanMoiAmMatrixTable(title, keys, rows, keyFmt, totals){
+function renderBanMoiAmMatrixTable(title, keys, rows, keyFmt, totals, firstCol){
   if(!keys||!keys.length){
     return `<div class="card"><div class="card-header"><div class="card-title">${title}</div></div><div class="section-note">Chưa đủ dữ liệu.</div></div>`;
   }
-  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--green)">📊</div>${title}</div><span class="badge">${keys.length} kỳ</span></div>`;
-  html+=`<div class="table-wrap"><table class="tbl-pro compact"><thead><tr><th>AM</th>`;
+  const col=firstCol||'AM';
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--green)">📊</div>${title}</div><span class="badge">${keys.length} kỳ · ${(rows||[]).length} ${col}</span></div>`;
+  html+=`<div class="table-wrap"><table class="tbl-pro compact"><thead><tr><th>${col}</th>`;
   keys.forEach(k=>{ html+=`<th class="num">${keyFmt(k)}</th>`; });
   html+=`<th class="num">Tổng</th><th class="num">Δ cuối</th></tr></thead><tbody>`;
   (rows||[]).forEach(r=>{
@@ -1552,18 +1658,19 @@ function renderBanMoiTrendSection(trend){
   return html;
 }
 /** Series tổng DT KHM: 7 ngày / 4 tuần (cột J) / 2 tháng gần nhất. */
-function buildBanMoiChartSeries(banmoi){
+function buildBanMoiChartSeries(banmoi, flt){
   const parsed=parseBanMoiSheet(banmoi);
+  const recs=filterBanMoiRecs(parsed.recs, flt);
   const empty={days:{labels:[],values:[]},weeks:{labels:[],values:[]},months:{labels:[],values:[]},note:parsed.note||''};
-  if(!parsed.recs.length) return empty;
-  const maxIso=parsed.recs.reduce((m,r)=>r.iso>m?r.iso:m,'');
+  if(!recs.length) return empty;
+  const maxIso=recs.reduce((m,r)=>r.iso>m?r.iso:m,'');
   const days=maxIso?isoEachDay(isoShiftDays(maxIso,-6), maxIso):[];
   let maxWeekIso='';
-  parsed.recs.forEach(r=>{ if(r.weekIso && r.weekIso>maxWeekIso) maxWeekIso=r.weekIso; });
+  recs.forEach(r=>{ if(r.weekIso && r.weekIso>maxWeekIso) maxWeekIso=r.weekIso; });
   if(!maxWeekIso) maxWeekIso=maxIso;
   const weeks=maxWeekIso?lastNIsoWeekKeys(maxWeekIso, 4):[];
   let maxThang='';
-  parsed.recs.forEach(r=>{
+  recs.forEach(r=>{
     const mk=monthKeyFromIso(r.iso);
     if(!mk) return;
     if(!maxThang || thangSortKey(mk)>thangSortKey(maxThang)) maxThang=mk;
@@ -1579,7 +1686,7 @@ function buildBanMoiChartSeries(banmoi){
   }
   const sumBy=(keys, keyOf, eq)=>{
     const map={}; keys.forEach(k=>map[k]=0);
-    parsed.recs.forEach(r=>{
+    recs.forEach(r=>{
       const k=keyOf(r);
       if(k==null) return;
       const hit=eq?keys.find(x=>eq(x,k)):((k in map)?k:null);
@@ -1639,6 +1746,63 @@ function drawBanMoiCharts(series){
   mkBar('cBanMoi4w', s.weeks, '#2563EB', 'rgba(37,99,235,.55)');
   mkBar('cBanMoi2m', s.months, '#D97706', 'rgba(217,119,6,.55)');
 }
+function renderBanMoiKhoTrendSection(trend){
+  const t=trend||{};
+  if(t.hasKho===false){
+    return `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:#0F766E">🏣</div>Bưu cục · Trend vs cùng kỳ</div></div>
+      <div class="section-note">Sheet Banmoi chưa có cột <b>Kho Chuẩn / Bưu cục</b>. Thêm cột này vào sheet rồi Cập nhật dữ liệu.</div></div>`;
+  }
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:#0F766E">🏣</div>Bưu cục · Trend vs cùng kỳ · Dự kiến ${t.thangLabel||'tháng'}</div>
+    <span class="badge">${t.elapsed||'—'}/${t.totalDays||'—'} ngày · ${(t.rows||[]).length} BC</span></div>`;
+  html+=`<div class="data-banner" style="margin:12px 16px 0">KHM cùng kỳ <b>${t.elapsed||'—'}</b> ngày: <b>${t.thangLabel||'—'}</b> vs <b>${t.thangPrevLabel||'T-1'}</b>. Dự kiến = MTD ÷ ngày × đủ tháng.</div>`;
+  const list=t.rows||[];
+  if(!list.length){
+    html+=`<div class="section-note">Chưa có DT KHM theo bưu cục trong bộ lọc hiện tại.</div></div>`;
+    return html;
+  }
+  html+=`<div class="table-wrap" style="margin-top:12px"><table class="tbl-pro compact"><thead><tr>
+    <th>#</th><th>Bưu cục</th>
+    <th class="num">MTD ${t.thangLabel||''}</th>
+    <th class="num">MTD ${t.thangPrevLabel||'T-1'}</th>
+    <th class="num">Δ</th><th class="num">% MoM</th>
+    <th class="num">Dự kiến full</th>
+  </tr></thead><tbody>`;
+  list.forEach((r,i)=>{
+    html+=`<tr class="${r.up?'':'row-warn'}">
+      <td><span class="rank-num${i<3?' top3':''}">${i+1}</span></td>
+      <td><span class="lbl-name">${r.kho||r.am}</span></td>
+      <td class="num">${fmtVndCell(r.cur)}</td>
+      <td class="num">${fmtVndCell(r.prev)}</td>
+      <td class="num"><span class="trend-tag ${r.delta>=0?'down':'up'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td>
+      <td class="num">${r.prev>0||r.cur>0?`${r.pctMom>=0?'+':''}${r.pctMom.toFixed(0)}%`:'—'}</td>
+      <td class="num">${fmtVndCell(r.proj)}</td>
+    </tr>`;
+  });
+  html+=`</tbody></table></div>`;
+  const nUp=(t.upRows||[]).length;
+  const top=(t.upRows||[]).slice(0,3).map(r=>`${r.kho||r.am} (+${r.pctMom.toFixed(0)}%)`).join(', ')||'—';
+  html+=analysisQuick(`Bưu cục tăng: <b>${nUp}/${list.length}</b> · nổi bật: <b>${top}</b>.`);
+  html+=`</div>`;
+  return html;
+}
+function renderBanMoiFilterBar(banmoi, flt){
+  const f=flt||getBanMoiFilter();
+  const parsed=parseBanMoiSheet(banmoi);
+  const ams=uniqueList((parsed.recs||[]).map(r=>r.am)).filter(a=>a&&a!=='—').sort((a,b)=>a.localeCompare(b,'vi'));
+  const isos=(parsed.recs||[]).map(r=>r.iso).filter(Boolean).sort();
+  const minIso=isos[0]||'';
+  const maxIso=isos[isos.length-1]||'';
+  const amOpts=`<option value="">Tất cả AM</option>`+ams.map(a=>`<option value="${docEsc(a)}"${f.am===a?' selected':''}>${docEsc(a)}</option>`).join('');
+  return `<div class="banmoi-flt">
+    <div class="flt-field"><label>AM</label><select id="bmFltAm" onchange="onBanMoiFilterChange()">${amOpts}</select></div>
+    <div class="flt-field"><label>Từ ngày</label><input type="date" id="bmFltFrom" value="${f.from||''}" min="${minIso}" max="${maxIso}" onchange="onBanMoiFilterChange()"></div>
+    <div class="flt-field"><label>Đến ngày</label><input type="date" id="bmFltTo" value="${f.to||''}" min="${minIso}" max="${maxIso}" onchange="onBanMoiFilterChange()"></div>
+    <div class="flt-actions">
+      <button type="button" class="flt-btn" onclick="resetBanMoiFilter()">Xóa lọc</button>
+    </div>
+    <p class="flt-meta">Bộ lọc: <b>${docEsc(banMoiFilterLabel(f))}</b> · ${filterBanMoiRecs(parsed.recs,f).length}/${parsed.recs.length} dòng KHM</p>
+  </div>`;
+}
 function renderBanMoi(){
   const el=document.getElementById('banMoi');
   if(!el) return;
@@ -1646,11 +1810,15 @@ function renderBanMoi(){
   const thang=currentThang();
   const thangLabel=formatThangLabel(thang);
   const {elapsed, totalDays}=getMonthProgress(dtNgay);
-  const cmp=buildBanMoiAmCompare(banmoi, 14, 4);
-  let trend;
-  try{ trend=buildBanMoiTrendProj(banmoi, kpiAM, ketQua, thang, elapsed, totalDays); }
+  const flt=getBanMoiFilter();
+  const cmp=buildBanMoiAmCompare(banmoi, 14, 4, flt);
+  const khoCmp=buildBanMoiKhoCompare(banmoi, 4, flt);
+  let trend, khoTrend;
+  try{ trend=buildBanMoiTrendProj(banmoi, kpiAM, ketQua, thang, elapsed, totalDays, flt); }
   catch(e){ console.warn('banMoi trend', e); trend={rows:[],upRows:[],thangLabel,elapsed,totalDays}; }
-  const charts=buildBanMoiChartSeries(banmoi);
+  try{ khoTrend=buildBanMoiKhoTrend(banmoi, thang, elapsed, totalDays, flt); }
+  catch(e){ console.warn('banMoi kho trend', e); khoTrend={rows:[],upRows:[],hasKho:false,thangLabel,elapsed,totalDays}; }
+  const charts=buildBanMoiChartSeries(banmoi, flt);
 
   const note=cmp.note||'';
   const daySpan=(cmp.days&&cmp.days.length)?`${isoShort2(cmp.days[0])} → ${isoShort2(cmp.days[cmp.days.length-1])}`:'—';
@@ -1670,7 +1838,7 @@ function renderBanMoi(){
     el.innerHTML=html;
     return;
   }
-  // Thứ tự: Charts → Tháng (tất cả AM) → Tuần → Ngày
+  html+=renderBanMoiFilterBar(banmoi, flt);
   html+=renderBanMoiChartsHtml();
   html+=renderBanMoiTrendSection(trend);
   html+=renderBanMoiAmMatrixTable(
@@ -1678,15 +1846,31 @@ function renderBanMoi(){
     cmp.weeks||[],
     cmp.weekRows||[],
     weekLabelShort,
-    (cmp.totals&&cmp.totals.week)||[]
+    (cmp.totals&&cmp.totals.week)||[],
+    'AM'
   );
   html+=renderBanMoiAmMatrixTable(
     'Theo AM — 14 ngày lịch gần nhất',
     cmp.days||[],
     cmp.dayRows||[],
     isoShort2,
-    (cmp.totals&&cmp.totals.day)||[]
+    (cmp.totals&&cmp.totals.day)||[],
+    'AM'
   );
+  if(khoCmp.hasKho===false){
+    html+=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:#0F766E">🏣</div>Theo bưu cục — 4 tuần gần nhất</div></div>
+      <div class="section-note">Sheet Banmoi chưa có cột <b>Kho Chuẩn / Bưu cục</b>.</div></div>`;
+  } else {
+    html+=renderBanMoiAmMatrixTable(
+      'Theo bưu cục — 4 tuần gần nhất (week từ ngày cột J)',
+      khoCmp.weeks||[],
+      khoCmp.weekRows||[],
+      weekLabelShort,
+      (khoCmp.totals&&khoCmp.totals.week)||[],
+      'Bưu cục'
+    );
+  }
+  html+=renderBanMoiKhoTrendSection(khoTrend);
   el.innerHTML=html;
   requestAnimationFrame(()=>drawBanMoiCharts(charts));
 }

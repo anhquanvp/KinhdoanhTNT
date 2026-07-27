@@ -1670,7 +1670,8 @@ function renderBanMoi(){
     el.innerHTML=html;
     return;
   }
-  // Thứ tự: Tháng (tất cả AM) → Tuần → Ngày → Charts
+  // Thứ tự: Charts → Tháng (tất cả AM) → Tuần → Ngày
+  html+=renderBanMoiChartsHtml();
   html+=renderBanMoiTrendSection(trend);
   html+=renderBanMoiAmMatrixTable(
     'Theo AM — 4 tuần gần nhất (week từ ngày cột J)',
@@ -1686,7 +1687,6 @@ function renderBanMoi(){
     isoShort2,
     (cmp.totals&&cmp.totals.day)||[]
   );
-  html+=renderBanMoiChartsHtml();
   el.innerHTML=html;
   requestAnimationFrame(()=>drawBanMoiCharts(charts));
 }

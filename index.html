@@ -1107,7 +1107,7 @@ function parseBanMoiSheet(banmoi){
     const ma=String(r[cols.ma]||'').trim();
     const am=cleanAmName(r[cols.am]);
     const khoRaw=cols.kho>=0?String(r[cols.kho]||'').trim():'';
-    const kho=khoRaw?shortKhoLabel(khoRaw):'';
+    const kho=khoRaw; // tên bưu cục đầy đủ theo sheet
     const iso=normalizeNgayToIso(r[cols.ngay]);
     const firstIso=cols.first>=0?normalizeNgayToIso(r[cols.first]):'';
     const dt=dayDt(r[cols.dt]);
@@ -1279,16 +1279,26 @@ function buildBanMoiAmCompare(banmoi, nDays, nWeeks, flt){
 function buildBanMoiKhoCompare(banmoi, nWeeks, flt){
   const parsed=parseBanMoiSheet(banmoi);
   const hasKho=parsed.cols&&parsed.cols.kho>=0;
-  const recs=filterBanMoiRecs(parsed.recs, flt).filter(r=>r.kho&&r.kho!=='—');
+  const base=filterBanMoiRecs(parsed.recs, flt).filter(r=>r.kho&&r.kho!=='—');
+  // Gom theo Bưu cục + AM (1 dòng / cặp)
+  const recs=base.map(r=>({...r, khoAm:`${r.kho}\t${r.am||'—'}`}));
   const note=hasKho
     ? (parsed.note||'')
     : 'Sheet Banmoi chưa có cột Kho Chuẩn / Bưu cục';
-  const out=buildBanMoiDimCompare(recs, 'kho', 0, nWeeks||4, note);
+  const out=buildBanMoiDimCompare(recs, 'khoAm', 0, nWeeks||4, note);
+  const split=rows=>(rows||[]).map(r=>{
+    const parts=String(r.am||'').split('\t');
+    const kho=parts[0]||r.am;
+    const amName=parts[1]||'—';
+    return {...r, kho, amName, am:kho};
+  });
+  out.weekRows=split(out.weekRows);
+  out.dayRows=split(out.dayRows);
   out.hasKho=!!hasKho;
   out.parsed=parsed;
   return out;
 }
-/** Trend theo bưu cục: cùng kỳ tháng trước + dự kiến full tháng. */
+/** Trend theo bưu cục (+ AM): cùng kỳ tháng trước + dự kiến full tháng. */
 function buildBanMoiKhoTrend(banmoi, thang, elapsed, totalDays, flt){
   const parsed=parseBanMoiSheet(banmoi);
   const recs=filterBanMoiRecs(parsed.recs, flt).filter(r=>r.kho&&r.kho!=='—');
@@ -1296,21 +1306,26 @@ function buildBanMoiKhoTrend(banmoi, thang, elapsed, totalDays, flt){
   const maxD=Math.max(1, elapsed||1);
   const daysInMonth=Math.max(1, totalDays||30);
   const byCur={}, byPrev={};
+  const keyOf=r=>`${r.kho}\t${r.am||'—'}`;
   recs.forEach(r=>{
     const mk=monthKeyFromIso(r.iso);
     const d=+String(r.iso).slice(8,10);
     if(!(d>=1&&d<=maxD)) return;
-    if(thangEq(mk,thang)) byCur[r.kho]=(byCur[r.kho]||0)+(r.dt||0);
-    else if(thangPrev&&thangEq(mk,thangPrev)) byPrev[r.kho]=(byPrev[r.kho]||0)+(r.dt||0);
+    const k=keyOf(r);
+    if(thangEq(mk,thang)) byCur[k]=(byCur[k]||0)+(r.dt||0);
+    else if(thangPrev&&thangEq(mk,thangPrev)) byPrev[k]=(byPrev[k]||0)+(r.dt||0);
   });
-  const khos=uniqueList([...Object.keys(byCur),...Object.keys(byPrev)]).sort((a,b)=>a.localeCompare(b,'vi'));
-  const rows=khos.map(kho=>{
-    const cur=byCur[kho]||0;
-    const prev=byPrev[kho]||0;
+  const keys=uniqueList([...Object.keys(byCur),...Object.keys(byPrev)]);
+  const rows=keys.map(k=>{
+    const parts=k.split('\t');
+    const kho=parts[0]||k;
+    const amName=parts[1]||'—';
+    const cur=byCur[k]||0;
+    const prev=byPrev[k]||0;
     const delta=cur-prev;
     const pctMom=prev>0?delta/prev*100:(cur>0?100:0);
     const proj=elapsed>0?cur/elapsed*daysInMonth:0;
-    return {am:kho, kho, cur, prev, delta, pctMom, proj, up:delta>0};
+    return {am:kho, kho, amName, cur, prev, delta, pctMom, proj, up:delta>0};
   });
   const upRows=rows.filter(r=>r.up).sort((a,b)=>b.pctMom-a.pctMom||b.delta-a.delta);
   const allSorted=rows.slice().sort((a,b)=>{
@@ -1592,17 +1607,20 @@ function buildBanMoiTrendProj(banmoi, kpiAM, ketQua, thang, elapsed, totalDays, 
     thangPrevLabel:formatThangLabel(thangPrev||'')
   };
 }
-function renderBanMoiAmMatrixTable(title, keys, rows, keyFmt, totals, firstCol){
+function renderBanMoiAmMatrixTable(title, keys, rows, keyFmt, totals, firstCol, secondCol){
   if(!keys||!keys.length){
     return `<div class="card"><div class="card-header"><div class="card-title">${title}</div></div><div class="section-note">Chưa đủ dữ liệu.</div></div>`;
   }
   const col=firstCol||'AM';
-  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--green)">📊</div>${title}</div><span class="badge">${keys.length} kỳ · ${(rows||[]).length} ${col}</span></div>`;
+  const col2=secondCol||null; // {key:'amName', label:'AM'}
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--green)">📊</div>${title}</div><span class="badge">${keys.length} kỳ · ${(rows||[]).length} dòng</span></div>`;
   html+=`<div class="table-wrap"><table class="tbl-pro compact"><thead><tr><th>${col}</th>`;
+  if(col2) html+=`<th>${col2.label||'AM'}</th>`;
   keys.forEach(k=>{ html+=`<th class="num">${keyFmt(k)}</th>`; });
   html+=`<th class="num">Tổng</th><th class="num">Δ cuối</th></tr></thead><tbody>`;
   (rows||[]).forEach(r=>{
     html+=`<tr><td><span class="lbl-name">${r.am}</span></td>`;
+    if(col2) html+=`<td>${r[col2.key]||'—'}</td>`;
     r.vals.forEach(v=>{ html+=`<td class="num">${fmtVndCell(v)}</td>`; });
     html+=`<td class="num">${fmtVndCell(r.total)}</td>
       <td class="num"><span class="trend-tag ${r.delta>=0?'down':'up'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td></tr>`;
@@ -1610,7 +1628,8 @@ function renderBanMoiAmMatrixTable(title, keys, rows, keyFmt, totals, firstCol){
   if(totals&&totals.length){
     const sum=totals.reduce((s,v)=>s+v,0);
     const delta=(totals[totals.length-1]||0)-(totals.length>=2?totals[totals.length-2]:0);
-    html+=`<tr class="tot"><td>TỔNG</td>${totals.map(v=>`<td class="num">${fmtVndCell(v)}</td>`).join('')}
+    const span=col2?2:1;
+    html+=`<tr class="tot"><td${span>1?` colspan="${span}"`:''}>TỔNG</td>${totals.map(v=>`<td class="num">${fmtVndCell(v)}</td>`).join('')}
       <td class="num">${fmtVndCell(sum)}</td><td class="num">${delta>=0?'+':''}${fmtM(delta)} tr</td></tr>`;
   }
   html+=`</tbody></table></div></div>`;
@@ -1761,7 +1780,7 @@ function renderBanMoiKhoTrendSection(trend){
     return html;
   }
   html+=`<div class="table-wrap" style="margin-top:12px"><table class="tbl-pro compact"><thead><tr>
-    <th>#</th><th>Bưu cục</th>
+    <th>#</th><th>Bưu cục</th><th>AM</th>
     <th class="num">MTD ${t.thangLabel||''}</th>
     <th class="num">MTD ${t.thangPrevLabel||'T-1'}</th>
     <th class="num">Δ</th><th class="num">% MoM</th>
@@ -1771,6 +1790,7 @@ function renderBanMoiKhoTrendSection(trend){
     html+=`<tr class="${r.up?'':'row-warn'}">
       <td><span class="rank-num${i<3?' top3':''}">${i+1}</span></td>
       <td><span class="lbl-name">${r.kho||r.am}</span></td>
+      <td>${r.amName||'—'}</td>
       <td class="num">${fmtVndCell(r.cur)}</td>
       <td class="num">${fmtVndCell(r.prev)}</td>
       <td class="num"><span class="trend-tag ${r.delta>=0?'down':'up'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td>
@@ -1780,7 +1800,7 @@ function renderBanMoiKhoTrendSection(trend){
   });
   html+=`</tbody></table></div>`;
   const nUp=(t.upRows||[]).length;
-  const top=(t.upRows||[]).slice(0,3).map(r=>`${r.kho||r.am} (+${r.pctMom.toFixed(0)}%)`).join(', ')||'—';
+  const top=(t.upRows||[]).slice(0,3).map(r=>`${r.kho||r.am} (${r.amName||'—'}) +${r.pctMom.toFixed(0)}%`).join(', ')||'—';
   html+=analysisQuick(`Bưu cục tăng: <b>${nUp}/${list.length}</b> · nổi bật: <b>${top}</b>.`);
   html+=`</div>`;
   return html;
@@ -1867,7 +1887,8 @@ function renderBanMoi(){
       khoCmp.weekRows||[],
       weekLabelShort,
       (khoCmp.totals&&khoCmp.totals.week)||[],
-      'Bưu cục'
+      'Bưu cục',
+      {key:'amName', label:'AM'}
     );
   }
   html+=renderBanMoiKhoTrendSection(khoTrend);

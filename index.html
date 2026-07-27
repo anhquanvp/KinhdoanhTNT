@@ -322,6 +322,7 @@ table.tbl-pro.compact td,table.tbl-pro.compact th{padding:6px 7px;font-size:11px
   <button class="nav-item" data-page="nhomKH" onclick="showPage('nhomKH')"><span class="icon">👥</span> DT Theo Nhóm KH</button>
   <button class="nav-item" data-page="dtTinh" onclick="showPage('dtTinh')"><span class="icon">🗺️</span> DT Theo Tỉnh</button>
   <button class="nav-item" data-page="nhomA" onclick="showPage('nhomA')"><span class="icon">⭐</span> Nhóm A</button>
+  <button class="nav-item" data-page="banMoi" onclick="showPage('banMoi')"><span class="icon">🆕</span> Bán Mới</button>
   <button class="refresh-btn" id="refreshBtn" onclick="refreshAll()"><span class="spin">🔄</span> Cập nhật dữ liệu</button>
   <button class="export-btn" id="exportDocBtn" onclick="openExportWeekModal()" disabled>📄 Xuất báo cáo tuần (.doc)</button>
   <div class="sidebar-widget">
@@ -344,6 +345,7 @@ table.tbl-pro.compact td,table.tbl-pro.compact th{padding:6px 7px;font-size:11px
   <div id="nhomKH" class="page" style="display:none"></div>
   <div id="dtTinh" class="page" style="display:none"></div>
   <div id="nhomA" class="page" style="display:none"></div>
+  <div id="banMoi" class="page" style="display:none"></div>
 </div>
 
 <!-- Modal chọn tuần so sánh khi xuất .doc -->
@@ -1115,13 +1117,13 @@ function parseBanMoiSheet(banmoi){
   };
 }
 function buildBanMoiAmCompare(banmoi, nDays, nWeeks){
-  const daysN=Math.max(1,nDays||3);
-  const weeksN=Math.max(1,nWeeks||3);
+  const daysN=Math.max(0, nDays==null?3:nDays);
+  const weeksN=Math.max(0, nWeeks==null?3:nWeeks);
   const parsed=parseBanMoiSheet(banmoi);
   const empty={days:[],weeks:[],dayRows:[],weekRows:[],goodDay:[],badDay:[],goodWeek:[],badWeek:[],totals:{},note:parsed.note||'',parsed};
   if(!parsed.recs.length) return empty;
   const dates=uniqueList(parsed.recs.map(r=>r.iso)).sort();
-  const days=dates.slice(-daysN);
+  const days=daysN?dates.slice(-daysN):[];
   // Tuần theo cột J — xếp theo ngày max trong tuần
   const weekMax={};
   parsed.recs.forEach(r=>{
@@ -1140,7 +1142,7 @@ function buildBanMoiAmCompare(banmoi, nDays, nWeeks){
     });
     weeks=Object.keys(weekMax).sort((a,b)=>weekMax[a]<weekMax[b]?-1:1);
   }
-  weeks=weeks.slice(-weeksN);
+  weeks=weeksN?weeks.slice(-weeksN):[];
   const byAmDay={}, byAmWeek={};
   const bump=(map,am,key,dt,ma)=>{
     if(!am||am==='—') return;
@@ -1353,6 +1355,192 @@ function renderOverviewKhASection(alertData){
   html+=`</div>`;
   return html;
 }
+/** AM × N ngày gần nhất từ Banmoi (đã lọc KHM 30 ngày). */
+function buildBanMoiDayMatrix(banmoi, nDays){
+  return buildBanMoiAmCompare(banmoi, nDays||14, 0);
+}
+/** AM × N tuần gần nhất (cột J). */
+function buildBanMoiWeekMatrix(banmoi, nWeeks){
+  return buildBanMoiAmCompare(banmoi, 1, nWeeks||4);
+}
+/**
+ * AM tăng vs cùng kỳ tháng trước + dự kiến đạt tháng hiện tại (vd. T7).
+ * Target bán mới AM ≈ max(0, KPI CM − DT tháng trước).
+ */
+function buildBanMoiTrendProj(banmoi, kpiAM, ketQua, thang, elapsed, totalDays){
+  const thangPrev=prevThang(thang);
+  const {recs}=parseBanMoiSheet(banmoi);
+  const maxD=Math.max(1, elapsed||1);
+  const daysInMonth=Math.max(1, totalDays||30);
+  const byAmCur={}, byAmPrev={};
+  recs.forEach(r=>{
+    const mk=monthKeyFromIso(r.iso);
+    const d=+String(r.iso).slice(8,10);
+    if(!(d>=1&&d<=maxD)) return;
+    if(thangEq(mk,thang)) byAmCur[r.am]=(byAmCur[r.am]||0)+(r.dt||0);
+    else if(thangPrev&&thangEq(mk,thangPrev)) byAmPrev[r.am]=(byAmPrev[r.am]||0)+(r.dt||0);
+  });
+  // KPI CM theo AM
+  const kpiCmByAM={};
+  if(kpiAM&&kpiAM.length>1){
+    const h=kpiAM[0];
+    const iAM=idxOf(h,'AM'), iThang=idxOf(h,'Tháng');
+    let iCm=idxOf(h,'KPI Cty');
+    if(iCm<0) iCm=idxOf(h,'KPI CM');
+    if(iCm<0) iCm=idxOf(h,'KPI CM tháng');
+    const preferred=iThang>=0?thangCellPreferred(kpiAM.slice(1), iThang, thang):null;
+    for(let i=1;i<kpiAM.length;i++){
+      const r=kpiAM[i];
+      const am=(r[iAM]||'').trim();
+      if(!am) continue;
+      if(iThang>=0 && r[iThang] && !rowMatchesPreferredThang(r[iThang], thang, preferred)) continue;
+      const cm=iCm>=0?parseVNNum(r[iCm]):0;
+      if(cm>0 && (!(am in kpiCmByAM) || cm>kpiCmByAM[am])) kpiCmByAM[am]=cm;
+    }
+  }
+  // DT tháng trước theo AM (Kết Quả) → target giữ cũ
+  const prevDtByAM={};
+  if(ketQua&&ketQua.length>1&&thangPrev){
+    const h=ketQua[0];
+    const iAM=idxOf(h,'AM Chuẩn'), iDT=idxOf(h,'DoanhThu'), iThang=idxOf(h,'Thang');
+    for(let i=1;i<ketQua.length;i++){
+      const r=ketQua[i];
+      const am=(r[iAM]||'').trim();
+      if(!am) continue;
+      if(iThang>=0 && r[iThang] && !rowMatchesPreferredThang(r[iThang], thangPrev, null)) continue;
+      prevDtByAM[am]=(prevDtByAM[am]||0)+parseVNNum(r[iDT]);
+    }
+  }
+  const ams=uniqueList([...Object.keys(byAmCur),...Object.keys(byAmPrev)]);
+  const rows=ams.map(am=>{
+    const cur=byAmCur[am]||0;
+    const prev=byAmPrev[am]||0;
+    const delta=cur-prev;
+    const pctMom=prev>0?delta/prev*100:(cur>0?100:0);
+    const proj=elapsed>0?cur/elapsed*daysInMonth:0;
+    const kpiCm=kpiCmByAM[am]||0;
+    const prevFull=prevDtByAM[am]||0;
+    const targetBan=Math.max(0, kpiCm?kpiCm-prevFull:0);
+    const pctProj=targetBan>0?pct(proj,targetBan):(kpiCm>0?pct(proj,kpiCm):0);
+    return {am, cur, prev, delta, pctMom, proj, kpiCm, prevFull, targetBan, pctProj, up:delta>0};
+  }).filter(r=>r.cur>0||r.prev>0);
+  const upRows=rows.filter(r=>r.up).sort((a,b)=>b.pctMom-a.pctMom||b.delta-a.delta);
+  const allSorted=rows.slice().sort((a,b)=>b.pctMom-a.pctMom||b.cur-a.cur);
+  return {
+    rows:allSorted, upRows,
+    thang, thangPrev, elapsed, totalDays:daysInMonth,
+    thangLabel:formatThangLabel(thang),
+    thangPrevLabel:formatThangLabel(thangPrev||'')
+  };
+}
+function renderBanMoiAmMatrixTable(title, keys, rows, keyFmt, totals){
+  if(!keys||!keys.length){
+    return `<div class="card"><div class="card-header"><div class="card-title">${title}</div></div><div class="section-note">Chưa đủ dữ liệu.</div></div>`;
+  }
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--green)">📊</div>${title}</div><span class="badge">${keys.length} kỳ</span></div>`;
+  html+=`<div class="table-wrap"><table class="tbl-pro compact"><thead><tr><th>AM</th>`;
+  keys.forEach(k=>{ html+=`<th class="num">${keyFmt(k)}</th>`; });
+  html+=`<th class="num">Tổng</th><th class="num">Δ cuối</th></tr></thead><tbody>`;
+  (rows||[]).forEach(r=>{
+    html+=`<tr><td><span class="lbl-name">${r.am}</span></td>`;
+    r.vals.forEach(v=>{ html+=`<td class="num">${fmtVndCell(v)}</td>`; });
+    html+=`<td class="num">${fmtVndCell(r.total)}</td>
+      <td class="num"><span class="trend-tag ${r.delta>=0?'down':'up'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td></tr>`;
+  });
+  if(totals&&totals.length){
+    const sum=totals.reduce((s,v)=>s+v,0);
+    const delta=(totals[totals.length-1]||0)-(totals.length>=2?totals[totals.length-2]:0);
+    html+=`<tr class="tot"><td>TỔNG</td>${totals.map(v=>`<td class="num">${fmtVndCell(v)}</td>`).join('')}
+      <td class="num">${fmtVndCell(sum)}</td><td class="num">${delta>=0?'+':''}${fmtM(delta)} tr</td></tr>`;
+  }
+  html+=`</tbody></table></div></div>`;
+  return html;
+}
+function renderBanMoiTrendSection(trend){
+  const t=trend||{};
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--blue)">📈</div>AM tăng vs cùng kỳ · Dự kiến đạt ${t.thangLabel||'tháng'}</div>
+    <span class="badge">${t.elapsed||'—'}/${t.totalDays||'—'} ngày</span></div>`;
+  html+=`<div class="data-banner" style="margin:12px 16px 0">So sánh KHM cùng kỳ <b>${t.elapsed||'—'}</b> ngày đầu: <b>${t.thangLabel||'—'}</b> vs <b>${t.thangPrevLabel||'T-1'}</b>.
+    Target bán mới AM ≈ max(0, KPI CM − DT tháng trước). Dự kiến = MTD ÷ ngày × đủ tháng.</div>`;
+  const list=t.upRows&&t.upRows.length?t.upRows:(t.rows||[]);
+  if(!list.length){
+    html+=`<div class="section-note">Chưa có AM tăng DT KHM so với cùng kỳ tháng trước.</div></div>`;
+    return html;
+  }
+  html+=`<div class="table-wrap" style="margin-top:12px"><table class="tbl-pro compact"><thead><tr>
+    <th>#</th><th>AM</th>
+    <th class="num">MTD ${t.thangLabel||''}</th>
+    <th class="num">MTD ${t.thangPrevLabel||'T-1'}</th>
+    <th class="num">Δ</th><th class="num">% MoM</th>
+    <th class="num">Dự kiến full</th>
+    <th class="num">Target BM</th>
+    <th class="num">% DK đạt</th>
+  </tr></thead><tbody>`;
+  list.forEach((r,i)=>{
+    const cls=r.pctProj>=100?'pct-g':r.pctProj>=70?'pct-y':'pct-r';
+    html+=`<tr class="${r.up?'':'row-warn'}">
+      <td><span class="rank-num${i<3?' top3':''}">${i+1}</span></td>
+      <td><span class="lbl-name">${r.am}</span></td>
+      <td class="num">${fmtVndCell(r.cur)}</td>
+      <td class="num">${fmtVndCell(r.prev)}</td>
+      <td class="num"><span class="trend-tag ${r.delta>=0?'down':'up'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td>
+      <td class="num">${r.prev>0||r.cur>0?`${r.pctMom>=0?'+':''}${r.pctMom.toFixed(0)}%`:'—'}</td>
+      <td class="num">${fmtVndCell(r.proj)}</td>
+      <td class="num">${r.targetBan?fmtVndCell(r.targetBan):(r.kpiCm?fmtVndCell(r.kpiCm):'<span class="empty-val">—</span>')}</td>
+      <td class="num"><span class="pct-pill ${cls}">${(r.targetBan||r.kpiCm)?r.pctProj.toFixed(0)+'%':'—'}</span></td>
+    </tr>`;
+  });
+  html+=`</tbody></table></div>`;
+  const top=(t.upRows||[]).slice(0,3).map(r=>`${r.am} (+${r.pctMom.toFixed(0)}%)`).join(', ')||'—';
+  html+=analysisQuick(`AM tăng nổi bật: <b>${top}</b> · ${(t.upRows||[]).length}/${(t.rows||[]).length} AM đang tăng vs cùng kỳ.`);
+  html+=`</div>`;
+  return html;
+}
+function renderBanMoi(){
+  const el=document.getElementById('banMoi');
+  if(!el) return;
+  const {banmoi, kpiAM, ketQua, dtNgay}=window._DATA||{};
+  const thang=currentThang();
+  const thangLabel=formatThangLabel(thang);
+  const {elapsed, totalDays}=getMonthProgress(dtNgay);
+  const day14=buildBanMoiAmCompare(banmoi, 14, 4);
+  // tách weeks 4 từ cùng compare (buildBanMoiAmCompare với nDays=14 cũng lấy weeks)
+  const week4=buildBanMoiAmCompare(banmoi, 1, 4);
+  // dùng day rows từ day14, week từ week4
+  const daysCmp={days:day14.days, dayRows:day14.dayRows, totals:{day:day14.totals&&day14.totals.day}};
+  const weeksCmp={weeks:week4.weeks, weekRows:week4.weekRows, totals:{week:week4.totals&&week4.totals.week}};
+  let trend;
+  try{ trend=buildBanMoiTrendProj(banmoi, kpiAM, ketQua, thang, elapsed, totalDays); }
+  catch(e){ console.warn('banMoi trend', e); trend={rows:[],upRows:[],thangLabel,elapsed,totalDays}; }
+
+  const note=(day14.note||week4.note||'');
+  let html=`<div class="page-hd" style="margin-bottom:16px">
+    <h2 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-.3px">🆕 Bán Mới (KHM)</h2>
+    <p style="margin:6px 0 0;color:var(--text-sub);font-size:13px">Nguồn sheet <b>Banmoi</b> · ${note||'DT lấy TC / giao trả TC (chưa VAT) · cửa sổ 30 ngày từ ngày đầu lên đơn'} · Tháng ${thangLabel}</p>
+  </div>`;
+  if(!(banmoi&&banmoi.length>1)){
+    html+=`<div class="data-banner err">⚠️ Chưa có dữ liệu <b>Banmoi</b>. Deploy lại Apps Script (GAS-DoanhThu-TNT-API.gs) rồi Cập nhật dữ liệu.</div>`;
+    el.innerHTML=html;
+    return;
+  }
+  html+=renderBanMoiAmMatrixTable(
+    'Theo AM — 14 ngày gần nhất',
+    daysCmp.days||[],
+    daysCmp.dayRows||[],
+    isoShort2,
+    (daysCmp.totals&&daysCmp.totals.day)||[]
+  );
+  html+=renderBanMoiAmMatrixTable(
+    'Theo AM — 4 tuần gần nhất (cột J)',
+    weeksCmp.weeks||[],
+    weeksCmp.weekRows||[],
+    w=>w,
+    (weeksCmp.totals&&weeksCmp.totals.week)||[]
+  );
+  html+=renderBanMoiTrendSection(trend);
+  el.innerHTML=html;
+}
+
 function buildAmNhomWow(totalKH, thang, elapsed){
   const thangPrevM=prevThang(thang);
   const {recs}=parseTotalKHNhomRecs(totalKH);
@@ -3255,7 +3443,7 @@ async function loadAll(opts){
         document.getElementById('exportDocBtn').disabled = false;
         const ageMin=Math.max(0, Math.round((Date.now()-(cached.fetchedAt||0))/60000));
         document.getElementById('lastUpdate').textContent = 'Cache '+new Date(cached.fetchedAt||Date.now()).toLocaleString('vi-VN')+(ageMin?` (${ageMin} phút trước)`:'')+' · đang đồng bộ…';
-        renderOverview(); renderDecline(); renderSegment(); renderNhomKH(); renderDtTinh(); renderNhomA();
+        renderOverview(); renderDecline(); renderSegment(); renderNhomKH(); renderDtTinh(); renderNhomA(); renderBanMoi();
         if(!background) btn.classList.remove('spinning');
         // Background refresh — chỉ tải mới nếu mạng OK
         loadAll({force:true, background:true});
@@ -3276,13 +3464,14 @@ async function loadAll(opts){
     renderNhomKH();
     renderDtTinh();
     renderNhomA();
+    renderBanMoi();
   }catch(e){
     console.error(e);
     if(background && loaded){
       document.getElementById('lastUpdate').textContent = (document.getElementById('lastUpdate').textContent||'').replace(/ · đang đồng bộ…/,'') + ' · đồng bộ lỗi (giữ cache)';
     } else {
       const detail=(e&&e.stack)?String(e.stack).split('\n').slice(0,2).join(' · '):(e&&e.message)||e;
-      ['overview','decline','segment','nhomKH','dtTinh','nhomA'].forEach(id=>{
+      ['overview','decline','segment','nhomKH','dtTinh','nhomA','banMoi'].forEach(id=>{
         document.getElementById(id).innerHTML = `<div class="data-banner err">⚠️ Lỗi tải dữ liệu từ Google Sheet: ${detail}. Kiểm tra quyền chia sẻ (Anyone with link) hoặc thử Cập nhật lại (hard refresh: Cmd+Shift+R).</div>`;
       });
     }
@@ -3395,7 +3584,6 @@ function renderOverview(){
   const nhom14dSection = renderOverviewNhom14dSection(nhom14dSeries);
   const khASection = renderOverviewKhASection(buildKhAAlertByAm(totalKH, thang, monthProgress, dtNgay));
   const noOrder3dSection = renderOverviewNoOrder3dSection(buildKhNoOrder3d(totalKH, thang, 3));
-  const banMoiDaySection = renderOverviewBanMoiDaySection(buildBanMoiAmCompare(banmoi, 3, 3));
   let banMoiMtd=0, banMoiMtdPrev=0;
   try{
     const bmCur=sumBanMoiKhmCungKy(banmoi, thang, elapsed);
@@ -3535,7 +3723,9 @@ function renderOverview(){
   ${nhom14dSection}
   ${khASection}
   ${noOrder3dSection}
-  ${banMoiDaySection}
+  <div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--green)">🆕</div>Bán Mới (KHM)</div><span class="badge">Sheet Banmoi</span></div>
+  <div class="section-note" style="padding:14px 16px">Xem thống kê 14 ngày · 4 tuần · AM tăng vs cùng kỳ &amp; dự kiến tháng tại menu <b>Bán Mới</b>.
+  <button type="button" class="btn primary" style="margin-left:10px;padding:6px 12px;font-size:12px" onclick="showPage('banMoi')">Mở Bán Mới →</button></div></div>
   ${projectionSection}
   ${insightSection}
   ${table}

@@ -497,6 +497,18 @@ function isoWeekFromIsoDate(iso){
   const w=Math.ceil((((d-jan1)/86400000)+1)/7);
   return {y,w,key:`${y}/${w}`};
 }
+/** N tuần ISO liên tiếp kết thúc tại tuần chứa ngày `endIso` (lùi 7 ngày mỗi bước). */
+function lastNIsoWeekKeys(endIso, n){
+  const N=Math.max(0, n|0);
+  if(!N || !/^\d{4}-\d{2}-\d{2}$/.test(endIso||'')) return [];
+  const keys=[];
+  let cur=endIso;
+  for(let i=0;i<N;i++){
+    keys.unshift(isoWeekFromIsoDate(cur).key);
+    cur=isoShiftDays(cur, -7);
+  }
+  return [...new Set(keys)];
+}
 function weekKeyFromNgayCell(s){
   const iso=normalizeNgayToIso(s);
   if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
@@ -1043,6 +1055,21 @@ function isKhmSuccessStatus(s){
   return /(lấy\s*thành\s*công|giao\s*trả\s*thành\s*công|delivered|picked\s*up|return\s*success|thành\s*công|success)/i.test(s)
     || /lấy\s*tc|giao\s*trả\s*tc|gt\s*tc/i.test(s);
 }
+/** Chuẩn hóa cột J → week key `YYYY/W`. Ưu tiên: J là ngày → ISO week. Không fallback ngày đơn. */
+function normalizeBanMoiWeekKey(raw, yearHintIso){
+  const s=String(raw||'').trim();
+  if(!s) return '';
+  const isoJ=normalizeNgayToIso(s);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(isoJ)) return isoWeekFromIsoDate(isoJ).key;
+  let m=s.match(/^(\d{4})\s*[\/\-Ww]\s*(\d{1,2})$/);
+  if(m) return `${m[1]}/${+m[2]}`;
+  m=s.match(/^(?:w|tu[aầ]n)\s*[:\s#]*(\d{1,2})$/i);
+  const yHint=/^\d{4}-\d{2}-\d{2}$/.test(yearHintIso||'')?+yearHintIso.slice(0,4):(new Date()).getFullYear();
+  if(m) return `${yHint}/${+m[1]}`;
+  m=s.match(/^(\d{1,2})$/);
+  if(m) return `${yHint}/${+m[1]}`;
+  return '';
+}
 function parseBanMoiSheet(banmoi){
   const empty={recs:[], firstByMa:{}, header:[], cols:{}, note:'Chưa có dữ liệu sheet Banmoi'};
   if(!banmoi||banmoi.length<2) return empty;
@@ -1055,14 +1082,12 @@ function parseBanMoiSheet(banmoi){
     am: idxFindAny(h,['AM Chuẩn','AM','Sale_Owner','Sale Owner','Nhanvien','Nhân viên','Tên AM'],3),
     dt: idxFindAny(h,['DoanhThu_NoVAT','Doanh thu chưa VAT','DT chưa VAT','DT_NoVAT','Doanh thu KHM','DoanhThu','DT','Doanh thu'],7),
     status: idxFindAny(h,['Trạng thái','TrangThai','Status','Trạng thái đơn','Loại trạng thái'],-1),
-    // Cột J (index 9) theo yêu cầu — tuần
-    tuan: idxFindAny(h,['Tuần','Tuan','Week','Tuần ISO','Tuần KHM'],9)
+    // Cột J = index 9 — ngày để suy tuần (cố định theo cột, không theo tên header)
+    tuan: 9
   };
-  if(cols.tuan<0) cols.tuan=9;
   const dayDt=raw=>{
     const d=parseVNNum(raw);
     if(!d) return 0;
-    // một số sheet ghi nghìn/triệu — nếu quá lớn bất thường giữ nguyên (đã là đồng)
     return d;
   };
   const firstByMa={};
@@ -1076,7 +1101,10 @@ function parseBanMoiSheet(banmoi){
     const firstIso=cols.first>=0?normalizeNgayToIso(r[cols.first]):'';
     const dt=dayDt(r[cols.dt]);
     const status=cols.status>=0?String(r[cols.status]||'').trim():'';
-    const tuan=String((cols.tuan>=0&&cols.tuan<r.length)?(r[cols.tuan]||''):'').trim();
+    // Cột J luôn đọc index 9 kể cả khi trailing empty bị cắt
+    const tuanRaw=String(r[9]??'').trim();
+    const weekIso=normalizeNgayToIso(tuanRaw);
+    const tuan=normalizeBanMoiWeekKey(tuanRaw, iso);
     if(!isKhmSuccessStatus(status)) continue;
     if(ma && /^\d{4}-\d{2}-\d{2}$/.test(firstIso)){
       if(!firstByMa[ma] || firstIso<firstByMa[ma]) firstByMa[ma]=firstIso;
@@ -1094,6 +1122,8 @@ function parseBanMoiSheet(banmoi){
       firstIso:firstIso||'',
       dt:dt||0,
       status,
+      tuanRaw,
+      weekIso:/^\d{4}-\d{2}-\d{2}$/.test(weekIso)?weekIso:'',
       tuan
     });
   }
@@ -1112,7 +1142,7 @@ function parseBanMoiSheet(banmoi){
     header:h,
     cols,
     note: out.length
-      ? `DT KHM = lấy TC / giao trả TC (chưa VAT) · cửa sổ 30 ngày từ ngày đầu lên đơn/quay lại`
+      ? `DT KHM = lấy TC / giao trả TC (chưa VAT) · cửa sổ 30 ngày · tuần = ISO week từ ngày cột J`
       : 'Sheet Banmoi không có dòng KHM hợp lệ trong cửa sổ 30 ngày'
   };
 }
@@ -1122,27 +1152,37 @@ function buildBanMoiAmCompare(banmoi, nDays, nWeeks){
   const parsed=parseBanMoiSheet(banmoi);
   const empty={days:[],weeks:[],dayRows:[],weekRows:[],goodDay:[],badDay:[],goodWeek:[],badWeek:[],totals:{},note:parsed.note||'',parsed};
   if(!parsed.recs.length) return empty;
-  const dates=uniqueList(parsed.recs.map(r=>r.iso)).sort();
-  const days=daysN?dates.slice(-daysN):[];
-  // Tuần theo cột J — xếp theo ngày max trong tuần
-  const weekMax={};
+
+  // Ngày gần nhất = N ngày lịch liên tiếp kết thúc tại ngày đơn max (kể cả ngày DT = 0)
+  const maxIso=parsed.recs.reduce((m,r)=>r.iso>m?r.iso:m,'');
+  const days=daysN&&maxIso?isoEachDay(isoShiftDays(maxIso,-(daysN-1)), maxIso):[];
+
+  // Tuần gần nhất = N tuần ISO liên tiếp, neo theo ngày mới nhất ở cột J
+  let maxWeekIso='';
   parsed.recs.forEach(r=>{
-    const w=(r.tuan||'').trim();
-    if(!w) return;
-    if(!weekMax[w] || r.iso>weekMax[w]) weekMax[w]=r.iso;
+    if(r.weekIso && r.weekIso>maxWeekIso) maxWeekIso=r.weekIso;
   });
-  let weeks=Object.keys(weekMax).sort((a,b)=>weekMax[a]<weekMax[b]?-1:weekMax[a]>weekMax[b]?1:String(a).localeCompare(String(b),'vi'));
-  // fallback: nếu thiếu cột tuần → suy từ ISO week của ngày đơn
-  if(!weeks.length){
-    parsed.recs.forEach(r=>{
-      const w=isoWeekFromIsoDate(r.iso).key;
-      if(!w) return;
-      r.tuan=w;
-      if(!weekMax[w] || r.iso>weekMax[w]) weekMax[w]=r.iso;
-    });
-    weeks=Object.keys(weekMax).sort((a,b)=>weekMax[a]<weekMax[b]?-1:1);
+  // Nếu cột J toàn text số tuần (không phải ngày) → lấy tuần max rồi suy 1 ngày đại diện
+  if(!maxWeekIso){
+    const weekKeys=sortedWeekKeys(parsed.recs.map(r=>r.tuan).filter(Boolean));
+    if(weekKeys.length){
+      const last=weekKeys[weekKeys.length-1];
+      const m=String(last).match(/^(\d{4})\/(\d+)$/);
+      if(m){
+        // Thứ 5 của ISO week → luôn thuộc đúng tuần
+        const y=+m[1], w=+m[2];
+        const jan4=new Date(Date.UTC(y,0,4));
+        const dow=jan4.getUTCDay()||7;
+        const mon=new Date(jan4);
+        mon.setUTCDate(jan4.getUTCDate()-(dow-1)+(w-1)*7);
+        const thu=new Date(mon);
+        thu.setUTCDate(mon.getUTCDate()+3);
+        maxWeekIso=`${thu.getUTCFullYear()}-${String(thu.getUTCMonth()+1).padStart(2,'0')}-${String(thu.getUTCDate()).padStart(2,'0')}`;
+      }
+    }
   }
-  weeks=weeksN?weeks.slice(-weeksN):[];
+  const weeks=weeksN&&maxWeekIso?lastNIsoWeekKeys(maxWeekIso, weeksN):[];
+
   const byAmDay={}, byAmWeek={};
   const bump=(map,am,key,dt,ma)=>{
     if(!am||am==='—') return;
@@ -1151,9 +1191,12 @@ function buildBanMoiAmCompare(banmoi, nDays, nWeeks){
     if(!map[am].kh[key]) map[am].kh[key]=new Set();
     if(ma&&ma!=='—') map[am].kh[key].add(ma);
   };
+  const daySet=new Set(days);
+  const weekSet=new Set(weeks);
   parsed.recs.forEach(r=>{
-    if(days.includes(r.iso)) bump(byAmDay,r.am,r.iso,r.dt,r.ma);
-    if(weeks.includes(r.tuan)) bump(byAmWeek,r.am,r.tuan,r.dt,r.ma);
+    if(daySet.has(r.iso)) bump(byAmDay,r.am,r.iso,r.dt,r.ma);
+    // Chỉ gom tuần khi có key từ cột J
+    if(r.tuan && weekSet.has(r.tuan)) bump(byAmWeek,r.am,r.tuan,r.dt,r.ma);
   });
   const mkRows=(map,keys)=>{
     return Object.values(map).map(x=>{
@@ -1178,7 +1221,9 @@ function buildBanMoiAmCompare(banmoi, nDays, nWeeks){
     badWeek:weekRows.filter(r=>r.delta<0).sort((a,b)=>a.delta-b.delta),
     totals:{day:totDay, week:totWeek},
     note:parsed.note,
-    parsed
+    parsed,
+    maxIso,
+    maxWeekIso
   };
 }
 /** Tổng DT KHM trong tháng (cùng kỳ N ngày đầu) từ Banmoi — đã lọc cửa sổ 30 ngày. */
@@ -1503,39 +1548,42 @@ function renderBanMoi(){
   const thang=currentThang();
   const thangLabel=formatThangLabel(thang);
   const {elapsed, totalDays}=getMonthProgress(dtNgay);
-  const day14=buildBanMoiAmCompare(banmoi, 14, 4);
-  // tách weeks 4 từ cùng compare (buildBanMoiAmCompare với nDays=14 cũng lấy weeks)
-  const week4=buildBanMoiAmCompare(banmoi, 1, 4);
-  // dùng day rows từ day14, week từ week4
-  const daysCmp={days:day14.days, dayRows:day14.dayRows, totals:{day:day14.totals&&day14.totals.day}};
-  const weeksCmp={weeks:week4.weeks, weekRows:week4.weekRows, totals:{week:week4.totals&&week4.totals.week}};
+  const cmp=buildBanMoiAmCompare(banmoi, 14, 4);
   let trend;
   try{ trend=buildBanMoiTrendProj(banmoi, kpiAM, ketQua, thang, elapsed, totalDays); }
   catch(e){ console.warn('banMoi trend', e); trend={rows:[],upRows:[],thangLabel,elapsed,totalDays}; }
 
-  const note=(day14.note||week4.note||'');
+  const note=cmp.note||'';
+  const daySpan=(cmp.days&&cmp.days.length)?`${isoShort2(cmp.days[0])} → ${isoShort2(cmp.days[cmp.days.length-1])}`:'—';
+  const weekSpan=(cmp.weeks||[]).map(weekLabelShort).join(' · ')||'—';
   let html=`<div class="page-hd" style="margin-bottom:16px">
     <h2 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-.3px">🆕 Bán Mới (KHM)</h2>
-    <p style="margin:6px 0 0;color:var(--text-sub);font-size:13px">Nguồn sheet <b>Banmoi</b> · ${note||'DT lấy TC / giao trả TC (chưa VAT) · cửa sổ 30 ngày từ ngày đầu lên đơn'} · Tháng ${thangLabel}</p>
+    <p style="margin:6px 0 0;color:var(--text-sub);font-size:13px">Nguồn sheet <b>Banmoi</b> · ${note||'DT lấy TC / giao trả TC (chưa VAT) · cửa sổ 30 ngày'} · Tháng ${thangLabel}</p>
+    <p style="margin:4px 0 0;color:var(--text-muted);font-size:12px">Ngày gần nhất: <b>${daySpan}</b> · Tuần (ISO từ ngày cột J): <b>${weekSpan}</b></p>
   </div>`;
   if(!(banmoi&&banmoi.length>1)){
-    html+=`<div class="data-banner err">⚠️ Chưa có dữ liệu <b>Banmoi</b>. Deploy lại Apps Script (GAS-DoanhThu-TNT-API.gs) rồi Cập nhật dữ liệu.</div>`;
+    html+=`<div class="data-banner err">⚠️ Chưa có dữ liệu <b>Banmoi</b> từ API.<br>
+      1) Mở Spreadsheet → Extensions → Apps Script<br>
+      2) Dán toàn bộ file <b>GAS-DoanhThu-TNT-API.gs</b> (đã gồm <code>banmoi</code>)<br>
+      3) Deploy → New deployment (hoặc Manage → New version) · Execute as Me · Anyone<br>
+      4) Đảm bảo có tab sheet tên <b>Banmoi</b><br>
+      5) Về dashboard → hard refresh (Cmd+Shift+R) → <b>Cập nhật dữ liệu</b></div>`;
     el.innerHTML=html;
     return;
   }
   html+=renderBanMoiAmMatrixTable(
-    'Theo AM — 14 ngày gần nhất',
-    daysCmp.days||[],
-    daysCmp.dayRows||[],
+    'Theo AM — 14 ngày lịch gần nhất',
+    cmp.days||[],
+    cmp.dayRows||[],
     isoShort2,
-    (daysCmp.totals&&daysCmp.totals.day)||[]
+    (cmp.totals&&cmp.totals.day)||[]
   );
   html+=renderBanMoiAmMatrixTable(
-    'Theo AM — 4 tuần gần nhất (cột J)',
-    weeksCmp.weeks||[],
-    weeksCmp.weekRows||[],
-    w=>w,
-    (weeksCmp.totals&&weeksCmp.totals.week)||[]
+    'Theo AM — 4 tuần gần nhất (week từ ngày cột J)',
+    cmp.weeks||[],
+    cmp.weekRows||[],
+    weekLabelShort,
+    (cmp.totals&&cmp.totals.week)||[]
   );
   html+=renderBanMoiTrendSection(trend);
   el.innerHTML=html;
@@ -3723,8 +3771,10 @@ function renderOverview(){
   ${nhom14dSection}
   ${khASection}
   ${noOrder3dSection}
-  <div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--green)">🆕</div>Bán Mới (KHM)</div><span class="badge">Sheet Banmoi</span></div>
-  <div class="section-note" style="padding:14px 16px">Xem thống kê 14 ngày · 4 tuần · AM tăng vs cùng kỳ &amp; dự kiến tháng tại menu <b>Bán Mới</b>.
+  <div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--green)">🆕</div>Bán Mới (KHM)</div><span class="badge">${(banmoi&&banmoi.length>1)?'Có dữ liệu':'Chưa có Banmoi'}</span></div>
+  <div class="section-note" style="padding:14px 16px">${(banmoi&&banmoi.length>1)
+    ? `Đã nạp Banmoi · xem 14 ngày / 4 tuần / AM tăng &amp; dự kiến tại menu <b>Bán Mới</b>.`
+    : `⚠️ API chưa trả sheet <b>Banmoi</b>. Copy <code>GAS-DoanhThu-TNT-API.gs</code> → Deploy Web App → bấm <b>Cập nhật dữ liệu</b> (hard refresh Cmd+Shift+R).`}
   <button type="button" class="btn primary" style="margin-left:10px;padding:6px 12px;font-size:12px" onclick="showPage('banMoi')">Mở Bán Mới →</button></div></div>
   ${projectionSection}
   ${insightSection}

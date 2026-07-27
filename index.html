@@ -382,7 +382,8 @@ const SHEET = {
   dtThang2025: 'DT-Tháng2025',  // Doanh thu 2025 — fetch theo tên sheet
   dtThang2026: 'DT-Tháng',       // Doanh thu 2026 — sheet bổ sung (vd. 2026/6 + 2026/06)
   doanhThuGTC: 'DoanhThu-GTC',    // Doanh thu GTC — cấu trúc giống DT-Tháng
-  totalKH: 'TotalKH'               // Chi tiết KH theo nhóm (alias: KHTotal)
+  totalKH: 'TotalKH',              // Chi tiết KH theo nhóm (alias: KHTotal)
+  banmoi: 'Banmoi'                 // Bán mới / KHM — DT lấy TC / giao trả TC (chưa VAT)
 };
 const NHOM_A_DT_NGUONG = 45e6;   // Ngưỡng nhóm A: 45 triệu đồng / tháng
 const VUNG_NAME = 'Vùng TNT';
@@ -1009,90 +1010,247 @@ function buildKhAAlertByAm(totalKH, thang, monthProgress, dtNgay){
     total:alertSrc.length
   };
 }
-function buildBanMoiDayCompare(totalKH, thang, dtNgay){
-  if(!totalKH||totalKH.length<2) return {isoN1:'',isoN2:'',rows:[],good:[],bad:[]};
-  const h=totalKH[0];
-  const iMa=idxOf(h,'MaKH'), iNhom=idxOf(h,'Nhom'), iVung=idxOf(h,'Vung');
-  const iNgayChuan=idxNgayChuanHoa(h);
-  const iNgay=idxOf(h,'Ngay');
-  const iDT=idxOf(h,'DT'), iNV=idxOf(h,'Nhanvien');
-  const iAMName=idxTotalKHAmChuan(h);
-  const recs=[]; // nhóm G theo AM
-  const dayRawAll={}; // tổng DT mọi nhóm / ngày (để scale)
-  for(let i=1;i<totalKH.length;i++){
-    const r=totalKH[i];
-    if(iVung>=0&&!isVungTnt(r[iVung])) continue;
-    const iso=resolveSheetNgayIso(r, iNgayChuan, iNgay);
+function idxFindAny(header, names, fallback){
+  if(!header) return fallback!=null?fallback:-1;
+  for(const n of names){
+    const i=idxOf(header,n);
+    if(i>=0) return i;
+  }
+  const lows=names.map(n=>String(n||'').trim().toLowerCase()).filter(Boolean);
+  for(let i=0;i<header.length;i++){
+    const h=String(header[i]||'').trim().toLowerCase();
+    if(!h) continue;
+    for(const n of lows){
+      if(h===n || h.includes(n)) return i;
+    }
+  }
+  return fallback!=null?fallback:-1;
+}
+function cleanAmName(s){
+  s=String(s||'').trim();
+  if(!s) return '';
+  const m=s.match(/^\d+\s*[-–]\s*(.+)$/);
+  return (m?m[1]:s).trim();
+}
+/** Trạng thái KHM hợp lệ: lấy thành công / giao trả thành công. Không có cột TT → giữ dòng. */
+function isKhmSuccessStatus(s){
+  s=String(s||'').trim().toLowerCase();
+  if(!s || s==='-' || s==='—') return true;
+  if(/(h[uủ]y|cancel|thất bại|kh[oô]ng thành công|fail|reject)/i.test(s) && !/thành công/.test(s)) return false;
+  if(/đang\s*(xử|giao|lấy)|pending|chờ|processing/i.test(s) && !/thành công/.test(s)) return false;
+  return /(lấy\s*thành\s*công|giao\s*trả\s*thành\s*công|delivered|picked\s*up|return\s*success|thành\s*công|success)/i.test(s)
+    || /lấy\s*tc|giao\s*trả\s*tc|gt\s*tc/i.test(s);
+}
+function parseBanMoiSheet(banmoi){
+  const empty={recs:[], firstByMa:{}, header:[], cols:{}, note:'Chưa có dữ liệu sheet Banmoi'};
+  if(!banmoi||banmoi.length<2) return empty;
+  const h=banmoi[0].map(x=>String(x||'').trim());
+  const cols={
+    ma: idxFindAny(h,['MaKH','Mã KH','MãKH','ClientID','Client Id','ID KH','IDKH','ShopID'],0),
+    ten: idxFindAny(h,['TenKH','Tên KH','TênKH','Tên shop','Shop','ShopName'],1),
+    first: idxFindAny(h,['Ngày LTC đầu tiên','Ngay LTC dau tien','Ngày đầu tiên','Ngày lên đơn đầu','Ngày quay lại','FirstOrder','Ngày đầu'],-1),
+    ngay: idxFindAny(h,['Ngày chuẩn hóa','Ngay chuan hoa','Ngày','Ngay','Ngày giao','Ngày lấy','Ngày thành công','OrderDate'],2),
+    am: idxFindAny(h,['AM Chuẩn','AM','Sale_Owner','Sale Owner','Nhanvien','Nhân viên','Tên AM'],3),
+    dt: idxFindAny(h,['DoanhThu_NoVAT','Doanh thu chưa VAT','DT chưa VAT','DT_NoVAT','Doanh thu KHM','DoanhThu','DT','Doanh thu'],7),
+    status: idxFindAny(h,['Trạng thái','TrangThai','Status','Trạng thái đơn','Loại trạng thái'],-1),
+    // Cột J (index 9) theo yêu cầu — tuần
+    tuan: idxFindAny(h,['Tuần','Tuan','Week','Tuần ISO','Tuần KHM'],9)
+  };
+  if(cols.tuan<0) cols.tuan=9;
+  const dayDt=raw=>{
+    const d=parseVNNum(raw);
+    if(!d) return 0;
+    // một số sheet ghi nghìn/triệu — nếu quá lớn bất thường giữ nguyên (đã là đồng)
+    return d;
+  };
+  const firstByMa={};
+  const recs=[];
+  for(let i=1;i<banmoi.length;i++){
+    const r=banmoi[i];
+    if(!r||!r.length) continue;
+    const ma=String(r[cols.ma]||'').trim();
+    const am=cleanAmName(r[cols.am]);
+    const iso=normalizeNgayToIso(r[cols.ngay]);
+    const firstIso=cols.first>=0?normalizeNgayToIso(r[cols.first]):'';
+    const dt=dayDt(r[cols.dt]);
+    const status=cols.status>=0?String(r[cols.status]||'').trim():'';
+    const tuan=String((cols.tuan>=0&&cols.tuan<r.length)?(r[cols.tuan]||''):'').trim();
+    if(!isKhmSuccessStatus(status)) continue;
+    if(ma && /^\d{4}-\d{2}-\d{2}$/.test(firstIso)){
+      if(!firstByMa[ma] || firstIso<firstByMa[ma]) firstByMa[ma]=firstIso;
+    }
+    if(ma && /^\d{4}-\d{2}-\d{2}$/.test(iso)){
+      if(!firstByMa[ma] || iso<firstByMa[ma]) firstByMa[ma]=iso;
+    }
     if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)) continue;
-    const mk=monthKeyFromIso(iso);
-    if(!mk||!thangEq(mk,thang)) continue;
-    const dt=parseVNNum(r[iDT]);
-    if(dt) dayRawAll[iso]=(dayRawAll[iso]||0)+dt;
-    if(normNhom(r[iNhom])!=='G') continue;
-    const amName=(iAMName>=0?(r[iAMName]||'').trim():'');
-    const nv=(iNV>=0?(r[iNV]||'').trim():'');
-    const amKey=amName||nv||'—';
-    if(amKey==='—') continue;
+    if(!(dt>0) && !ma) continue;
     recs.push({
+      ma:ma||'—',
+      ten:String(r[cols.ten]||'').trim(),
+      am:am||'—',
       iso,
-      amKey,
-      am:amName||nv||amKey,
-      ma:(r[iMa]||'').trim(),
-      dt
+      firstIso:firstIso||'',
+      dt:dt||0,
+      status,
+      tuan
     });
   }
-  // DT-Ngày vùng theo ngày → hệ số scale (TotalKH thô → đồng vùng)
-  const dayLtc={};
-  if(dtNgay&&dtNgay.length>1){
-    const hd=dtNgay[0], iNgayD=idxOf(hd,'Ngay'), iDTD=idxOf(hd,'DoanhThu');
-    if(iNgayD>=0&&iDTD>=0){
-      for(let i=1;i<dtNgay.length;i++){
-        const r=dtNgay[i];
-        const iso=normalizeNgayToIso(r[iNgayD]);
-        if(!iso||!thangEq(monthKeyFromIso(iso),thang)) continue;
-        dayLtc[iso]=(dayLtc[iso]||0)+parseVNNum(r[iDTD]);
-      }
-    }
-  }
-  const scaleK=iso=>{
-    const raw=dayRawAll[iso]||0;
-    const tgt=dayLtc[iso]||0;
-    return (raw>0&&tgt>0)?(tgt/raw):1;
-  };
-  let dates=uniqueList(recs.map(r=>r.iso)).sort();
-  // Nếu ngày mới nhất (N-1) DT vùng còn rất mỏng so với N-2 → coi chưa đủ ngày, so N-2 vs N-3
-  if(dates.length>=3){
-    const last=dates[dates.length-1], prev=dates[dates.length-2];
-    const ltcLast=dayLtc[last]||0, ltcPrev=dayLtc[prev]||0;
-    if(ltcPrev>0 && ltcLast>0 && ltcLast<ltcPrev*0.35){
-      dates=dates.slice(0,-1);
-    } else if(ltcPrev>0 && ltcLast<=0 && (dayRawAll[last]||0)<(dayRawAll[prev]||0)*0.35){
-      dates=dates.slice(0,-1);
-    }
-  }
-  const isoN1=dates[dates.length-1]||'';
-  const isoN2=dates.length>=2?dates[dates.length-2]:'';
-  if(!isoN1||!isoN2) return {isoN1,isoN2,rows:[],good:[],bad:[]};
-  const k1=scaleK(isoN1), k2=scaleK(isoN2);
-  const byAM={};
+  // Gán firstIso + lọc cửa sổ 30 ngày: [ngày đầu, ngày đầu + 29]
+  const out=[];
   recs.forEach(r=>{
-    if(r.iso!==isoN1&&r.iso!==isoN2) return;
-    if(!byAM[r.amKey]) byAM[r.amKey]={am:r.am,n1:0,n2:0,kh1:new Set(),kh2:new Set()};
-    else if(r.am&&r.am!=='—') byAM[r.amKey].am=r.am;
-    if(r.iso===isoN1){ byAM[r.amKey].n1+=r.dt*k1; if(r.ma) byAM[r.amKey].kh1.add(r.ma); }
-    if(r.iso===isoN2){ byAM[r.amKey].n2+=r.dt*k2; if(r.ma) byAM[r.amKey].kh2.add(r.ma); }
+    const first=r.firstIso || firstByMa[r.ma] || r.iso;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(first)) return;
+    const end=isoShiftDays(first,29);
+    if(r.iso<first || r.iso>end) return;
+    out.push({...r, firstIso:first, winEnd:end});
   });
-  const rows=Object.values(byAM).map(x=>{
-    const delta=x.n1-x.n2;
-    const pctD=x.n2>0?delta/x.n2*100:(x.n1>0?100:0);
-    return {...x,slkh1:x.kh1.size,slkh2:x.kh2.size,delta,pctD};
-  }).filter(x=>x.n1>0||x.n2>0).sort((a,b)=>b.delta-a.delta);
   return {
-    isoN1,isoN2,rows,
-    good:rows.filter(r=>r.delta>0).sort((a,b)=>b.delta-a.delta),
-    bad:rows.filter(r=>r.delta<0).sort((a,b)=>a.delta-b.delta),
-    scaled:Object.keys(dayLtc).length>0
+    recs:out,
+    firstByMa,
+    header:h,
+    cols,
+    note: out.length
+      ? `DT KHM = lấy TC / giao trả TC (chưa VAT) · cửa sổ 30 ngày từ ngày đầu lên đơn/quay lại`
+      : 'Sheet Banmoi không có dòng KHM hợp lệ trong cửa sổ 30 ngày'
   };
+}
+function buildBanMoiAmCompare(banmoi, nDays, nWeeks){
+  const daysN=Math.max(1,nDays||3);
+  const weeksN=Math.max(1,nWeeks||3);
+  const parsed=parseBanMoiSheet(banmoi);
+  const empty={days:[],weeks:[],dayRows:[],weekRows:[],goodDay:[],badDay:[],goodWeek:[],badWeek:[],totals:{},note:parsed.note||'',parsed};
+  if(!parsed.recs.length) return empty;
+  const dates=uniqueList(parsed.recs.map(r=>r.iso)).sort();
+  const days=dates.slice(-daysN);
+  // Tuần theo cột J — xếp theo ngày max trong tuần
+  const weekMax={};
+  parsed.recs.forEach(r=>{
+    const w=(r.tuan||'').trim();
+    if(!w) return;
+    if(!weekMax[w] || r.iso>weekMax[w]) weekMax[w]=r.iso;
+  });
+  let weeks=Object.keys(weekMax).sort((a,b)=>weekMax[a]<weekMax[b]?-1:weekMax[a]>weekMax[b]?1:String(a).localeCompare(String(b),'vi'));
+  // fallback: nếu thiếu cột tuần → suy từ ISO week của ngày đơn
+  if(!weeks.length){
+    parsed.recs.forEach(r=>{
+      const w=isoWeekFromIsoDate(r.iso).key;
+      if(!w) return;
+      r.tuan=w;
+      if(!weekMax[w] || r.iso>weekMax[w]) weekMax[w]=r.iso;
+    });
+    weeks=Object.keys(weekMax).sort((a,b)=>weekMax[a]<weekMax[b]?-1:1);
+  }
+  weeks=weeks.slice(-weeksN);
+  const byAmDay={}, byAmWeek={};
+  const bump=(map,am,key,dt,ma)=>{
+    if(!am||am==='—') return;
+    if(!map[am]) map[am]={am, vals:{}, kh:{}};
+    map[am].vals[key]=(map[am].vals[key]||0)+dt;
+    if(!map[am].kh[key]) map[am].kh[key]=new Set();
+    if(ma&&ma!=='—') map[am].kh[key].add(ma);
+  };
+  parsed.recs.forEach(r=>{
+    if(days.includes(r.iso)) bump(byAmDay,r.am,r.iso,r.dt,r.ma);
+    if(weeks.includes(r.tuan)) bump(byAmWeek,r.am,r.tuan,r.dt,r.ma);
+  });
+  const mkRows=(map,keys)=>{
+    return Object.values(map).map(x=>{
+      const vals=keys.map(k=>x.vals[k]||0);
+      const khs=keys.map(k=>(x.kh[k]?x.kh[k].size:0));
+      const last=vals[vals.length-1]||0;
+      const prev=vals.length>=2?vals[vals.length-2]:0;
+      const delta=last-prev;
+      const pctD=prev>0?delta/prev*100:(last>0?100:0);
+      return {am:x.am, vals, khs, last, prev, delta, pctD, total:vals.reduce((s,v)=>s+v,0)};
+    }).filter(r=>r.total>0).sort((a,b)=>b.delta-a.delta||b.last-a.last);
+  };
+  const dayRows=mkRows(byAmDay,days);
+  const weekRows=mkRows(byAmWeek,weeks);
+  const totDay=days.map((d,i)=>dayRows.reduce((s,r)=>s+(r.vals[i]||0),0));
+  const totWeek=weeks.map((w,i)=>weekRows.reduce((s,r)=>s+(r.vals[i]||0),0));
+  return {
+    days, weeks, dayRows, weekRows,
+    goodDay:dayRows.filter(r=>r.delta>0).sort((a,b)=>b.delta-a.delta),
+    badDay:dayRows.filter(r=>r.delta<0).sort((a,b)=>a.delta-b.delta),
+    goodWeek:weekRows.filter(r=>r.delta>0).sort((a,b)=>b.delta-a.delta),
+    badWeek:weekRows.filter(r=>r.delta<0).sort((a,b)=>a.delta-b.delta),
+    totals:{day:totDay, week:totWeek},
+    note:parsed.note,
+    parsed
+  };
+}
+/** Tổng DT KHM trong tháng (cùng kỳ N ngày đầu) từ Banmoi — đã lọc cửa sổ 30 ngày. */
+function sumBanMoiKhmCungKy(banmoi, thang, elapsedDays){
+  const {recs}=parseBanMoiSheet(banmoi);
+  const maxD=Math.max(1, elapsedDays||31);
+  let s=0;
+  recs.forEach(r=>{
+    const mk=monthKeyFromIso(r.iso);
+    if(!mk||!thangEq(mk,thang)) return;
+    const d=+String(r.iso).slice(8,10);
+    if(d>=1&&d<=maxD) s+=r.dt||0;
+  });
+  return s;
+}
+function renderOverviewBanMoiDaySection(bm){
+  const hasDays=bm&&bm.days&&bm.days.length;
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--green)">🆕</div>Bán Mới (KHM) — So sánh theo AM</div>`;
+  if(!hasDays){
+    html+=`<span class="badge">Sheet Banmoi</span></div><div class="section-note">${bm&&bm.note?bm.note:'Chưa có dữ liệu Banmoi. Kiểm tra API đã nạp sheet Banmoi.'}</div></div>`;
+    return html;
+  }
+  const daySpan=bm.days.map(isoShort2).join(' · ');
+  const weekSpan=(bm.weeks||[]).join(' · ')||'—';
+  html+=`<span class="badge">${daySpan}</span></div>`;
+  html+=`<div class="data-banner" style="margin:12px 16px 0">📦 Nguồn <b>Banmoi</b> · ${bm.note||''}<br>Tuần (cột J): <b>${weekSpan}</b></div>`;
+
+  // --- Bảng 3 ngày ---
+  html+=`<div style="padding:8px 16px 0;font-size:12px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:.4px">3 ngày gần nhất theo AM</div>`;
+  html+=`<div class="table-wrap" style="margin-top:8px"><table class="tbl-pro compact"><thead><tr>
+    <th>AM</th>${bm.days.map(d=>`<th class="num">${isoShort2(d)}</th>`).join('')}
+    <th class="num">Δ (N vs N-1)</th><th class="num">%</th>
+  </tr></thead><tbody>`;
+  (bm.dayRows||[]).forEach(r=>{
+    html+=`<tr><td><span class="lbl-name">${r.am}</span></td>
+      ${r.vals.map(v=>`<td class="num">${fmtVndCell(v)}</td>`).join('')}
+      <td class="num"><span class="trend-tag ${r.delta>=0?'down':'up'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td>
+      <td class="num">${r.prev>0?r.pctD.toFixed(0)+'%':(r.last>0?'mới':'—')}</td></tr>`;
+  });
+  if(bm.totals&&bm.totals.day){
+    const td=bm.totals.day;
+    const delta=(td[td.length-1]||0)-(td.length>=2?td[td.length-2]:0);
+    html+=`<tr class="tot"><td>TỔNG</td>${td.map(v=>`<td class="num">${fmtVndCell(v)}</td>`).join('')}
+      <td class="num">${delta>=0?'+':''}${fmtM(delta)} tr</td><td></td></tr>`;
+  }
+  html+=`</tbody></table></div>`;
+
+  // --- Bảng 3 tuần ---
+  if(bm.weeks&&bm.weeks.length){
+    html+=`<div style="padding:16px 16px 0;font-size:12px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:.4px">3 tuần gần nhất theo AM (cột J)</div>`;
+    html+=`<div class="table-wrap" style="margin-top:8px"><table class="tbl-pro compact"><thead><tr>
+      <th>AM</th>${bm.weeks.map(w=>`<th class="num">${w}</th>`).join('')}
+      <th class="num">Δ (W vs W-1)</th><th class="num">%</th>
+    </tr></thead><tbody>`;
+    (bm.weekRows||[]).forEach(r=>{
+      html+=`<tr><td><span class="lbl-name">${r.am}</span></td>
+        ${r.vals.map(v=>`<td class="num">${fmtVndCell(v)}</td>`).join('')}
+        <td class="num"><span class="trend-tag ${r.delta>=0?'down':'up'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td>
+        <td class="num">${r.prev>0?r.pctD.toFixed(0)+'%':(r.last>0?'mới':'—')}</td></tr>`;
+    });
+    if(bm.totals&&bm.totals.week){
+      const tw=bm.totals.week;
+      const delta=(tw[tw.length-1]||0)-(tw.length>=2?tw[tw.length-2]:0);
+      html+=`<tr class="tot"><td>TỔNG</td>${tw.map(v=>`<td class="num">${fmtVndCell(v)}</td>`).join('')}
+        <td class="num">${delta>=0?'+':''}${fmtM(delta)} tr</td><td></td></tr>`;
+    }
+    html+=`</tbody></table></div>`;
+  }
+
+  const top=(bm.goodDay||[]).slice(0,3).map(r=>r.am).join(', ')||'—';
+  const weak=(bm.badDay||[]).slice(0,3).map(r=>r.am).join(', ')||'—';
+  html+=analysisQuick(`AM tăng DT KHM ngày gần nhất: <b>${top}</b> · AM giảm: <b>${weak}</b>.`);
+  html+=`</div>`;
+  return html;
 }
 function buildKhNoOrder3d(totalKH, thang, nDays){
   const days=Math.max(1, nDays||3);
@@ -1193,33 +1351,6 @@ function renderOverviewKhASection(alertData){
   html+=`</tbody></table></div>`;
   html+=analysisQuick(`<b>${alertData.total}</b> KH A cảnh báo · so <b>${wd}</b> tuần này vs <b>${wd}</b> tuần trước · nhóm theo AM.`);
   html+=`</div>`;
-  return html;
-}
-function renderOverviewBanMoiDaySection(bm){
-  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--green)">🆕</div>Bán Mới (Nhóm G) — Ngày N-1 vs N-2</div>`;
-  if(!bm.isoN1||!bm.isoN2){
-    html+=`<span class="badge">Chưa đủ 2 ngày</span></div><div class="section-note">Cần ít nhất 2 ngày dữ liệu nhóm G trong tháng.</div></div>`;
-    return html;
-  }
-  html+=`<span class="badge">${isoShort2(bm.isoN2)} → ${isoShort2(bm.isoN1)}</span></div>`;
-  html+=`<div class="overview-split">`;
-  const renderSide=(title,icon,list,cls)=>{
-    let s=`<div class="overview-half"><div class="overview-half-hd ${cls}">${icon} ${title} (${list.length})</div>`;
-    if(!list.length) s+=`<div class="section-note" style="padding:12px 16px">—</div>`;
-    else{
-      s+=`<div class="table-wrap"><table class="tbl-pro compact"><thead><tr><th>AM</th><th class="num">${isoShort2(bm.isoN2)}</th><th class="num">${isoShort2(bm.isoN1)}</th><th class="num">Δ</th><th class="num">%</th></tr></thead><tbody>`;
-      list.slice(0,10).forEach(r=>{
-        s+=`<tr><td><span class="lbl-name">${r.am}</span></td><td class="num">${fmtVnd(r.n2)}</td><td class="num">${fmtVnd(r.n1)}</td>
-          <td class="num"><span class="trend-tag ${r.delta>=0?'down':'up'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td>
-          <td class="num">${r.n2>0?r.pctD.toFixed(0)+'%':(r.n1>0?'mới':'—')}</td></tr>`;
-      });
-      s+=`</tbody></table></div>`;
-    }
-    return s+'</div>';
-  };
-  html+=renderSide('AM tốt (tăng DT)','▲',bm.good,'good');
-  html+=renderSide('AM tệ (giảm DT)','▼',bm.bad,'bad');
-  html+=`</div>${analysisQuick(`So sánh DT bán mới nhóm G theo AM · ngày <b>${isoShort2(bm.isoN1)}</b> vs <b>${isoShort2(bm.isoN2)}</b>${bm.scaled?' · đã scale khớp DT-Ngày vùng':''}.`)}</div>`;
   return html;
 }
 function buildAmNhomWow(totalKH, thang, elapsed){
@@ -2679,7 +2810,10 @@ const GID_KEY_MAP = {
 const NAME_KEY_MAP = {
   'DT-Tháng2025':'dtThang2025',
   'DoanhThu-GTC':'dtGtc',
-  'TotalKH':'totalKH'
+  'TotalKH':'totalKH',
+  'Banmoi':'banmoi',
+  'BanMoi':'banmoi',
+  'Bán mới':'banmoi'
 };
 let __ghnApiPromise = null;
 const GHN_CACHE_DB='ghn_tnt_cache_v2';
@@ -3044,9 +3178,17 @@ async function fetchTotalKH(){
   const data = await __ghnFetchApi();
   return data.totalKH || [];
 }
+async function fetchBanMoi(){
+  const data = await __ghnFetchApi();
+  return data.banmoi || data.Banmoi || data.banMoi || data['Banmoi'] || data['Bán mới'] || [];
+}
 /*                       AM DATA SCOPE (phân quyền xem theo AM)                       */
 function findAmColIndex(header){
   let i = header.indexOf('AM Chuẩn');
+  if(i>=0) return i;
+  i = header.indexOf('AM');
+  if(i>=0) return i;
+  i = header.indexOf('Sale_Owner');
   if(i>=0) return i;
   i = header.indexOf('Tỉnh Chuẩn');
   if(i>0) return i-1;
@@ -3076,7 +3218,7 @@ function filterKpiAM(rows, amName){
 function applyAmScope(data){
   if(window.IS_FULL_ACCESS) return data;
   if(!window.MY_AM_NAME){
-    return { ketQua:[], kpiAM:[], dtNgay:[], phanNhom:[], khNhomA:[], dtThang:[], dtThang2025:[], dtGtc:[], totalKH:[] };
+    return { ketQua:[], kpiAM:[], dtNgay:[], phanNhom:[], khNhomA:[], dtThang:[], dtThang2025:[], dtGtc:[], totalKH:[], banmoi:[] };
   }
   const am = window.MY_AM_NAME;
   return {
@@ -3088,7 +3230,8 @@ function applyAmScope(data){
     dtThang: filterRowsByAM(data.dtThang, am),
     dtThang2025: filterRowsByAM(data.dtThang2025, am),
     dtGtc: filterRowsByAM(data.dtGtc, am),
-    totalKH: filterRowsByAM(data.totalKH, am)
+    totalKH: filterRowsByAM(data.totalKH, am),
+    banmoi: filterRowsByAM(data.banmoi, am)
   };
 }
 
@@ -3104,10 +3247,10 @@ async function loadAll(opts){
       const cached=await cacheLoadRaw(window.CURRENT_USER_EMAIL);
       if(cached&&cached.data){
         hydrateApiData(cached.data);
-        const [ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH] = await Promise.all([
-          fetchGid(GID.ketQua), fetchGid(GID.kpiAM), fetchGid(GID.dtNgay), fetchGid(GID.phanNhom), fetchGid(GID.khNhomA), fetchDtThang2026(), fetchSheet(SHEET.dtThang2025), fetchSheet(SHEET.doanhThuGTC), fetchTotalKH()
+        const [ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH, banmoi] = await Promise.all([
+          fetchGid(GID.ketQua), fetchGid(GID.kpiAM), fetchGid(GID.dtNgay), fetchGid(GID.phanNhom), fetchGid(GID.khNhomA), fetchDtThang2026(), fetchSheet(SHEET.dtThang2025), fetchSheet(SHEET.doanhThuGTC), fetchTotalKH(), fetchBanMoi()
         ]);
-        window._DATA = applyAmScope({ ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH });
+        window._DATA = applyAmScope({ ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH, banmoi });
         loaded = true;
         document.getElementById('exportDocBtn').disabled = false;
         const ageMin=Math.max(0, Math.round((Date.now()-(cached.fetchedAt||0))/60000));
@@ -3120,10 +3263,10 @@ async function loadAll(opts){
       }
     }
     await __ghnFetchApi({force:true});
-    const [ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH] = await Promise.all([
-      fetchGid(GID.ketQua), fetchGid(GID.kpiAM), fetchGid(GID.dtNgay), fetchGid(GID.phanNhom), fetchGid(GID.khNhomA), fetchDtThang2026(), fetchSheet(SHEET.dtThang2025), fetchSheet(SHEET.doanhThuGTC), fetchTotalKH()
+    const [ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH, banmoi] = await Promise.all([
+      fetchGid(GID.ketQua), fetchGid(GID.kpiAM), fetchGid(GID.dtNgay), fetchGid(GID.phanNhom), fetchGid(GID.khNhomA), fetchDtThang2026(), fetchSheet(SHEET.dtThang2025), fetchSheet(SHEET.doanhThuGTC), fetchTotalKH(), fetchBanMoi()
     ]);
-    window._DATA = applyAmScope({ ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH });
+    window._DATA = applyAmScope({ ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH, banmoi });
     loaded = true;
     document.getElementById('exportDocBtn').disabled = false;
     document.getElementById('lastUpdate').textContent = (background?'Đã đồng bộ: ':'Tải lúc: ') + new Date().toLocaleString('vi-VN');
@@ -3156,7 +3299,7 @@ function showPage(p){
 /* ===================== 1) TỔNG QUAN ===================== */
 function renderOverview(){
   const el = document.getElementById('overview');
-  const { ketQua, kpiAM, dtNgay, phanNhom, dtThang, dtThang2025, khNhomA, totalKH, dtGtc } = window._DATA;
+  const { ketQua, kpiAM, dtNgay, phanNhom, dtThang, dtThang2025, khNhomA, totalKH, dtGtc, banmoi } = window._DATA;
   const thang = currentThang();
   const thangLabel = formatThangLabel(thang);
   const dtThangRecs = reconcileDtWithKetQua(mergeDtThangRecs(dtThang2025, dtThang), ketQua, thang);
@@ -3252,21 +3395,27 @@ function renderOverview(){
   const nhom14dSection = renderOverviewNhom14dSection(nhom14dSeries);
   const khASection = renderOverviewKhASection(buildKhAAlertByAm(totalKH, thang, monthProgress, dtNgay));
   const noOrder3dSection = renderOverviewNoOrder3dSection(buildKhNoOrder3d(totalKH, thang, 3));
-  const banMoiDaySection = renderOverviewBanMoiDaySection(buildBanMoiDayCompare(totalKH, thang, dtNgay));
+  const banMoiDaySection = renderOverviewBanMoiDaySection(buildBanMoiAmCompare(banmoi, 3, 3));
   let banMoiMtd=0, banMoiMtdPrev=0;
   try{
-    const rawG=sumNhomDtCungKy(totalKH, thang, 'G', elapsed);
-    const rawA=sumNhomDtCungKy(totalKH, thang, 'A', elapsed);
-    const rawB=sumNhomDtCungKy(totalKH, thang, 'BCD', elapsed);
-    const rawE=sumNhomDtCungKy(totalKH, thang, 'EF', elapsed);
-    banMoiMtd=allocateGiuBanMoi(totalActual, rawA+rawB+rawE, rawG).mtdBanMoi||0;
-    if(thangPrevM){
-      const prevLtcCk=Object.values(prevLtcByAM||{}).reduce((s,v)=>s+(+v||0),0);
-      const pG=sumNhomDtCungKy(totalKH, thangPrevM, 'G', elapsed);
-      const pA=sumNhomDtCungKy(totalKH, thangPrevM, 'A', elapsed);
-      const pB=sumNhomDtCungKy(totalKH, thangPrevM, 'BCD', elapsed);
-      const pE=sumNhomDtCungKy(totalKH, thangPrevM, 'EF', elapsed);
-      banMoiMtdPrev=allocateGiuBanMoi(prevLtcCk||(pA+pB+pE+pG), pA+pB+pE, pG).mtdBanMoi||0;
+    const bmCur=sumBanMoiKhmCungKy(banmoi, thang, elapsed);
+    if(bmCur>0){
+      banMoiMtd=bmCur;
+      banMoiMtdPrev=thangPrevM?sumBanMoiKhmCungKy(banmoi, thangPrevM, elapsed):0;
+    } else {
+      const rawG=sumNhomDtCungKy(totalKH, thang, 'G', elapsed);
+      const rawA=sumNhomDtCungKy(totalKH, thang, 'A', elapsed);
+      const rawB=sumNhomDtCungKy(totalKH, thang, 'BCD', elapsed);
+      const rawE=sumNhomDtCungKy(totalKH, thang, 'EF', elapsed);
+      banMoiMtd=allocateGiuBanMoi(totalActual, rawA+rawB+rawE, rawG).mtdBanMoi||0;
+      if(thangPrevM){
+        const prevLtcCk=Object.values(prevLtcByAM||{}).reduce((s,v)=>s+(+v||0),0);
+        const pG=sumNhomDtCungKy(totalKH, thangPrevM, 'G', elapsed);
+        const pA=sumNhomDtCungKy(totalKH, thangPrevM, 'A', elapsed);
+        const pB=sumNhomDtCungKy(totalKH, thangPrevM, 'BCD', elapsed);
+        const pE=sumNhomDtCungKy(totalKH, thangPrevM, 'EF', elapsed);
+        banMoiMtdPrev=allocateGiuBanMoi(prevLtcCk||(pA+pB+pE+pG), pA+pB+pE, pG).mtdBanMoi||0;
+      }
     }
   }catch(e){ console.warn('banMoiMtd', e); }
   let projectionSection='';

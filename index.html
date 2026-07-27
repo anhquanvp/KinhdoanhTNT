@@ -1376,7 +1376,7 @@ function renderOverviewBanMoiDaySection(bm){
   (bm.dayRows||[]).forEach(r=>{
     html+=`<tr><td><span class="lbl-name">${r.am}</span></td>
       ${r.vals.map(v=>`<td class="num">${fmtVndCell(v)}</td>`).join('')}
-      <td class="num"><span class="trend-tag ${r.delta>=0?'down':'up'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td>
+      <td class="num"><span class="trend-tag ${r.delta>=0?'up':'down'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td>
       <td class="num">${r.prev>0?r.pctD.toFixed(0)+'%':(r.last>0?'mới':'—')}</td></tr>`;
   });
   if(bm.totals&&bm.totals.day){
@@ -1397,7 +1397,7 @@ function renderOverviewBanMoiDaySection(bm){
     (bm.weekRows||[]).forEach(r=>{
       html+=`<tr><td><span class="lbl-name">${r.am}</span></td>
         ${r.vals.map(v=>`<td class="num">${fmtVndCell(v)}</td>`).join('')}
-        <td class="num"><span class="trend-tag ${r.delta>=0?'down':'up'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td>
+        <td class="num"><span class="trend-tag ${r.delta>=0?'up':'down'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td>
         <td class="num">${r.prev>0?r.pctD.toFixed(0)+'%':(r.last>0?'mới':'—')}</td></tr>`;
     });
     if(bm.totals&&bm.totals.week){
@@ -1623,7 +1623,7 @@ function renderBanMoiAmMatrixTable(title, keys, rows, keyFmt, totals, firstCol, 
     if(col2) html+=`<td>${r[col2.key]||'—'}</td>`;
     r.vals.forEach(v=>{ html+=`<td class="num">${fmtVndCell(v)}</td>`; });
     html+=`<td class="num">${fmtVndCell(r.total)}</td>
-      <td class="num"><span class="trend-tag ${r.delta>=0?'down':'up'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td></tr>`;
+      <td class="num"><span class="trend-tag ${r.delta>=0?'up':'down'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td></tr>`;
   });
   if(totals&&totals.length){
     const sum=totals.reduce((s,v)=>s+v,0);
@@ -1639,8 +1639,6 @@ function renderBanMoiTrendSection(trend){
   const t=trend||{};
   let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--blue)">📈</div>AM theo tháng · vs cùng kỳ · Dự kiến đạt ${t.thangLabel||'tháng'}</div>
     <span class="badge">${t.elapsed||'—'}/${t.totalDays||'—'} ngày · ${(t.rows||[]).length} AM</span></div>`;
-  html+=`<div class="data-banner" style="margin:12px 16px 0">So sánh KHM cùng kỳ <b>${t.elapsed||'—'}</b> ngày đầu: <b>${t.thangLabel||'—'}</b> vs <b>${t.thangPrevLabel||'T-1'}</b>.
-    Target bán mới AM ≈ max(0, KPI CM − DT tháng trước). Dự kiến = MTD ÷ ngày × đủ tháng. Hiển thị <b>tất cả AM</b>.</div>`;
   const list=t.rows||[];
   if(!list.length){
     html+=`<div class="section-note">Chưa có dữ liệu AM KHM theo tháng.</div></div>`;
@@ -1662,7 +1660,7 @@ function renderBanMoiTrendSection(trend){
       <td><span class="lbl-name">${r.am}</span></td>
       <td class="num">${fmtVndCell(r.cur)}</td>
       <td class="num">${fmtVndCell(r.prev)}</td>
-      <td class="num"><span class="trend-tag ${r.delta>=0?'down':'up'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td>
+      <td class="num"><span class="trend-tag ${r.delta>=0?'up':'down'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td>
       <td class="num">${r.prev>0||r.cur>0?`${r.pctMom>=0?'+':''}${r.pctMom.toFixed(0)}%`:'—'}</td>
       <td class="num">${fmtVndCell(r.proj)}</td>
       <td class="num">${r.targetBan?fmtVndCell(r.targetBan):(r.kpiCm?fmtVndCell(r.kpiCm):'<span class="empty-val">—</span>')}</td>
@@ -1727,9 +1725,9 @@ function thangSortKey(thang){
 }
 function renderBanMoiChartsHtml(){
   return `<div class="chart-grid" style="margin-top:4px">
-    <div class="chart-box"><div class="chart-title">DT KHM — 7 ngày gần nhất</div><div class="chart-sub">Tổng doanh thu bán mới · triệu đồng</div><div class="chart-wrap"><canvas id="cBanMoi7d"></canvas></div></div>
-    <div class="chart-box"><div class="chart-title">DT KHM — 4 tuần gần nhất</div><div class="chart-sub">Tuần ISO từ ngày cột J · triệu đồng</div><div class="chart-wrap"><canvas id="cBanMoi4w"></canvas></div></div>
-    <div class="chart-box"><div class="chart-title">DT KHM — 2 tháng gần nhất</div><div class="chart-sub">Theo tháng đơn hàng · triệu đồng</div><div class="chart-wrap"><canvas id="cBanMoi2m"></canvas></div></div>
+    <div class="chart-box"><div class="chart-title">DT KHM — 7 ngày gần nhất</div><div class="chart-wrap"><canvas id="cBanMoi7d"></canvas></div></div>
+    <div class="chart-box"><div class="chart-title">DT KHM — 4 tuần gần nhất</div><div class="chart-wrap"><canvas id="cBanMoi4w"></canvas></div></div>
+    <div class="chart-box"><div class="chart-title">DT KHM — 2 tháng gần nhất</div><div class="chart-wrap"><canvas id="cBanMoi2m"></canvas></div></div>
   </div>`;
 }
 function drawBanMoiCharts(series){
@@ -1769,11 +1767,10 @@ function renderBanMoiKhoTrendSection(trend){
   const t=trend||{};
   if(t.hasKho===false){
     return `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:#0F766E">🏣</div>Bưu cục · Trend vs cùng kỳ</div></div>
-      <div class="section-note">Sheet Banmoi chưa có cột <b>Kho Chuẩn / Bưu cục</b>. Thêm cột này vào sheet rồi Cập nhật dữ liệu.</div></div>`;
+      <div class="section-note">Chưa có cột bưu cục.</div></div>`;
   }
   let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:#0F766E">🏣</div>Bưu cục · Trend vs cùng kỳ · Dự kiến ${t.thangLabel||'tháng'}</div>
     <span class="badge">${t.elapsed||'—'}/${t.totalDays||'—'} ngày · ${(t.rows||[]).length} BC</span></div>`;
-  html+=`<div class="data-banner" style="margin:12px 16px 0">KHM cùng kỳ <b>${t.elapsed||'—'}</b> ngày: <b>${t.thangLabel||'—'}</b> vs <b>${t.thangPrevLabel||'T-1'}</b>. Dự kiến = MTD ÷ ngày × đủ tháng.</div>`;
   const list=t.rows||[];
   if(!list.length){
     html+=`<div class="section-note">Chưa có DT KHM theo bưu cục trong bộ lọc hiện tại.</div></div>`;
@@ -1793,7 +1790,7 @@ function renderBanMoiKhoTrendSection(trend){
       <td>${r.amName||'—'}</td>
       <td class="num">${fmtVndCell(r.cur)}</td>
       <td class="num">${fmtVndCell(r.prev)}</td>
-      <td class="num"><span class="trend-tag ${r.delta>=0?'down':'up'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td>
+      <td class="num"><span class="trend-tag ${r.delta>=0?'up':'down'}">${r.delta>=0?'+':''}${fmtM(r.delta)} tr</span></td>
       <td class="num">${r.prev>0||r.cur>0?`${r.pctMom>=0?'+':''}${r.pctMom.toFixed(0)}%`:'—'}</td>
       <td class="num">${fmtVndCell(r.proj)}</td>
     </tr>`;
@@ -1820,7 +1817,7 @@ function renderBanMoiFilterBar(banmoi, flt){
     <div class="flt-actions">
       <button type="button" class="flt-btn" onclick="resetBanMoiFilter()">Xóa lọc</button>
     </div>
-    <p class="flt-meta">Bộ lọc: <b>${docEsc(banMoiFilterLabel(f))}</b> · ${filterBanMoiRecs(parsed.recs,f).length}/${parsed.recs.length} dòng KHM</p>
+    <p class="flt-meta">Bộ lọc: <b>${docEsc(banMoiFilterLabel(f))}</b></p>
   </div>`;
 }
 function renderBanMoi(){
@@ -1840,13 +1837,8 @@ function renderBanMoi(){
   catch(e){ console.warn('banMoi kho trend', e); khoTrend={rows:[],upRows:[],hasKho:false,thangLabel,elapsed,totalDays}; }
   const charts=buildBanMoiChartSeries(banmoi, flt);
 
-  const note=cmp.note||'';
-  const daySpan=(cmp.days&&cmp.days.length)?`${isoShort2(cmp.days[0])} → ${isoShort2(cmp.days[cmp.days.length-1])}`:'—';
-  const weekSpan=(cmp.weeks||[]).map(weekLabelShort).join(' · ')||'—';
   let html=`<div class="page-hd" style="margin-bottom:16px">
     <h2 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-.3px">🆕 Bán Mới (KHM)</h2>
-    <p style="margin:6px 0 0;color:var(--text-sub);font-size:13px">Nguồn sheet <b>Banmoi</b> · ${note||'DT lấy TC / giao trả TC (chưa VAT) · cửa sổ 30 ngày'} · Tháng ${thangLabel}</p>
-    <p style="margin:4px 0 0;color:var(--text-muted);font-size:12px">Ngày gần nhất: <b>${daySpan}</b> · Tuần (ISO từ ngày cột J): <b>${weekSpan}</b></p>
   </div>`;
   if(!(banmoi&&banmoi.length>1)){
     html+=`<div class="data-banner err">⚠️ Chưa có dữ liệu <b>Banmoi</b> từ API.<br>
@@ -1862,7 +1854,7 @@ function renderBanMoi(){
   html+=renderBanMoiChartsHtml();
   html+=renderBanMoiTrendSection(trend);
   html+=renderBanMoiAmMatrixTable(
-    'Theo AM — 4 tuần gần nhất (week từ ngày cột J)',
+    'Theo AM — 4 tuần gần nhất',
     cmp.weeks||[],
     cmp.weekRows||[],
     weekLabelShort,
@@ -1870,7 +1862,7 @@ function renderBanMoi(){
     'AM'
   );
   html+=renderBanMoiAmMatrixTable(
-    'Theo AM — 14 ngày lịch gần nhất',
+    'Theo AM — 14 ngày gần nhất',
     cmp.days||[],
     cmp.dayRows||[],
     isoShort2,
@@ -1879,10 +1871,10 @@ function renderBanMoi(){
   );
   if(khoCmp.hasKho===false){
     html+=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:#0F766E">🏣</div>Theo bưu cục — 4 tuần gần nhất</div></div>
-      <div class="section-note">Sheet Banmoi chưa có cột <b>Kho Chuẩn / Bưu cục</b>.</div></div>`;
+      <div class="section-note">Chưa có cột bưu cục.</div></div>`;
   } else {
     html+=renderBanMoiAmMatrixTable(
-      'Theo bưu cục — 4 tuần gần nhất (week từ ngày cột J)',
+      'Theo bưu cục — 4 tuần gần nhất',
       khoCmp.weeks||[],
       khoCmp.weekRows||[],
       weekLabelShort,

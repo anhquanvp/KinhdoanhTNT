@@ -67,7 +67,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .kpi-card .progress-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--blue),var(--blue-dark));transition:width .4s ease}
 .kpi-card .progress-lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-top:6px;font-weight:500}
 .kpi-card .cmp{margin-top:12px;padding-top:12px;border-top:1px solid var(--border-light);font-size:12px;line-height:1.65;color:var(--text-sub)}
-.kpi-card .cmp b{font-weight:700;color:var(--text-main);font-variant-numeric:tabular-nums}
+.kpi-card .cmp b{font-weight:700;color:var(--text-main);font-variant-numeric:tabular-nums} .kpi-ring-wrap{position:relative;width:78px;height:78px;margin:14px auto 0} .kpi-ring-wrap svg{width:78px;height:78px;transform:rotate(-90deg)} .kpi-ring-wrap .ring-bg{fill:none;stroke:var(--border-light);stroke-width:8} .kpi-ring-wrap .ring-fg{fill:none;stroke:var(--blue);stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .6s ease} .kpi-ring-wrap .ring-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center} .kpi-ring-wrap .ring-pct{font-size:17px;font-weight:800;color:var(--ink);line-height:1} .kpi-ring-wrap .ring-days{font-size:9px;font-weight:600;color:var(--text-muted);margin-top:2px}
 .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-sm);border:1px solid var(--border);margin-bottom:24px;overflow:hidden}
 .card-header{padding:16px 22px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:linear-gradient(180deg,#FAFBFC 0%,#FFF 100%)}
 .card-title{display:flex;align-items:center;gap:10px;font-weight:700;font-size:14px;color:var(--ink);letter-spacing:-.2px}
@@ -2048,14 +2048,6 @@ function renderBanMoi(){
     cmp.weekRows||[],
     weekLabelShort,
     (cmp.totals&&cmp.totals.week)||[],
-    'AM'
-  );
-  html+=renderBanMoiAmMatrixTable(
-    'Theo AM — 14 ngày gần nhất',
-    cmp.days||[],
-    cmp.dayRows||[],
-    isoShort2,
-    (cmp.totals&&cmp.totals.day)||[],
     'AM'
   );
   if(khoCmp.hasKho===false){
@@ -4165,8 +4157,8 @@ function renderOverview(){
       <div class="ic" style="background:var(--blue-light);color:var(--blue-dark)">⏱️</div>
       <div class="lbl">Thời gian đã qua trong tháng</div>
       <div class="val"><span class="hero-amt">${elapsed}</span><span class="hero-sub"> / ${totalDays} ngày</span></div>
-      <div class="progress"><div class="progress-fill" style="width:${pctTime.toFixed(1)}%"></div></div>
-      <div class="progress-lbl"><span>Tháng ${thangLabel}</span><span>${pctTime.toFixed(0)}% tháng</span></div>
+      <div class="kpi-ring-wrap"><svg viewBox="0 0 78 78"><circle class="ring-bg" cx="39" cy="39" r="33"></circle><circle class="ring-fg" cx="39" cy="39" r="33" stroke-dasharray="207.3" stroke-dashoffset="${(207.3*(1-pctTime/100)).toFixed(1)}"></circle></svg><div class="ring-label"><span class="ring-pct">${pctTime.toFixed(0)}%</span><span class="ring-days">${elapsed}/${totalDays}N</span></div></div>
+      <div class="progress-lbl"><span>Tháng ${thangLabel}</span></div>
       <div class="sub">${dataNote}</div>
     </div>
     <div class="kpi-card">
@@ -4197,54 +4189,6 @@ function renderOverview(){
     </div>
   </div>`;
 
-  let table = `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">📊</div>Doanh Thu Theo AM</div><span class="badge">Tháng ${thangLabel} · ${elapsed}/${totalDays} ngày</span></div>
-  <div class="table-wrap"><table class="tbl-pro compact"><thead><tr>
-    <th style="width:36px">#</th>
-    <th>AM</th>
-    <th class="num">MTD LTC</th>
-    <th class="num">Volume</th>
-    <th class="num">KPI Cty CK</th>
-    <th class="num">% Đạt LTC</th>
-    <th class="num">% Đạt Cty</th>
-    <th class="num">Dự kiến</th>
-    <th class="num">% DK/Cty</th>
-  </tr></thead><tbody>`;
-  rows.forEach((r,i)=>{
-    const projRateCm=r.kpiCm?pct(r.projected,r.kpiCm):0;
-    table += `<tr><td><span class="rank-num${i<3?' top3':''}">${i+1}</span></td><td><span class="lbl-name">${r.am}</span></td>
-      <td class="num">${fmtVndCell(r.actual)}</td>
-      <td class="num">${fmtVolCell(r.vol)}</td>
-      <td class="num">${r.kpiCmPeriod?fmtVndCell(r.kpiCmPeriod):'<span class="empty-val">—</span>'}</td>
-      <td class="num">${r.kpiCm?pctCell(r.rateCmPeriod):'<span class="empty-val">—</span>'}</td>
-      <td class="num">${r.kpiCm?pctCell(r.rateGtcCmPeriod):'<span class="empty-val">—</span>'}</td>
-      <td class="num">${fmtVndCell(r.projected)}</td>
-      <td class="num">${r.kpiCm?pctCell(projRateCm):'<span class="empty-val">—</span>'}</td>
-    </tr>`;
-  });
-  const projRateCmTotal=pct(totalProjected, totalKpiCm||totalKpiVung);
-  table += `<tr class="tot"><td></td><td>TỔNG VÙNG TNT</td>
-    <td class="num">${fmtVndCell(totalActual)}</td>
-    <td class="num">${fmtVolCell(totalVol)}</td>
-    <td class="num">${fmtVndCell(totalKpiCmPeriod)}</td>
-    <td class="num">${kpiCmHasData?`<span class="pct-pill ${pctClass(pct(totalActual,totalKpiCmPeriod))}">${pct(totalActual,totalKpiCmPeriod).toFixed(0)}%</span>`:'—'}</td>
-    <td class="num">${kpiCmHasData?`<span class="pct-pill ${pctClass(pct(totalGtc,totalKpiCmPeriod))}">${pct(totalGtc,totalKpiCmPeriod).toFixed(0)}%</span>`:'—'}</td>
-    <td class="num">${fmtVndCell(totalProjected)}</td>
-    <td class="num"><span class="pct-pill ${pctClass(projRateCmTotal)}">${projRateCmTotal.toFixed(0)}%</span></td></tr>`;
-  table += `</tbody></table></div>`;
-
-  const worst = rows.filter(r=>r.kpiCm>0).slice().sort((a,b)=>a.rateGtcCmPeriod-b.rateGtcCmPeriod)[0]
-    || rows.slice().sort((a,b)=>a.ratePeriod-b.ratePeriod)[0];
-  const best = rows.filter(r=>r.kpiCm>0).slice().sort((a,b)=>b.rateGtcCmPeriod-a.rateGtcCmPeriod)[0]
-    || rows.slice().sort((a,b)=>b.ratePeriod-a.ratePeriod)[0];
-  table += analysisQuick(`
-    Qua ${elapsed}/${totalDays} ngày, vùng đạt <b>${fmtVnd(totalActual)}</b> MTD LTC
-    (<b>${rateTotal.toFixed(0)}%</b> KPI Vùng cùng kỳ · <b>${kpiCmHasData?pct(totalActual,totalKpiCmPeriod).toFixed(0)+'%':'—'}</b> % Đạt KPI LTC · <b>${kpiCmHasData?pct(totalGtc,totalKpiCmPeriod).toFixed(0)+'%':'—'}</b> % Đạt KPI Cty).
-    DT GTTC <b>${fmtVnd(totalGtc)}</b> · Dự kiến DT LTC <b>${fmtVnd(totalProjected)}</b> (${projRateTotal.toFixed(0)}% KPI Vùng).
-    Dẫn đầu (% Đạt KPI Cty): <b>${best?best.am:'—'}</b> · Cần hỗ trợ: <b>${worst?worst.am:'—'}</b>.
-    ${!kpiCmHasData ? '<br><span class="lbl-sub">⚠️ Chưa có cột KPI Cty / KPI CM trong sheet KPI AM.</span>' : ''}
-  `);
-  table += `</div>`;
-
   const { recs: pnRecs } = parsePhanNhomRecs(phanNhom);
   const slkhInfo = slkhByNhomCurrentMonth(pnRecs, thang);
   const slkhSection = renderSlkhSection(slkhInfo, thangLabel);
@@ -4266,7 +4210,6 @@ function renderOverview(){
   <button type="button" class="btn primary" style="margin-left:10px;padding:6px 12px;font-size:12px" onclick="showPage('banMoi')">Mở Bán Mới →</button></div></div>
   ${projectionSection}
   ${insightSection}
-  ${table}
   ${chartSection}
   ${slkhSection}
   ${hangSection}

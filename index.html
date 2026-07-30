@@ -206,6 +206,45 @@ table.tbl-pro.compact td,table.tbl-pro.compact th{padding:5px 6px;font-size:11px
 .cust-list{line-height:1.75}
 .cust-chip{display:inline-block;font-size:11px;padding:2px 7px;margin:2px 3px 2px 0;border-radius:5px;background:var(--border-light);color:var(--text-main);font-weight:500}
 .cust-chip.warn{background:var(--yellow-bg);color:#92400E;border:1px solid #F5DEB0}
+.cust-chip.bad{background:var(--red-bg);color:var(--red);border:1px solid rgba(220,38,38,.25)}
+
+/* KH cần xử lý — theo mẫu báo cáo */
+.khA-need-tbl td{vertical-align:middle}
+.khA-need-tbl .lbl-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+.khA-hang{font-weight:700;color:var(--ink);white-space:nowrap}
+.khA-hang.drop{color:var(--red)}
+.khA-hang-arrow{font-size:11px;margin-left:2px}
+.khA-muc{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:8px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.khA-muc .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.khA-muc.crit{background:var(--red-bg);color:var(--red)}
+.khA-muc.crit .dot{background:var(--red)}
+.khA-muc.warn{background:#FFF7ED;color:#C2410C}
+.khA-muc.warn .dot{background:#F97316}
+.khA-sig-wrap{display:flex;flex-wrap:wrap;gap:4px}
+.khA-sig{display:inline-block;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;border:1px solid var(--border);background:#F8FAFC;color:var(--text-sub)}
+.khA-sig.sig-down{background:#F1F5F9;color:#475569}
+.khA-sig.sig-stop{background:var(--red-bg);color:var(--red);border-color:rgba(220,38,38,.2)}
+.khA-sig.sig-drop{background:var(--yellow-bg);color:#92400E;border-color:#F5DEB0}
+.khA-trend{display:flex;align-items:center;gap:10px;min-width:160px}
+.khA-trend .khA-spark-wrap{flex-shrink:0}
+.khA-trend-meta .avg{font-size:12px;font-weight:700;color:var(--ink);white-space:nowrap}
+.khA-atrisk{color:var(--red);font-weight:800;font-variant-numeric:tabular-nums}
+.khA-spark{display:block}
+.khA-detail{margin-top:6px}
+.khA-detail>summary{cursor:pointer;font-size:11px;font-weight:600;color:var(--ghn-deep);list-style:none;user-select:none}
+.khA-detail>summary::-webkit-details-marker{display:none}
+.khA-detail>summary::before{content:'▸ ';font-size:10px}
+.khA-detail[open]>summary::before{content:'▾ '}
+.khA-detail-body{margin-top:8px;padding:10px 12px;background:#FAFBFC;border:1px solid var(--border-light);border-radius:8px}
+.khA-detail-meta{font-size:11px;color:var(--text-muted);margin-bottom:8px;line-height:1.45}
+.khA-detail-chart{overflow-x:auto;margin-bottom:8px}
+.khA-day-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.khA-day-tbl th,.khA-day-tbl td{padding:4px 6px;border-bottom:1px solid var(--border-light);text-align:right;white-space:nowrap}
+.khA-day-tbl th:first-child,.khA-day-tbl td:first-child{text-align:left}
+.khA-day-tbl th{color:var(--text-muted);font-weight:600}
+.khA-day-tbl td.zero{color:var(--text-muted)}
+.khA-day-tbl tr.stop td{background:rgba(220,38,38,.04)}
+
 @media(max-width:900px){.overview-split{grid-template-columns:1fr}.overview-half{border-right:none;border-bottom:1px solid var(--border-light)}.mission-strip{grid-template-columns:1fr 1fr}}
 .tabbar{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:14px;flex-wrap:wrap}
 .tabbtn{padding:8px 12px;border:none;background:none;font-size:12px;font-weight:700;color:var(--text-sub);cursor:pointer;border-bottom:2px solid transparent;font-family:inherit}
@@ -516,6 +555,51 @@ const SHEET = {
 const NHOM_A_DT_NGUONG = 45e6;   // Ngưỡng nhóm A: 45 triệu đồng / tháng
 const VUNG_NAME = 'Vùng TNT';
 const NHOM_GIU_CU = ['A','BCD','EF'];
+
+/** Ngưỡng Doanh thu tháng (đồng) → hạng KH theo bảng phân hạng. */
+const NHOM_RANK_ORDER = ['A1','A2','A3','A4','A5','B','C','D','E','F'];
+const NHOM_RANK_MIN_DT = {
+  A1: 240000001,
+  A2: 150000001,
+  A3: 90000001,
+  A4: 60000001,
+  A5: 45000001,
+  B:  30000001,
+  C:  15000001,
+  D:  9000001,
+  E:  1500000,
+  F:  0
+};
+function normalizeRankCode(raw){
+  const s=String(raw||'').trim().toUpperCase().replace(/\s+/g,'');
+  if(!s) return '';
+  if(/^A[1-5]$/.test(s)) return s;
+  if(s==='A') return 'A5'; // sheet chỉ ghi "A" → mặc định bậc thấp nhất nhóm A
+  if(s==='BCD') return 'B';
+  if(s==='EF') return 'E';
+  if(['B','C','D','E','F'].includes(s)) return s;
+  if(s==='G') return 'F';
+  const m=s.match(/^(?:NH[OÓ]M)?([A-F][1-5]?)$/);
+  if(m) return normalizeRankCode(m[1]);
+  return '';
+}
+function rankFromMonthlyDt(dt){
+  const v=+dt||0;
+  for(const code of NHOM_RANK_ORDER){
+    if(v>=(NHOM_RANK_MIN_DT[code]||0)) return code;
+  }
+  return 'F';
+}
+function rankIndex(code){
+  const i=NHOM_RANK_ORDER.indexOf(normalizeRankCode(code));
+  return i<0?NHOM_RANK_ORDER.length:i;
+}
+/** true nếu hạng dự kiến thấp hơn hạng hiện tại. */
+function isRankDrop(curRank, projRank){
+  const a=normalizeRankCode(curRank), b=normalizeRankCode(projRank);
+  if(!a||!b) return false;
+  return rankIndex(b)>rankIndex(a);
+}
 window._charts = {};
 if(typeof ChartDataLabels!=='undefined') Chart.register(ChartDataLabels);
 
@@ -862,6 +946,34 @@ function sparklineSvg(values, w, h){
   const stroke=up?'#0D9F6E':'#D92D20';
   return `<svg class="am-spark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true"><polyline fill="none" stroke="${stroke}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" points="${pts}"/></svg>`;
 }
+
+// Mini-chart (area): Volume Lấy TC 7 ngày — màu cam theo mẫu báo cáo.
+function sparkAreaSvg(values, w, h, forceOrange){
+  const vals=(values||[]).map(v=>+v||0);
+  if(vals.length<2) return '';
+  const W=w||170, H=h||44;
+  const max=Math.max(...vals, 1), min=Math.min(...vals, 0);
+  const span=Math.max(max-min, 1);
+
+  const pts=vals.map((v,i)=>{
+    const x=i/(vals.length-1)*W;
+    const y=H-3-((v-min)/span)*(H-8);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+
+  const up=vals[vals.length-1]>=vals[0];
+  const stroke=forceOrange?'#F97316':(up?'#0D9F6E':'#D92D20');
+  const fill=forceOrange?'rgba(249,115,22,.14)':(up?'rgba(13,159,110,.12)':'rgba(217,45,32,.12)');
+
+  const areaPts=[pts[0],...pts.slice(1),`${W.toFixed(1)},${(H-3).toFixed(1)}`,`0.0,${(H-3).toFixed(1)}`]
+    .join(' ');
+
+  return `
+    <svg class="khA-spark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">
+      <polygon points="${areaPts}" fill="${fill}" stroke="none" />
+      <polyline fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="${pts.join(' ')}" />
+    </svg>`.trim();
+}
 function renderActionBoard({needRows, goodRows, banMoiHint}){
   const chip=(am, meta, page)=>{
     const a=am||'—';
@@ -1057,7 +1169,7 @@ function parseKhNhomAByCust(khNhomA){
     byCust[ma].am=(r[iAM]||'').trim()||byCust[ma].am;
     byCust[ma].dates[iso]=(byCust[ma].dates[iso]||0)+dt;
     byCust[ma].vols[iso]=(byCust[ma].vols[iso]||0)+vol;
-    if(dt>0 && iso>=(byCust[ma].lastIso||'')) byCust[ma].lastIso=iso;
+    if((dt>0||vol>0) && iso>=(byCust[ma].lastIso||'')) byCust[ma].lastIso=iso;
   }
   return byCust;
 }
@@ -1148,11 +1260,16 @@ function parseKhNhomAWeekly(khNhomA, thang, monthProgress, dtNgay){
     const churn7=dtLast7===0;
     const churn7Prev=dtLast7Prev===0;
 
+    // Series doanh thu theo từng ngày (7 ngày gần nhất) để vẽ mini-chart cho KH A.
+    const series7 = last7.map(iso=>c.dates[iso]||0);
+    const series7Prev = last7Prev.map(iso=>c.dates[iso]||0);
+
     return {
       ...c, dtMonth, dtCur, dtPrev, dtPrev2, pctW,
       noRevWeek, drop30, alert:alertWow, alertWow, wasGiamPrev,
       avgDaily, projected, giamHang, giamHangPrev,
       dtLast5, dtLast7, nguyCo, nguyCoWas, churn7, churn7Prev,
+      series7, series7Prev,
       lastIso:c.lastIso||'', dayCur, dayPrev, elapsed, totalDays
     };
   });
@@ -1403,26 +1520,185 @@ function drawNhom14dChart(series){
     }
   });
 }
-function buildKhAAlertByAm(khNhomA, thang, monthProgress, dtNgay){
-  const w=parseKhNhomAWeekly(khNhomA, thang, monthProgress, dtNgay);
-  const alertSrc=(w&&(w.alertRows||w.churnRows))||[];
-  if(!w||!alertSrc.length) return {weekCur:w?.weekCur||'',weekPrev:w?.weekPrev||'',dayCur:w?.dayCur||'',dayPrev:w?.dayPrev||'',weekday:w?.weekday||'',byAm:[],total:0};
+function lookupNhomKhByMa(totalKH){
   const map={};
-  alertSrc.forEach(r=>{
-    const am=(r.am||'').trim()||'—';
-    if(!map[am]) map[am]={am,customers:[]};
-    map[am].customers.push({
-      ten:r.ten,ma:r.ma,
-      tag:r.noRevWeek?'Không lên đơn':`Giảm ${Math.abs(r.pctW).toFixed(0)}%`,
-      dtCur:r.dtCur,dtPrev:r.dtPrev
+  if(!totalKH||totalKH.length<2) return map;
+  const h=totalKH[0];
+  const iMa=idxOf(h,'MaKH'), iNhom=idxOf(h,'Nhom');
+  const iNgayChuan=idxNgayChuanHoa(h), iNgay=idxOf(h,'Ngay');
+  const iVung=idxOf(h,'Vung');
+  if(iMa<0||iNhom<0) return map;
+  for(let i=1;i<totalKH.length;i++){
+    const r=totalKH[i];
+    const ma=String(r[iMa]||'').trim();
+    if(!ma) continue;
+    if(iVung>=0 && (r[iVung]||'').trim() && !isVungTnt(r[iVung])) continue;
+    const raw=String(r[iNhom]||'').trim();
+    if(!raw) continue;
+    const iso=resolveSheetNgayIso(r, iNgayChuan, iNgay);
+    const prev=map[ma];
+    if(!prev || (iso && iso>=(prev.iso||''))) map[ma]={raw, iso:iso||'', rank:normalizeRankCode(raw)};
+  }
+  return map;
+}
+/** Số ngày liên tiếp gần nhất không có đơn LTC (Volume = 0), tính từ ngày dữ liệu mới nhất. */
+function countLtcStopStreak(vols, fromIso, maxLookback){
+  let n=0, iso=fromIso;
+  const lim=Math.max(1, maxLookback||60);
+  for(let i=0;i<lim;i++){
+    const vol=(vols&&vols[iso])||0;
+    if(vol>0) break;
+    n++;
+    iso=isoShiftDays(iso,-1);
+  }
+  return n;
+}
+/**
+ * KH nhóm A cần xử lý:
+ * - Nguồn: đơn LTC/ngày (Volume) + DT/ngày của KH
+ * - Sụt giảm X%: X = (TB7 trước − TB7 gần) ÷ TB7 trước; cảnh báo nếu X ≥ 30%
+ * - DT at-risk/tháng = (DT/ngày trước − DT/ngày gần) × 30
+ * - Ngừng hoạt động N ngày = số ngày liên tiếp gần nhất không có đơn LTC
+ * - Rớt hạng = hạng dự kiến cuối tháng < hạng hiện tại
+ * - Mini-chart: Volume LTC 14 ngày
+ */
+function buildKhCanXuLy(khNhomA, totalKH, thang, monthProgress, dtNgay){
+  const empty={dayCur:'',dayPrev:'',weekday:'',rows:[],byAm:[],total:0,elapsed:0,totalDays:0,last7:[],last14:[],prev7:[]};
+  if(!khNhomA||khNhomA.length<2) return empty;
+  const byCust=parseKhNhomAByCust(khNhomA);
+  let maxIso='';
+  Object.values(byCust).forEach(c=>{
+    Object.keys(c.vols||{}).forEach(iso=>{ if(iso>maxIso) maxIso=iso; });
+    Object.keys(c.dates||{}).forEach(iso=>{ if(iso>maxIso) maxIso=iso; });
+  });
+  if(!maxIso && dtNgay&&dtNgay.length>1){
+    const hD=dtNgay[0], iNgayD=idxOf(hD,'Ngay');
+    for(let i=1;i<dtNgay.length;i++){
+      const iso=normalizeNgayToIso(dtNgay[i][iNgayD]);
+      const mk=monthKeyFromIso(iso);
+      if(mk&&thangEq(mk,thang)&&iso>maxIso) maxIso=iso;
+    }
+  }
+  if(!maxIso) return empty;
+
+  const p=parseThang(thang)||parseThang(monthKeyFromIso(maxIso));
+  const totalDays=(monthProgress&&monthProgress.totalDays)||(p?daysInMonth(p.y,p.m):31);
+  const dayNum=+maxIso.slice(8,10);
+  const elapsed=Math.min(Math.max((monthProgress&&monthProgress.elapsed)||dayNum,1), totalDays);
+  const dayN1=maxIso;
+  const last7=isoEachDay(isoShiftDays(maxIso,-6), maxIso);
+  const prev7=isoEachDay(isoShiftDays(maxIso,-13), isoShiftDays(maxIso,-7));
+  const last14=isoEachDay(isoShiftDays(maxIso,-13), maxIso);
+  const last30=isoEachDay(isoShiftDays(maxIso,-29), maxIso);
+  const nhomByMa=lookupNhomKhByMa(totalKH);
+
+  const rows=[];
+  Object.values(byCust).forEach(c=>{
+    if(!matchSharedAm(c.am)) return;
+    let dtMtd=0, volMonth=0;
+    Object.keys(c.dates||{}).forEach(iso=>{
+      const mk=monthKeyFromIso(iso);
+      if(mk&&thangEq(mk,thang)) dtMtd+=(c.dates[iso]||0);
+    });
+    Object.keys(c.vols||{}).forEach(iso=>{
+      const mk=monthKeyFromIso(iso);
+      if(mk&&thangEq(mk,thang)) volMonth+=(c.vols[iso]||0);
+    });
+    if(dtMtd<=0 && volMonth<=0) return;
+
+    const volSeries7=last7.map(iso=>(c.vols&&c.vols[iso])||0);
+    const volSeriesPrev7=prev7.map(iso=>(c.vols&&c.vols[iso])||0);
+    const volSeries14=last14.map(iso=>(c.vols&&c.vols[iso])||0);
+    const dtSeries7=last7.map(iso=>(c.dates&&c.dates[iso])||0);
+    const dtSeriesPrev7=prev7.map(iso=>(c.dates&&c.dates[iso])||0);
+    const avgVolDay=volSeries7.reduce((s,v)=>s+v,0)/7;
+    const avgVolDayPrev=volSeriesPrev7.reduce((s,v)=>s+v,0)/7;
+    // X% = (TB trước − TB gần) ÷ TB trước
+    const dropPct=avgVolDayPrev>0?(avgVolDayPrev-avgVolDay)/avgVolDayPrev*100:0;
+    const sutGiam=avgVolDayPrev>0 && dropPct>=30;
+
+    const avgDtDay=dtSeries7.reduce((s,v)=>s+v,0)/7;
+    const avgDtDayPrev=dtSeriesPrev7.reduce((s,v)=>s+v,0)/7;
+    // DT at-risk/tháng = (DT/ngày trước − DT/ngày gần) × 30
+    const dtAtRisk=Math.max(0, (avgDtDayPrev-avgDtDay)*30);
+
+    const stopDays=countLtcStopStreak(c.vols, dayN1, 60);
+    const ngungHoatDong=stopDays>=1;
+
+    const projected=dtMtd/elapsed*totalDays;
+    const projRank=rankFromMonthlyDt(projected);
+    const nhomInfo=nhomByMa[c.ma]||{};
+    const rawNhom=String(nhomInfo.raw||'').trim().toUpperCase();
+    let curRank='';
+    if(/^A[1-5]$/.test(rawNhom) || /^[BCDEF]$/.test(rawNhom)){
+      curRank=rawNhom;
+    } else {
+      const thangPrev=prevThang(thang);
+      let dtPrevMonth=0;
+      if(thangPrev){
+        Object.keys(c.dates||{}).forEach(iso=>{
+          const mk=monthKeyFromIso(iso);
+          if(mk&&thangEq(mk,thangPrev)) dtPrevMonth+=(c.dates[iso]||0);
+        });
+      }
+      if(dtPrevMonth>0) curRank=rankFromMonthlyDt(dtPrevMonth);
+      else if(rawNhom==='A' || /^A/.test(rawNhom)) curRank='A5';
+      else if(nhomInfo.rank) curRank=nhomInfo.rank;
+      else if(projected>0) curRank=rankFromMonthlyDt(projected);
+    }
+    const rotHang=!!curRank && isRankDrop(curRank, projRank);
+
+    if(!sutGiam && !ngungHoatDong && !rotHang) return;
+
+    const signals=[];
+    if(sutGiam) signals.push(`Sụt giảm ${dropPct.toFixed(0)}%`);
+    if(ngungHoatDong) signals.push(`Ngừng ${stopDays} ngày`);
+    if(rotHang) signals.push('Rớt hạng');
+    const mucDo=stopDays>=3?'Nguy kịch':'Cảnh báo';
+
+    const dailyDetail=last30.map(iso=>({
+      iso,
+      vol:(c.vols&&c.vols[iso])||0,
+      dt:(c.dates&&c.dates[iso])||0
+    }));
+
+    rows.push({
+      ma:c.ma, ten:c.ten||c.ma||'—', am:c.am||'—',
+      curRank, projRank, rotHang,
+      hangLabel:rotHang?`${curRank} → ${projRank}`:curRank,
+      mucDo, signals,
+      sutGiam, ngungHoatDong, stopDays, dropPct,
+      volSeries7, volSeries14, avgVolDay, avgVolDayPrev,
+      avgDtDay, avgDtDayPrev, dtAtRisk,
+      dtMtd, projected,
+      dayN1, lastIso:c.lastIso||'',
+      dailyDetail
     });
   });
+
+  rows.sort((a,b)=>{
+    if(a.mucDo!==b.mucDo) return a.mucDo==='Nguy kịch'?-1:1;
+    if((b.stopDays||0)!==(a.stopDays||0)) return (b.stopDays||0)-(a.stopDays||0);
+    return (b.dtAtRisk||0)-(a.dtAtRisk||0);
+  });
+
+  const byAmMap={};
+  rows.forEach(r=>{
+    const am=r.am||'—';
+    if(!byAmMap[am]) byAmMap[am]={am, customers:[]};
+    byAmMap[am].customers.push(r);
+  });
+
   return {
-    weekCur:w.weekCur,weekPrev:w.weekPrev,
-    dayCur:w.dayCur,dayPrev:w.dayPrev,weekday:w.weekday,
-    byAm:Object.values(map).sort((a,b)=>b.customers.length-a.customers.length),
-    total:alertSrc.length
+    dayCur:dayN1, dayPrev:isoShiftDays(dayN1,-7), weekday:weekdayVi(dayN1),
+    last7, last14, prev7, elapsed, totalDays,
+    rows, total:rows.length,
+    byAm:Object.values(byAmMap).sort((a,b)=>b.customers.length-a.customers.length)
   };
+}
+/** @deprecated — giữ alias để không phá chỗ gọi cũ */
+function buildKhAAlertByAm(khNhomA, thang, monthProgress, dtNgay, totalKH){
+  return buildKhCanXuLy(khNhomA, totalKH, thang, monthProgress, dtNgay);
 }
 function idxFindAny(header, names, fallback){
   if(!header) return fallback!=null?fallback:-1;
@@ -2073,23 +2349,103 @@ function renderOverviewNoOrder3dSection(data){
   html+=`</div>`;
   return html;
 }
+function fmtVolDay(n){
+  if(n==null||isNaN(n)) return '—';
+  return (+n).toLocaleString('vi-VN',{minimumFractionDigits:1,maximumFractionDigits:1});
+}
+/** Biểu đồ cột LTC/ngày (Volume) để kiểm chứng chi tiết theo ngày. */
+function ltcDayBarSvg(dailyDetail, w, h){
+  const rows=(dailyDetail||[]).slice();
+  if(!rows.length) return '';
+  const W=Math.max(w||Math.max(320, rows.length*14), rows.length*10);
+  const H=h||72;
+  const padT=6, padB=16, padL=2, padR=2;
+  const chartH=H-padT-padB;
+  const max=Math.max(...rows.map(r=>+r.vol||0), 1);
+  const gap=1;
+  const barW=Math.max(2, (W-padL-padR)/rows.length - gap);
+  const bars=rows.map((r,i)=>{
+    const v=+r.vol||0;
+    const x=padL+i*((W-padL-padR)/rows.length);
+    const bh=v<=0?0:(v/max)*chartH;
+    const y=padT+chartH-bh;
+    const fill=v<=0?'#FECACA':'#F97316';
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(bh,0).toFixed(1)}" fill="${fill}" rx="1"/>`;
+  }).join('');
+  const labels=[0, Math.floor((rows.length-1)/2), rows.length-1].filter((v,i,a)=>a.indexOf(v)===i)
+    .map(i=>{
+      const x=padL+i*((W-padL-padR)/rows.length)+barW/2;
+      return `<text x="${x.toFixed(1)}" y="${H-2}" text-anchor="middle" font-size="9" fill="#94A3B8">${docEsc(isoShort2(rows[i].iso))}</text>`;
+    }).join('');
+  return `<svg class="khA-day-chart" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="LTC theo ngày">${bars}${labels}</svg>`;
+}
 function renderOverviewKhASection(alertData){
-  const wd=alertData.weekday||(alertData.dayCur?weekdayVi(alertData.dayCur):'—');
-  const badge=alertData.dayCur&&alertData.dayPrev
-    ? `${wd} ${isoShort2(alertData.dayPrev)} → ${wd} ${isoShort2(alertData.dayCur)}`
-    : '—';
-  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--red)">⚠️</div>KH A — Giảm ≥30% / Không Lên Đơn vs cùng thứ tuần trước</div><span class="badge">${badge}</span></div>`;
-  if(!alertData.total){
-    html+=`<div class="section-note">✅ Không có KH A cảnh báo ${wd} (giảm ≥30% hoặc không lên đơn so với cùng thứ tuần trước).</div></div>`;
+  const d=alertData||{};
+  const badge=d.dayCur?`N-1 ${isoShort2(d.dayCur)} · Vol 14N`:'—';
+  let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--red)">⚠️</div>Khách hàng cần xử lý</div><span class="badge">${fmt(d.total||0)} KH · ${badge}</span></div>`;
+  if(!d.total){
+    html+=`<div class="section-note">✅ Không có KH nhóm A cần xử lý (Sụt giảm / Ngừng hoạt động / Rớt hạng).</div></div>`;
     return html;
   }
-  html+=`<div class="table-wrap"><table class="tbl-pro"><thead><tr><th style="width:48px">#</th><th>AM</th><th class="num">Số KH</th><th>Danh sách KH (Tên · trạng thái)</th></tr></thead><tbody>`;
-  alertData.byAm.forEach((g,i)=>{
-    const list=g.customers.map(c=>`<span class="cust-chip warn">${c.ten||'—'} · ${c.tag}</span>`).join(' ');
-    html+=`<tr class="row-warn"><td><span class="rank-num">${i+1}</span></td><td><span class="lbl-name">${g.am}</span></td><td class="num">${g.customers.length}</td><td class="cust-list">${list}</td></tr>`;
+  html+=`<div class="data-banner" style="margin:12px 16px 0">Vùng / Team: <b>TNT</b> · Mini-chart = đơn LTC 14 ngày · DT at-risk = (DT/ngày trước − DT/ngày gần) × 30 · X% = (TB7 trước − TB7 gần) ÷ TB7 trước · Hạng dự kiến = (MTD ÷ ${d.elapsed||'—'}) × ${d.totalDays||'—'} ngày</div>`;
+  html+=`<div class="table-wrap" style="margin-top:8px"><table class="tbl-pro khA-need-tbl"><thead><tr>
+    <th>Khách hàng</th><th>Hạng</th><th>Mức độ</th><th>Tín hiệu</th>
+    <th>Đơn tạo (xu hướng)</th><th class="num">DT at-risk / TH</th><th>Người chăm</th><th>Team</th>
+  </tr></thead><tbody>`;
+
+  d.rows.forEach(r=>{
+    const spark=sparkAreaSvg(r.volSeries14||r.volSeries7||[], 110, 28, true);
+    const drop=+(r.dropPct||0);
+    const pctCls=drop>=30?'down':(drop<=0?'up':'down');
+    const pctTxt=drop<=0?`↑ +${Math.abs(drop).toFixed(0)}%`:`↓ ${drop.toFixed(0)}%`;
+    const hangHtml=r.rotHang
+      ? `<span class="khA-hang drop">${docEsc(r.curRank)} → ${docEsc(r.projRank)} <span class="khA-hang-arrow">↓</span></span>`
+      : `<span class="khA-hang">${docEsc(r.hangLabel||r.curRank||'—')}</span>`;
+    const mucCls=r.mucDo==='Nguy kịch'?'crit':'warn';
+    const sigHtml=(r.signals||[]).map(s=>{
+      const cls=/^Ngừng/.test(s)?'sig-stop':(s==='Rớt hạng'?'sig-drop':'sig-down');
+      return `<span class="khA-sig ${cls}">${docEsc(s)}</span>`;
+    }).join(' ');
+    const detailChart=ltcDayBarSvg(r.dailyDetail||[], Math.max(360,(r.dailyDetail||[]).length*14), 72);
+    const dayRows=[...(r.dailyDetail||[])].reverse().map(day=>{
+      const vol=+day.vol||0;
+      const stopCls=vol<=0?'stop':'';
+      const zeroCls=vol<=0?'zero':'';
+      return `<tr class="${stopCls}"><td>${docEsc(isoShort2(day.iso))}</td><td class="${zeroCls}">${fmt(vol)}</td><td>${fmtVnd(day.dt||0)}</td></tr>`;
+    }).join('');
+    html+=`<tr class="${r.mucDo==='Nguy kịch'?'row-danger':'row-warn'}">
+      <td><div class="lbl-name">${docEsc(r.ten)}</div><div class="lbl-sub">ID ${docEsc(r.ma)}</div></td>
+      <td>${hangHtml}</td>
+      <td><span class="khA-muc ${mucCls}"><span class="dot"></span>${docEsc(r.mucDo)}</span></td>
+      <td><div class="khA-sig-wrap">${sigHtml||'—'}</div></td>
+      <td>
+        <div class="khA-trend">
+          <div class="khA-spark-wrap">${spark||''}</div>
+          <div class="khA-trend-meta">
+            <div class="avg">${fmtVolDay(r.avgVolDay)} đơn/ngày</div>
+            <span class="trend-tag ${pctCls}">${pctTxt}</span>
+          </div>
+        </div>
+        <details class="khA-detail">
+          <summary>Xem chi tiết theo ngày</summary>
+          <div class="khA-detail-body">
+            <div class="khA-detail-meta">TB gần (7N): <b>${fmtVolDay(r.avgVolDay)}</b> đơn/ngày · TB trước đó (7N): <b>${fmtVolDay(r.avgVolDayPrev)}</b> · X = <b>${drop.toFixed(0)}%</b><br>
+            DT/ngày gần: <b>${fmtVnd(r.avgDtDay||0)}</b> · DT/ngày trước: <b>${fmtVnd(r.avgDtDayPrev||0)}</b> · At-risk/tháng: <b>${fmtVnd(r.dtAtRisk||0)}</b>${r.ngungHoatDong?` · Ngừng hoạt động: <b>${r.stopDays} ngày</b>`:''}</div>
+            <div class="khA-detail-chart">${detailChart}</div>
+            <div class="table-wrap"><table class="khA-day-tbl"><thead><tr><th>Ngày</th><th>Đơn LTC</th><th>DT</th></tr></thead><tbody>${dayRows}</tbody></table></div>
+          </div>
+        </details>
+      </td>
+      <td class="num"><span class="khA-atrisk">${fmtVnd(r.dtAtRisk||0)}</span></td>
+      <td><div class="lbl-name">${docEsc(r.am)}</div><div class="lbl-sub">—</div></td>
+      <td>TNT</td>
+    </tr>`;
   });
   html+=`</tbody></table></div>`;
-  html+=analysisQuick(`<b>${alertData.total}</b> KH A cảnh báo · so <b>${wd}</b> tuần này vs <b>${wd}</b> tuần trước · nhóm theo AM · nguồn sheet <b>khách hàng nhóm A</b>.`);
+  const nStop=d.rows.filter(r=>r.ngungHoatDong).length;
+  const nDrop=d.rows.filter(r=>r.sutGiam).length;
+  const nRank=d.rows.filter(r=>r.rotHang).length;
+  html+=analysisQuick(`<b>${d.total}</b> KH cần xử lý · Ngừng hoạt động: <b>${nStop}</b> · Sụt giảm (X≥30%): <b>${nDrop}</b> · Rớt hạng: <b>${nRank}</b> · nguồn đơn LTC/ngày sheet <b>khách hàng nhóm A</b> + TotalKH.`);
   html+=`</div>`;
   return html;
 }
@@ -4537,7 +4893,7 @@ function renderOverview(){
   const weekSection = renderOverviewWeekSection(weekBreakdown, thangLabel, totalKpiVung);
   const nhom14dSeries = buildNhomDtLastNDays(totalKH, 14, dtNgay);
   const nhom14dSection = renderOverviewNhom14dSection(nhom14dSeries);
-  const khASection = renderOverviewKhASection(buildKhAAlertByAm(khNhomA, thang, monthProgress, dtNgay));
+  const khASection = renderOverviewKhASection(buildKhCanXuLy(khNhomA, totalKH, thang, monthProgress, dtNgay));
   const noOrder3dSection = renderOverviewNoOrder3dSection(buildKhNoOrder3d(totalKH, thang, 3));
   let banMoiMtd=0, banMoiMtdPrev=0;
   try{

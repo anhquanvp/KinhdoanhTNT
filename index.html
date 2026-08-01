@@ -300,8 +300,11 @@ table.tbl-pro.compact td,table.tbl-pro.compact th{padding:5px 6px;font-size:11px
 .empty-state .es-sub{font-size:12.5px;line-height:1.5;max-width:360px;margin:0 auto}
 .global-am-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 12px;margin-bottom:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
 .global-am-bar label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)}
-.global-am-bar select{padding:6px 9px;border-radius:7px;border:1px solid var(--border);font-size:12px;font-weight:600;font-family:inherit;min-width:160px}
+.global-am-bar select,.global-am-bar input[type="date"]{padding:6px 9px;border-radius:7px;border:1px solid var(--border);font-size:12px;font-weight:600;font-family:inherit;min-width:140px;background:#fff;color:var(--ink)}
+.global-am-bar .gab-btn{padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:#F8FAFC;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;color:var(--ghn-deep)}
+.global-am-bar .gab-btn:hover{background:#EEF2FF}
 .global-am-bar .gab-hint{font-size:11px;color:var(--text-muted);margin-left:auto}
+.global-am-bar .gab-sep{width:1px;height:22px;background:var(--border);margin:0 2px}
 .cmd-backdrop{position:fixed;inset:0;background:rgba(12,18,34,.45);backdrop-filter:blur(4px);z-index:9000;display:none;align-items:flex-start;justify-content:center;padding:12vh 16px 24px}
 .cmd-backdrop.show{display:flex}
 .cmd-card{width:min(520px,100%);background:#fff;border-radius:14px;border:1px solid var(--border);box-shadow:0 24px 64px rgba(12,18,34,.22);overflow:hidden}
@@ -844,6 +847,91 @@ function renderMissionStrip({mtd, pctKpi, deltaCk, alertCount, thangLabel, elaps
   </div>`;
 }
 function getSharedAmFilter(){ return (window._sharedAm||'').trim(); }
+/** Ngày chuẩn báo cáo (ISO YYYY-MM-DD). Mặc định = ngày dữ liệu mới nhất, không phải hôm nay. */
+function todayIsoLocal(){
+  const t=new Date();
+  return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+}
+function getAsOfIso(){
+  const iso=String(window._asOfIso||'').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso)?iso:'';
+}
+function asOfParts(){
+  const iso=getAsOfIso()||todayIsoLocal();
+  const m=iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return {iso, y:+m[1], m:+m[2], d:+m[3]};
+}
+/** Quét ngày lớn nhất từ các sheet có cột Ngay / ngày chuẩn. */
+function detectLatestDataIso(data){
+  data=data||window._DATA||{};
+  let max='';
+  const take=iso=>{ if(/^\d{4}-\d{2}-\d{2}$/.test(iso)&&iso>max) max=iso; };
+  const scan=(rows, names)=>{
+    if(!rows||rows.length<2) return;
+    const h=rows[0];
+    let i=-1;
+    for(const n of (names||['Ngay'])){ i=idxOf(h,n); if(i>=0) break; }
+    if(i<0 && typeof idxNgayChuanHoa==='function') i=idxNgayChuanHoa(h);
+    if(i<0) return;
+    for(let r=1;r<rows.length;r++) take(normalizeNgayToIso(rows[r][i]));
+  };
+  scan(data.dtNgay, ['Ngay']);
+  scan(data.khNhomA, ['Ngay']);
+  scan(data.totalKH, ['Ngay']);
+  scan(data.banmoi, ['Ngay']);
+  return max;
+}
+function syncAsOfFromData(opts){
+  const force=!!(opts&&opts.force);
+  if(window._asOfManual && !force) return getAsOfIso();
+  let fromUrl='';
+  try{ fromUrl=(new URL(location.href).searchParams.get('asof')||'').trim(); }catch(_){}
+  if(/^\d{4}-\d{2}-\d{2}$/.test(fromUrl) && !force){
+    window._asOfIso=fromUrl;
+    window._asOfManual=true;
+    return fromUrl;
+  }
+  const latest=detectLatestDataIso();
+  window._asOfIso=latest||todayIsoLocal();
+  window._asOfManual=false;
+  return window._asOfIso;
+}
+function syncAsOfToUrl(){
+  try{
+    const u=new URL(location.href);
+    const iso=getAsOfIso();
+    if(iso && window._asOfManual) u.searchParams.set('asof', iso);
+    else u.searchParams.delete('asof');
+    history.replaceState({}, '', u);
+  }catch(_){}
+}
+function setAsOfIso(iso, opts){
+  const raw=String(iso||'').trim();
+  const n=/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw:normalizeNgayToIso(raw);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(n)) return;
+  window._asOfIso=n;
+  window._asOfManual=!(opts&&opts.fromData);
+  syncAsOfToUrl();
+  if(!(opts&&opts.skipRender) && loaded){
+    const page=document.querySelector('.nav-item.active')?.dataset?.page
+      || document.querySelector('#mobileNav button.active')?.dataset?.page
+      || 'overview';
+    renderAllPages();
+    showPage(page, {keepUrl:true});
+  }
+}
+function resetAsOfToLatest(){
+  window._asOfManual=false;
+  syncAsOfFromData({force:true});
+  syncAsOfToUrl();
+  if(loaded){
+    const page=document.querySelector('.nav-item.active')?.dataset?.page
+      || document.querySelector('#mobileNav button.active')?.dataset?.page
+      || 'overview';
+    renderAllPages();
+    showPage(page, {keepUrl:true});
+  }
+}
 function listKnownAms(){
   const out=new Set();
   const d=window._DATA||{};
@@ -1007,10 +1095,18 @@ function renderGlobalAmBar(ams){
   const cur=getSharedAmFilter();
   const list=uniqueList(ams||[]).filter(a=>a&&a!=='—').sort((a,b)=>a.localeCompare(b,'vi'));
   const opts=`<option value="">Tất cả AM</option>`+list.map(a=>`<option value="${docEsc(a)}"${cur===a?' selected':''}>${docEsc(a)}</option>`).join('');
+  const asOf=getAsOfIso()||todayIsoLocal();
+  const latest=detectLatestDataIso();
+  const a=asOfParts();
+  const thangLbl=`${String(a.m).padStart(2,'0')}/${a.y}`;
   return `<div class="global-am-bar">
+    <label for="globalAsOfDate">Ngày chuẩn</label>
+    <input type="date" id="globalAsOfDate" value="${docEsc(asOf)}"${latest?` max="${docEsc(latest)}"`:''} onchange="setAsOfIso(this.value)">
+    <button type="button" class="gab-btn" onclick="resetAsOfToLatest()" title="Lấy ngày dữ liệu mới nhất trên sheet">Mới nhất${latest?` · ${isoShort2(latest)}`:''}</button>
+    <span class="gab-sep" aria-hidden="true"></span>
     <label for="globalAmSelect">AM</label>
     <select id="globalAmSelect" onchange="setSharedAmFilter(this.value)">${opts}</select>
-    <span class="gab-hint">Lọc dùng chung · ⌘K tìm nhanh</span>
+    <span class="gab-hint">Tháng BC: <b>${thangLbl}</b> · MTD tính đến ngày chuẩn (data thường N-1)${window._asOfManual?' · đã chọn tay':''}</span>
   </div>`;
 }
 function emptyStateHtml(title, sub){
@@ -1041,6 +1137,11 @@ function applyDeepLinkFromUrl(){
     const u=new URL(location.href);
     const am=(u.searchParams.get('am')||'').trim();
     const page=(u.searchParams.get('page')||'').trim();
+    const asof=(u.searchParams.get('asof')||'').trim();
+    if(/^\d{4}-\d{2}-\d{2}$/.test(asof)){
+      window._asOfIso=asof;
+      window._asOfManual=true;
+    }
     if(am){
       window._sharedAm=am;
       setBanMoiFilter({am});
@@ -1052,6 +1153,11 @@ function readDeepLinkBeforeRender(){
   try{
     const u=new URL(location.href);
     const am=(u.searchParams.get('am')||'').trim();
+    const asof=(u.searchParams.get('asof')||'').trim();
+    if(/^\d{4}-\d{2}-\d{2}$/.test(asof)){
+      window._asOfIso=asof;
+      window._asOfManual=true;
+    }
     if(am){
       window._sharedAm=am;
       setBanMoiFilter({am});
@@ -3444,9 +3550,8 @@ function calendarFromPeriod(y, p, layout){
   return null;
 }
 function isFutureMonth(y, m){
-  const now=new Date();
-  const curY=now.getFullYear(), curM=now.getMonth()+1;
-  return y>curY || (y===curY && m>curM);
+  const a=asOfParts();
+  return y>a.y || (y===a.y && m>a.m);
 }
 function normLoaiHang(s){
   s=(s||'').trim();
@@ -3981,9 +4086,8 @@ function buildNhomWeekMatrix(totalKH, nWeeks, dtNgay){
   const {recs}=parseTotalKHNhomRecs(totalKH);
   if(!recs.length) return empty;
   let weeks=sortedWeekKeys(recs.map(r=>r.tuan).filter(Boolean));
-  const today=new Date();
-  const todayIso=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  const curKey=isoWeekFromIsoDate(todayIso).key;
+  const asOfIso=getAsOfIso()||todayIsoLocal();
+  const curKey=isoWeekFromIsoDate(asOfIso).key;
   if(curKey && !weeks.includes(curKey)) weeks=[...weeks, curKey];
   weeks=sortedWeekKeys(weeks).slice(-(nWeeks||5));
   const byWeek={};
@@ -4059,8 +4163,8 @@ function reconcileDtWithKetQua(recs, ketQua, thang){
   return recs.map(r=>(r.y===p.y&&r.m===p.m)?{...r,dt:r.dt*ratio}:r);
 }
 function aggMonthlyByYear(recs, year){
-  const now=new Date();
-  const maxM = year===now.getFullYear() ? now.getMonth()+1 : 12;
+  const a=asOfParts();
+  const maxM = year===a.y ? a.m : 12;
   return Array.from({length:12}, (_,i)=>{
     const m=i+1;
     if(m>maxM) return null;
@@ -4069,8 +4173,8 @@ function aggMonthlyByYear(recs, year){
   });
 }
 function aggMonthlyLoai(recs, year, loai){
-  const now=new Date();
-  const maxM = year===now.getFullYear() ? now.getMonth()+1 : 12;
+  const a=asOfParts();
+  const maxM = year===a.y ? a.m : 12;
   return Array.from({length:12}, (_,i)=>{
     const m=i+1;
     if(m>maxM) return null;
@@ -4210,8 +4314,8 @@ function renderHangNangNheSection(recs){
   years.forEach(y=>{
     const yrRecs=recs.filter(r=>r.y===y);
     if(!yrRecs.length) return;
-    const now=new Date();
-    const maxM = y===now.getFullYear() ? now.getMonth()+1 : 12;
+    const a=asOfParts();
+    const maxM = y===a.y ? a.m : 12;
     const months=uniqueList(yrRecs.map(r=>r.m)).filter(m=>m<=maxM).sort((a,b)=>a-b);
     const tinhs=uniqueList(yrRecs.map(r=>r.tinh)).sort();
     const mHdr=months.map(m=>`<th class="num" colspan="2">${String(m).padStart(2,'0')}/${y}</th>`).join('');
@@ -4472,8 +4576,8 @@ function isoShort(iso){
   return `${m[3]}/${m[2]}`;
 }
 function currentThang(){
-  const now=new Date();
-  return `${now.getFullYear()}/${now.getMonth()+1}`;
+  const a=asOfParts();
+  return `${a.y}/${a.m}`;
 }
 function prevThang(thang){
   const p=parseThang(thang||currentThang());
@@ -4592,13 +4696,13 @@ function getLast7DaysInMonth(y, m, endDay){
 function nhomA7DayWindow(thang, dtNgay){
   const p=parseThang(thang);
   if(!p) return {days:[], label:'—'};
-  const now=new Date();
+  const a=asOfParts();
   const prog=dtNgay?getMonthProgress(dtNgay):null;
   let endDay;
-  if(p.y===now.getFullYear() && p.m===now.getMonth()+1){
-    endDay=(prog&&prog.maxDataDay>0)?prog.maxDataDay:now.getDate();
+  if(p.y===a.y && p.m===a.m){
+    endDay=(prog&&prog.maxDataDay>0)?Math.min(prog.maxDataDay, a.d):a.d;
   } else {
-    endDay=daysInMonth(p.y,p.m);
+    endDay=(prog&&prog.maxDataDay>0)?prog.maxDataDay:daysInMonth(p.y,p.m);
   }
   const days=getLast7DaysInMonth(p.y,p.m,endDay);
   const label=days.length?`${isoShort2(days[0])} → ${isoShort2(days[days.length-1])}`:'—';
@@ -4614,10 +4718,10 @@ function kpiSamePeriod(kpiFull, elapsed, totalDays){
   return kpiFull * elapsed / totalDays;
 }
 function getMonthProgress(dtNgay){
-  const parsed = parseThang(currentThang());
+  const a=asOfParts();
+  const parsed = parseThang(currentThang())||{y:a.y,m:a.m};
   const { y, m } = parsed;
   const totalDays = daysInMonth(y, m);
-  const now = new Date();
   let maxDataDay = 0;
   if(dtNgay && dtNgay.length>1){
     const iNgay = idxOf(dtNgay[0],'Ngay');
@@ -4628,13 +4732,14 @@ function getMonthProgress(dtNgay){
     }
   }
   let elapsed;
-  if(y===now.getFullYear() && m===now.getMonth()+1){
-    elapsed = maxDataDay > 0 ? maxDataDay : now.getDate();
+  if(y===a.y && m===a.m){
+    // Tháng của ngày chuẩn: MTD đến min(ngày chuẩn, ngày data mới nhất trong tháng)
+    elapsed = maxDataDay > 0 ? Math.min(a.d, maxDataDay) : a.d;
   } else {
     elapsed = maxDataDay > 0 ? maxDataDay : totalDays;
   }
   elapsed = Math.min(Math.max(elapsed, 1), totalDays);
-  return { elapsed, totalDays, y, m, pctTime: elapsed/totalDays*100, maxDataDay };
+  return { elapsed, totalDays, y, m, pctTime: elapsed/totalDays*100, maxDataDay, asOfIso:a.iso };
 }
 
 /* ===================== STATE ===================== */
@@ -4733,6 +4838,7 @@ async function loadAll(opts){
         ]);
         window._DATA = applyAmScope({ ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH, banmoi });
         loaded = true;
+        syncAsOfFromData();
         document.getElementById('exportDocBtn').disabled = false;
         const ageMin=Math.max(0, Math.round((Date.now()-(cached.fetchedAt||0))/60000));
         document.getElementById('lastUpdate').textContent = 'Cache '+new Date(cached.fetchedAt||Date.now()).toLocaleString('vi-VN')+(ageMin?` (${ageMin} phút trước)`:'')+' · đang đồng bộ…';
@@ -4751,6 +4857,7 @@ async function loadAll(opts){
     ]);
     window._DATA = applyAmScope({ ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH, banmoi });
     loaded = true;
+    syncAsOfFromData();
     document.getElementById('exportDocBtn').disabled = false;
     document.getElementById('lastUpdate').textContent = (background?'Đã đồng bộ: ':'Tải lúc: ') + new Date().toLocaleString('vi-VN');
     const deepPage=background?'':readDeepLinkBeforeRender();
@@ -5022,7 +5129,7 @@ function renderOverview(){
   const sharedAm=getSharedAmFilter();
 
   el.innerHTML = `
-  <div class="page-header ${healthCls}"><div><div class="page-title">Tổng Quan Doanh Thu</div><div class="page-sub">Vùng TNT · Tháng ${thangLabel} · Đơn vị: triệu đồng${sharedAm?` · AM <b>${docEsc(sharedAm)}</b>`:''}</div></div>
+  <div class="page-header ${healthCls}"><div><div class="page-title">Tổng Quan Doanh Thu</div><div class="page-sub">Vùng TNT · Tháng ${thangLabel} · Ngày chuẩn <b>${isoShort2(getAsOfIso()||'')}</b> · Đơn vị: triệu đồng${sharedAm?` · AM <b>${docEsc(sharedAm)}</b>`:''}</div></div>
   <span class="fresh-badge ${fresh.cls}">${fresh.label}</span></div>
   ${amBar}
   ${missionStrip}
@@ -5185,6 +5292,7 @@ function renderNhomKH(){
   const { recs, maxDate } = parseTotalKHNhomRecs(totalKH);
   el.innerHTML = `
   <div class="page-header"><div><div class="page-title">Doanh Thu Theo Nhóm Khách Hàng</div><div class="page-sub">Tổng vùng &amp; theo AM · 3 ngày gần nhất · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
+  ${renderGlobalAmBar(listKnownAms())}
   ${nhomStaleBanner(maxDate)}
   ${renderNhomKHCard(recs, maxDate)}
   <div class="foot-note">Đơn vị DT: triệu đồng.</div>`;
@@ -5198,6 +5306,7 @@ function renderDtTinh(){
   const { recs, maxDate } = parseTotalKHNhomRecs(totalKH);
   el.innerHTML = `
   <div class="page-header"><div><div class="page-title">Doanh Thu Khách Hàng Theo Tỉnh</div><div class="page-sub">Phân nhóm KH theo tỉnh · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
+  ${renderGlobalAmBar(listKnownAms())}
   ${nhomStaleBanner(maxDate)}
   ${renderNhomTinhCard(recs, maxDate)}
   <div class="foot-note">Đơn vị DT: triệu đồng.</div>`;

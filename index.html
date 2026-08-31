@@ -18,8 +18,9 @@
   --sidebar-w:220px;--sidebar-bg:#0B1220;--font-display:'Sora',system-ui,sans-serif;--font-body:'IBM Plex Sans',system-ui,sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--font-body);background:var(--bg);background-image:radial-gradient(ellipse 90% 60% at 100% -10%,rgba(255,107,0,.07),transparent 50%),radial-gradient(ellipse 70% 40% at 0% 100%,rgba(13,159,110,.05),transparent 45%);color:var(--text-main);display:flex;min-height:100vh;font-size:13.5px;line-height:1.5;-webkit-font-smoothing:antialiased}
-.sidebar{width:var(--sidebar-w);background:var(--sidebar-bg);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;overflow-y:auto;border-right:1px solid rgba(255,255,255,.06)}
+html{width:100%;max-width:100%;overflow-x:auto;-webkit-text-size-adjust:100%}
+body{font-family:var(--font-body);background:var(--bg);background-image:radial-gradient(ellipse 90% 60% at 100% -10%,rgba(255,107,0,.07),transparent 50%),radial-gradient(ellipse 70% 40% at 0% 100%,rgba(13,159,110,.05),transparent 45%);color:var(--text-main);display:flex;min-height:100vh;min-width:0;max-width:100%;width:100%;font-size:13.5px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:clip}
+.sidebar{width:var(--sidebar-w);background:var(--sidebar-bg);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100%;height:100dvh;z-index:100;overflow-x:hidden;overflow-y:auto;border-right:1px solid rgba(255,255,255,.06);flex-shrink:0}
 .logo-area{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,0.07)}
 .logo-brand{display:flex;align-items:center;gap:10px}
 .logo-mark{width:32px;height:32px;border-radius:9px;background:linear-gradient(145deg,var(--ghn-bright),var(--ghn-deep));display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px var(--ghn-glow);flex-shrink:0}
@@ -42,7 +43,7 @@ body{font-family:var(--font-body);background:var(--bg);background-image:radial-g
 .refresh-btn.spinning .spin{animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes pageIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.page{animation:pageIn .28s ease}
+.page{animation:pageIn .28s ease;min-width:0;max-width:100%;overflow-x:visible}
 .sidebar-widget{margin:8px 10px 4px;padding:12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);border-radius:11px}
 .sidebar-widget .sw-clock-time{font-size:22px;font-weight:600;color:rgba(255,255,255,.9);letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1;font-family:var(--font-display)}
 .sidebar-widget .sw-clock-date{font-size:11px;color:rgba(255,255,255,.4);margin-top:5px;font-weight:500}
@@ -51,7 +52,7 @@ body{font-family:var(--font-body);background:var(--bg);background-image:radial-g
 .sidebar-widget .sw-quote{font-size:11.5px;line-height:1.5;color:rgba(255,255,255,.5);font-weight:500;transition:opacity .45s ease,transform .45s ease}
 .sidebar-widget .sw-quote.is-out{opacity:0;transform:translateY(5px)}
 .last-update{color:rgba(255,255,255,.28);font-size:10px;text-align:center;padding:6px 12px 16px}
-.main{margin-left:var(--sidebar-w);flex:1;padding:20px 20px 56px;max-width:100%;width:calc(100% - var(--sidebar-w));overflow-x:hidden}
+.main{margin-left:var(--sidebar-w);flex:1;padding:20px 20px 56px;min-width:0;max-width:100%;width:calc(100% - var(--sidebar-w));overflow-x:auto;overflow-y:visible}
 .page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:12px;padding-bottom:16px;border-bottom:1px solid var(--border)}
 .page-title{font-family:var(--font-display);font-size:22px;font-weight:700;letter-spacing:-.45px;color:var(--ink)}
 .page-sub{color:var(--text-sub);font-size:12.5px;margin-top:4px;font-weight:400}
@@ -60,16 +61,16 @@ body{font-family:var(--font-body);background:var(--bg);background-image:radial-g
 .data-banner{background:var(--yellow-bg);border:1px solid #F5DEB0;color:#8A5A00;font-size:12.5px;font-weight:500;padding:11px 14px;border-radius:var(--radius);margin-bottom:16px;line-height:1.5}
 .data-banner.err{background:var(--red-bg);border-color:#FECACA;color:#991B1B}
 .mission-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:18px}
-.mission-cell{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+.mission-cell{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden;min-width:0}
 .mission-cell::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ghn)}
 .mission-cell.ok::before{background:var(--green)}
 .mission-cell.warn::before{background:var(--yellow)}
 .mission-cell.bad::before{background:var(--red)}
 .mission-cell .m-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin-bottom:4px}
-.mission-cell .m-val{font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--ink);letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+.mission-cell .m-val{font-family:var(--font-display);font-size:clamp(14px,1.6vw,18px);font-weight:700;color:var(--ink);letter-spacing:-.3px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .mission-cell .m-sub{font-size:11px;color:var(--text-sub);margin-top:3px}
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:18px}
-.kpi-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:16px 18px;border:1px solid var(--border);position:relative;overflow:hidden}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:12px;margin-bottom:18px}
+.kpi-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:16px 18px;border:1px solid var(--border);position:relative;overflow:hidden;min-width:0}
 .kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--ghn);opacity:.9}
 .kpi-card:nth-child(2)::before{background:var(--green)}
 .kpi-card:nth-child(3)::before{background:var(--yellow)}
@@ -77,7 +78,7 @@ body{font-family:var(--font-body);background:var(--bg);background-image:radial-g
 .kpi-card .ic{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;margin-bottom:10px;background:var(--ghn-soft)}
 .kpi-card .lbl{color:var(--text-sub);font-size:11.5px;font-weight:600;margin-bottom:6px;line-height:1.35}
 .kpi-card .val{margin-bottom:2px}
-.kpi-card .hero-amt{font-family:var(--font-display);font-size:26px;font-weight:700;letter-spacing:-.5px;color:var(--ink);font-variant-numeric:tabular-nums}
+.kpi-card .hero-amt{font-family:var(--font-display);font-size:clamp(18px,2.4vw,26px);font-weight:700;letter-spacing:-.5px;color:var(--ink);font-variant-numeric:tabular-nums}
 .kpi-card .hero-unit{font-size:12px;font-weight:600;color:var(--text-muted);margin-left:4px}
 .kpi-card .hero-sub{font-size:14px;font-weight:600;color:var(--text-sub)}
 .kpi-card .sub{font-size:11.5px;color:var(--text-muted);margin-top:8px;line-height:1.4}
@@ -93,14 +94,14 @@ body{font-family:var(--font-body);background:var(--bg);background-image:radial-g
 .kpi-ring-wrap .ring-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .kpi-ring-wrap .ring-pct{font-size:15px;font-weight:700;font-family:var(--font-display);color:var(--ink);line-height:1}
 .kpi-ring-wrap .ring-days{font-size:9px;font-weight:600;color:var(--text-muted);margin-top:2px}
-.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-sm);border:1px solid var(--border);margin-bottom:16px;overflow:hidden}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-sm);border:1px solid var(--border);margin-bottom:16px;overflow:hidden;min-width:0;max-width:100%}
 .card-header{padding:13px 16px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:#FAFBFC}
-.card-title{display:flex;align-items:center;gap:9px;font-weight:700;font-size:13.5px;color:var(--ink);letter-spacing:-.2px;font-family:var(--font-display)}
+.card-title{display:flex;align-items:center;gap:9px;font-weight:700;font-size:13.5px;color:var(--ink);letter-spacing:-.2px;font-family:var(--font-display);min-width:0}
 .card-icon{width:26px;height:26px;border-radius:7px;background:var(--ghn);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
-.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;width:100%}
 .scroll-hint{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--ghn-deep);background:var(--ghn-soft);padding:5px 10px;border-radius:7px;margin:8px 16px 12px;letter-spacing:.2px}
 .scroll-hint::before{content:"\21c6"}
-table.tbl-pro{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px}
+table.tbl-pro{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:0}
 table.tbl-pro th{padding:7px 8px;text-align:left;font-weight:600;font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.3px;border:1px solid var(--border);white-space:normal;line-height:1.25;background:#F7F9FC;position:sticky;top:0;z-index:2;max-width:108px}
 table.tbl-pro th .ck{display:block;font-style:italic;font-weight:500;text-transform:none;letter-spacing:0;font-size:10px;color:var(--text-muted);margin-top:2px}
 .kpi-card .lbl .ck{display:block;font-style:italic;font-weight:500;color:var(--text-muted);margin-top:2px}
@@ -170,6 +171,12 @@ table.tbl-pro td:has(.nhom-gom){text-align:center;vertical-align:middle}
 .trend-tag.down{background:var(--red-bg);color:var(--red)}
 .trend-tag.flat{background:#F1F5F9;color:var(--text-muted)}
 .trend-tag .trend-abs{font-size:9px;font-weight:600;opacity:.75;margin-left:2px}
+.mom-arrow{display:inline-flex;align-items:center;justify-content:center;min-width:14px;font-size:11px;font-weight:700;line-height:1}
+.mom-arrow.up{color:var(--green)}
+.mom-arrow.down{color:var(--red)}
+.mom-arrow.flat{color:var(--text-muted);font-weight:600}
+.vnd-mom{display:inline-flex;align-items:center;justify-content:flex-end;gap:3px;white-space:nowrap}
+th.mom-col,td.mom-col{text-align:center;width:36px;padding-left:4px;padding-right:4px}
 .pct-pill{display:inline-block;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;min-width:48px;text-align:center}
 .pct-g{background:var(--green-bg);color:var(--green)}
 .pct-y{background:var(--yellow-bg);color:var(--yellow)}
@@ -245,14 +252,14 @@ table.tbl-pro.compact td,table.tbl-pro.compact th{padding:5px 6px;font-size:11px
 .khA-day-tbl td.zero{color:var(--text-muted)}
 .khA-day-tbl tr.stop td{background:rgba(220,38,38,.04)}
 
-@media(max-width:900px){.overview-split{grid-template-columns:1fr}.overview-half{border-right:none;border-bottom:1px solid var(--border-light)}.mission-strip{grid-template-columns:1fr 1fr}}
+@media(max-width:900px){.overview-split{grid-template-columns:1fr}.overview-half{border-right:none;border-bottom:1px solid var(--border-light)}}
 .tabbar{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:14px;flex-wrap:wrap}
 .tabbtn{padding:8px 12px;border:none;background:none;font-size:12px;font-weight:700;color:var(--text-sub);cursor:pointer;border-bottom:2px solid transparent;font-family:inherit}
 .tabbtn.active{color:var(--ghn-deep);border-bottom-color:var(--ghn)}
 .loading{padding:40px;text-align:center;color:var(--text-sub)}
 .spin-ic{display:inline-block;animation:spin 1s linear infinite}
 .foot-note{font-size:11px;color:var(--text-muted);padding:10px 16px 14px;line-height:1.45}
-.chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-bottom:16px}
+.chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:14px;margin-bottom:16px}
 .chart-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:16px}
 .chart-box .chart-title{font-size:13px;font-weight:700;margin-bottom:10px;color:var(--ink);letter-spacing:-.2px;font-family:var(--font-display)}
 .chart-box .chart-sub{font-size:11px;color:var(--text-muted);margin-bottom:12px}
@@ -270,7 +277,7 @@ table.tbl-pro.compact td,table.tbl-pro.compact th{padding:5px 6px;font-size:11px
 .rank-num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:#F1F5F9;color:var(--text-sub);font-size:10px;font-weight:700}
 .rank-num.top3{background:var(--ghn-soft);color:var(--ghn-deep)}
 .btn.primary,.login-btn{font-family:inherit}
-@media(max-width:900px){.sidebar{display:none}.main{margin-left:0;padding:16px 12px 72px}}
+@media(max-width:900px){.sidebar{display:none}.main{margin-left:0;width:100%;max-width:100%;padding:16px 12px 72px}}
 
 /* —— Smart Ops + Workspace —— */
 .page-header.health-ok{border-bottom-color:rgba(13,159,110,.35)}
@@ -281,7 +288,7 @@ table.tbl-pro.compact td,table.tbl-pro.compact th{padding:5px 6px;font-size:11px
 .page-header .fresh-badge.stale{background:var(--yellow-bg);color:var(--yellow)}
 .page-header .fresh-badge.old{background:var(--red-bg);color:var(--red)}
 .action-board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px}
-.action-col{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:12px;min-height:120px}
+.action-col{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:12px;min-height:120px;min-width:0}
 .action-col .ac-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .action-col .ac-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)}
 .action-col .ac-count{font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--ink)}
@@ -289,22 +296,23 @@ table.tbl-pro.compact td,table.tbl-pro.compact th{padding:5px 6px;font-size:11px
 .action-col.good .ac-count{color:var(--green)}
 .action-col.new .ac-count{color:var(--ghn-deep)}
 .action-col .ac-list{display:flex;flex-direction:column;gap:5px}
-.action-chip{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:7px;background:#F7F9FC;border:1px solid var(--border-light);cursor:pointer;font-size:11.5px;font-weight:600;color:var(--ink);text-align:left;font-family:inherit;width:100%;transition:background .12s,border-color .12s}
+.action-chip{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:7px;background:#F7F9FC;border:1px solid var(--border-light);cursor:pointer;font-size:11.5px;font-weight:600;color:var(--ink);text-align:left;font-family:inherit;width:100%;min-width:0;transition:background .12s,border-color .12s}
 .action-chip:hover{background:var(--ghn-soft);border-color:rgba(255,107,0,.28)}
-.action-chip .ac-meta{font-size:10.5px;font-weight:600;color:var(--text-muted);font-variant-numeric:tabular-nums}
+.action-chip .ac-meta{font-size:10.5px;font-weight:600;color:var(--text-muted);font-variant-numeric:tabular-nums;flex-shrink:0}
+.action-chip>span:first-child,.action-chip{overflow-wrap:anywhere}
 .action-col .ac-empty{font-size:12px;color:var(--text-muted);padding:8px 2px}
 .am-spark{display:inline-block;vertical-align:middle;margin-left:6px}
 .am-cell-with-spark{display:inline-flex;align-items:center;gap:6px;max-width:100%}
 .empty-state{padding:28px 20px;text-align:center;color:var(--text-sub)}
 .empty-state .es-title{font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px}
 .empty-state .es-sub{font-size:12.5px;line-height:1.5;max-width:360px;margin:0 auto}
-.global-am-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 12px;margin-bottom:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+.global-am-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 12px;margin-bottom:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);min-width:0;max-width:100%}
 .global-am-bar label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)}
-.global-am-bar select,.global-am-bar input[type="date"]{padding:6px 9px;border-radius:7px;border:1px solid var(--border);font-size:12px;font-weight:600;font-family:inherit;min-width:140px;background:#fff;color:var(--ink)}
+.global-am-bar select,.global-am-bar input[type="date"]{padding:6px 9px;border-radius:7px;border:1px solid var(--border);font-size:12px;font-weight:600;font-family:inherit;min-width:0;max-width:100%;flex:1 1 140px;background:#fff;color:var(--ink)}
 .global-am-bar .gab-btn{padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:#F8FAFC;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;color:var(--ghn-deep)}
 .global-am-bar .gab-btn:hover{background:#EEF2FF}
-.global-am-bar .gab-hint{font-size:11px;color:var(--text-muted);margin-left:auto}
-.global-am-bar .gab-sep{width:1px;height:22px;background:var(--border);margin:0 2px}
+.global-am-bar .gab-hint{font-size:11px;color:var(--text-muted);margin-left:auto;min-width:0;flex:1 1 180px}
+.global-am-bar .gab-sep{width:1px;height:22px;background:var(--border);margin:0 2px;flex-shrink:0}
 .cmd-backdrop{position:fixed;inset:0;background:rgba(12,18,34,.45);backdrop-filter:blur(4px);z-index:9000;display:none;align-items:flex-start;justify-content:center;padding:12vh 16px 24px}
 .cmd-backdrop.show{display:flex}
 .cmd-card{width:min(520px,100%);background:#fff;border-radius:14px;border:1px solid var(--border);box-shadow:0 24px 64px rgba(12,18,34,.22);overflow:hidden}
@@ -320,13 +328,43 @@ table.tbl-pro.compact td,table.tbl-pro.compact th{padding:5px 6px;font-size:11px
 .mobile-nav button{flex:1;border:none;background:none;color:rgba(255,255,255,.5);font-size:9.5px;font-weight:600;padding:6px 2px;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}
 .mobile-nav button.active{color:var(--ghn-bright)}
 .mobile-nav svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.85;stroke-linecap:round;stroke-linejoin:round}
+@media(max-width:1280px){
+  :root{--sidebar-w:200px}
+  .mission-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .action-board{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .action-board .action-col.new{grid-column:1/-1}
+  .kpi-grid{grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr))}
+  .main{padding:16px 14px 56px}
+  .page-title{font-size:clamp(18px,2.2vw,22px)}
+}
+@media(max-width:1100px){
+  :root{--sidebar-w:180px}
+  .logo-title{font-size:12px}
+  .sidebar-widget .sw-clock-time{font-size:18px}
+  .sidebar-widget .sw-quote{font-size:10.5px}
+  .nav-item{font-size:11.5px;padding:8px 10px}
+  .kpi-card{padding:12px 14px}
+  .global-am-bar .gab-hint{flex-basis:100%;margin-left:0}
+}
 @media(max-width:900px){
   .mobile-nav{display:flex}
   .action-board{grid-template-columns:1fr}
-  .mission-strip{grid-template-columns:1fr 1fr}
+  .action-board .action-col.new{grid-column:auto}
+  .mission-strip{grid-template-columns:1fr}
+  .kpi-grid{grid-template-columns:1fr}
+  .chart-grid{grid-template-columns:1fr}
+  .overview-split{grid-template-columns:1fr}
   .global-am-bar .gab-hint{display:none}
+  .chart-wrap{height:220px}
+  .chart-wrap.tall{height:260px}
 }
 @media(min-width:901px){.mobile-nav{display:none!important}}
+/* Zoom / khung hẹp: bảng cuộn ngang trong card, không cắt mất số */
+@media(max-width:1400px){
+  .table-wrap{overscroll-behavior-x:contain}
+  table.tbl-pro.compact{font-size:10.5px}
+  table.tbl-pro.compact td,table.tbl-pro.compact th{padding:4px 5px}
+}
 
 /* —— Export week modal —— */
 .modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(6px);z-index:8000;display:none;align-items:center;justify-content:center;padding:20px}
@@ -477,6 +515,7 @@ table.tbl-pro.compact td,table.tbl-pro.compact th{padding:5px 6px;font-size:11px
   <button class="nav-item" data-page="banMoi" onclick="showPage('banMoi')"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/><circle cx="12" cy="12" r="9"/></svg></span> Bán Mới</button>
   <button class="refresh-btn" id="refreshBtn" onclick="refreshAll()"><span class="spin">↻</span> Cập nhật dữ liệu</button>
   <button class="export-btn" id="exportDocBtn" onclick="openExportWeekModal()" disabled>Xuất báo cáo tuần</button>
+  <button class="export-btn" id="exportMonthDocBtn" onclick="exportMonthlyReportDoc()" disabled style="background:rgba(255,107,0,.12);border-color:rgba(255,107,0,.28);color:#FDBA74">Xuất báo cáo tháng</button>
   <div class="sidebar-widget">
     <div class="sw-clock">
       <div id="lvClockTime" class="sw-clock-time">--:--:--</div>
@@ -550,7 +589,7 @@ const GID = {
 };
 const SHEET = {
   dtThang2025: 'DT-Tháng2025',  // Doanh thu 2025 — fetch theo tên sheet
-  dtThang2026: 'DT-Tháng',       // Doanh thu 2026 — sheet bổ sung (vd. 2026/6 + 2026/06)
+  dtThang2026: 'DT-Tháng',       // Doanh thu 2026 — sheet bổ sung (vd. 2026/6, 2026/06, 6/2026, 06/2026)
   doanhThuGTC: 'DoanhThu-GTC',    // Doanh thu GTC — cấu trúc giống DT-Tháng
   totalKH: 'TotalKH',              // Chi tiết KH theo nhóm (alias: KHTotal)
   banmoi: 'Banmoi'                 // Bán mới / KHM — DT lấy TC / giao trả TC (chưa VAT)
@@ -696,6 +735,20 @@ function trendArrow(cur,prev){
   if(d<-0.5) return `<span class="trend-tag down">▼ ${Math.abs(d).toFixed(0)}% <span class="trend-abs">(${diffStr})</span></span>`;
   return `<span class="trend-tag flat">— ${d.toFixed(0)}% <span class="trend-abs">(${diffStr})</span></span>`;
 }
+/** Mũi tên MoM: xanh tăng / đỏ giảm so với tháng trước (cur vs prev). */
+function momArrowIcon(cur,prev){
+  const c=+cur||0, p=+prev||0;
+  if(p===0 && c===0) return '<span class="mom-arrow flat" title="Không đổi">—</span>';
+  if(p===0 && c>0) return '<span class="mom-arrow up" title="Tăng mới">▲</span>';
+  const d=(c-p)/p*100;
+  if(d>0.5) return `<span class="mom-arrow up" title="Tăng ${d.toFixed(0)}%">▲</span>`;
+  if(d<-0.5) return `<span class="mom-arrow down" title="Giảm ${Math.abs(d).toFixed(0)}%">▼</span>`;
+  return '<span class="mom-arrow flat" title="Ổn định">—</span>';
+}
+/** Số tiền + mũi tên cạnh số (so với tháng trước). */
+function fmtVndWithMom(cur,prev){
+  return `<span class="vnd-mom">${fmtVndCell(cur)}${momArrowIcon(cur,prev)}</span>`;
+}
 function weekSortKey(w){ const m=(w||'').match(/^(\d+)\/(\d+)$/); return m? parseInt(m[1])*100+parseInt(m[2]) : 0; }
 function weekSortKeyIso(w){
   const m=String(w||'').match(/^(\d{4})\/(\d+)$/);
@@ -760,6 +813,7 @@ function buildDtNgayByDate(dtNgay, thang){
   for(let i=1;i<dtNgay.length;i++){
     const r=dtNgay[i];
     if(!r[iAM]||!r[iNgay]) continue;
+    if(!matchSharedAm(r[iAM])) continue;
     const iso=normalizeNgayToIso(r[iNgay]);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)) continue;
     if(thang){ const mk=monthKeyFromIso(iso); if(!mk||!thangEq(mk,thang)) continue; }
@@ -778,7 +832,7 @@ function sumAmDtNgayCungKy(dtNgay, thang, elapsedDays){
   for(let i=1;i<dtNgay.length;i++){
     const r=dtNgay[i];
     const am=(r[iAM]||'').trim();
-    if(!am) continue;
+    if(!am || !matchSharedAm(am)) continue;
     const iso=normalizeNgayToIso(r[iNgay]);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)) continue;
     const mk=monthKeyFromIso(iso);
@@ -979,7 +1033,44 @@ function amCellWithSpark(am, dtNgay){
 function matchSharedAm(am){
   const f=getSharedAmFilter();
   if(!f) return true;
-  return String(am||'').trim()===f;
+  const a=String(am||'').trim();
+  if(!a) return false;
+  if(a===f) return true;
+  const ac=cleanAmName(a), fc=cleanAmName(f);
+  return !!(ac && fc && (ac===fc || a===fc || ac===f));
+}
+function idxSheetAmCol(header){
+  if(!header||!header.length) return -1;
+  let i=idxOf(header,'AM Chuẩn');
+  if(i>=0) return i;
+  i=idxOf(header,'AM');
+  if(i>=0) return i;
+  i=idxAMCol(header);
+  return i>=0?i:-1;
+}
+function filterSheetByAm(sheet){
+  if(!sheet||!sheet.length) return sheet||[];
+  if(!getSharedAmFilter()) return sheet;
+  const h=sheet[0];
+  const cols=[idxOf(h,'AM Chuẩn'), idxOf(h,'AM'), idxAMCol(h)].filter(i=>i>=0);
+  const uniq=[...new Set(cols)];
+  if(!uniq.length) return sheet;
+  return [h].concat(sheet.slice(1).filter(r=>uniq.some(i=>matchSharedAm(r&&r[i]))));
+}
+function filterRecsByAm(recs){
+  if(!recs||!recs.length) return recs||[];
+  if(!getSharedAmFilter()) return recs;
+  return recs.filter(r=>matchSharedAm(r&&r.am));
+}
+/** Sheet đã lọc theo AM (giữ nguyên lịch/ngày chuẩn từ _DATA gốc). */
+function getDataForAmFilter(){
+  const d=window._DATA||{};
+  if(!getSharedAmFilter()) return d;
+  const out={...d};
+  ['ketQua','kpiAM','dtNgay','phanNhom','dtThang','dtThang2025','khNhomA','totalKH','dtGtc','banmoi'].forEach(k=>{
+    if(d[k]) out[k]=filterSheetByAm(d[k]);
+  });
+  return out;
 }
 function dataFreshness(dtNgay){
   const mp=getMonthProgress(dtNgay);
@@ -1089,6 +1180,7 @@ function renderActionBoard({needRows, goodRows, banMoiHint}){
 }
 function jumpToAm(am, page){
   setSharedAmFilter(am, {skipRender:true});
+  if(loaded) renderAllPages();
   showPage(page||'banMoi');
 }
 function renderGlobalAmBar(ams){
@@ -1498,13 +1590,14 @@ function buildNhomDtLastNDays(totalKH, n=14, dtNgay){
     const iso=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     dates.push(iso);
   }
-  // DT LTC vùng theo ngày (chuẩn đơn vị đồng) — nếu có
+  // DT LTC theo ngày (chuẩn đơn vị đồng) — nếu có; lọc AM nếu đang chọn
   const dayLtc={};
   if(dtNgay&&dtNgay.length>1){
-    const h=dtNgay[0], iNgay=idxOf(h,'Ngay'), iDT=idxOf(h,'DoanhThu');
+    const h=dtNgay[0], iNgay=idxOf(h,'Ngay'), iDT=idxOf(h,'DoanhThu'), iAM=idxOf(h,'AM Chuẩn');
     if(iNgay>=0&&iDT>=0){
       for(let i=1;i<dtNgay.length;i++){
         const r=dtNgay[i];
+        if(iAM>=0 && !matchSharedAm(r[iAM])) continue;
         const iso=normalizeNgayToIso(r[iNgay]);
         if(!iso||!dates.includes(iso)) continue;
         dayLtc[iso]=(dayLtc[iso]||0)+parseVNNum(r[iDT]);
@@ -1513,7 +1606,7 @@ function buildNhomDtLastNDays(totalKH, n=14, dtNgay){
   }
   const byDay={};
   dates.forEach(iso=>{ byDay[iso]={A:0,BCD:0,EF:0,G:0}; });
-  recs.forEach(r=>{
+  filterRecsByAm(recs).forEach(r=>{
     if(!byDay[r.ngay]||!NHOM_LABELS.includes(r.grp)) return;
     byDay[r.ngay][r.grp]+=r.dt||0;
   });
@@ -1555,10 +1648,11 @@ const NHOM_CHART_COLORS={
 function renderOverviewNhom14dSection(series){
   if(!series||!series.dates||!series.dates.length) return '';
   const range=`${isoShort2(series.from)} → ${isoShort2(series.to)}`;
-  const scaleNote=series.scaled?' · đã scale khớp DT-Ngày vùng':'';
+  const scaleNote=series.scaled?(getSharedAmFilter()?' · đã scale khớp DT-Ngày AM':' · đã scale khớp DT-Ngày vùng'):'';
+  const amNote=getSharedAmFilter()?` · AM ${getSharedAmFilter()}`:'';
   return `<div class="chart-box full">
     <div class="chart-title">Doanh thu LTC theo nhóm KH — 14 ngày gần nhất</div>
-    <div class="chart-sub">Nhóm A · BCD · EF · G · ${range} · đơn vị: triệu đồng (tr)${scaleNote}</div>
+    <div class="chart-sub">Nhóm A · BCD · EF · G · ${range} · đơn vị: triệu đồng (tr)${scaleNote}${amNote}</div>
     <div class="chart-wrap tall"><canvas id="cNhom14d"></canvas></div>
   </div>`;
 }
@@ -1999,7 +2093,10 @@ function setBanMoiFilter(patch){
 function filterBanMoiRecs(recs, flt){
   const f=flt||getBanMoiFilter();
   return (recs||[]).filter(r=>{
-    if(f.am && r.am!==f.am) return false;
+    if(f.am){
+      const a=String(r.am||'').trim();
+      if(a!==f.am && cleanAmName(a)!==cleanAmName(f.am)) return false;
+    }
     if(f.from && r.iso<f.from) return false;
     if(f.to && r.iso>f.to) return false;
     return true;
@@ -2024,13 +2121,23 @@ function onBanMoiFilterChange(){
     to:toEl?toEl.value:''
   });
   syncSharedAmToUrl();
-  renderBanMoi();
+  if(loaded){
+    renderAllPages();
+    showPage('banMoi', {keepUrl:true});
+  } else {
+    renderBanMoi();
+  }
 }
 function resetBanMoiFilter(){
   window._sharedAm='';
   setBanMoiFilter({am:'',from:'',to:''});
   syncSharedAmToUrl();
-  renderBanMoi();
+  if(loaded){
+    renderAllPages();
+    showPage('banMoi', {keepUrl:true});
+  } else {
+    renderBanMoi();
+  }
 }
 /** Gom DT theo chiều (AM / bưu cục) × ngày / tuần gần nhất. */
 function buildBanMoiDimCompare(recs, dimKey, nDays, nWeeks, note){
@@ -2414,6 +2521,7 @@ function buildKhNoOrder3d(totalKH, thang, nDays){
     if(mtd<=0) return;
     const dtWin=lastN.reduce((s,iso)=>s+(c.dates[iso]||0),0);
     if(dtWin>0) return;
+    if(!matchSharedAm(c.am)) return;
     rows.push({ma:c.ma, ten:c.ten||c.ma||'—', am:c.am||'—', grp:c.grp||'—', lastIso:c.lastIso||'', mtd});
   });
   rows.sort((a,b)=>{
@@ -2493,7 +2601,7 @@ function renderOverviewKhASection(alertData){
     html+=`<div class="section-note">✅ Không có KH nhóm A cần xử lý (Sụt giảm / Ngừng hoạt động / Rớt hạng).</div></div>`;
     return html;
   }
-  html+=`<div class="data-banner" style="margin:12px 16px 0">Vùng / Team: <b>TNT</b> · Mini-chart = đơn LTC 14 ngày · DT at-risk = (DT/ngày trước − DT/ngày gần) × 30 · X% = (TB7 trước − TB7 gần) ÷ TB7 trước · Hạng dự kiến = (MTD ÷ ${d.elapsed||'—'}) × ${d.totalDays||'—'} ngày</div>`;
+  html+=`<div class="data-banner" style="margin:12px 16px 0">${getSharedAmFilter()?`AM: <b>${docEsc(getSharedAmFilter())}</b>`:'Vùng / Team: <b>TNT</b>'} · Mini-chart = đơn LTC 14 ngày · DT at-risk = (DT/ngày trước − DT/ngày gần) × 30 · X% = (TB7 trước − TB7 gần) ÷ TB7 trước · Hạng dự kiến = (MTD ÷ ${d.elapsed||'—'}) × ${d.totalDays||'—'} ngày</div>`;
   html+=`<div class="table-wrap" style="margin-top:8px"><table class="tbl-pro khA-need-tbl"><thead><tr>
     <th>Khách hàng</th><th>Hạng</th><th>Mức độ</th><th>Tín hiệu</th>
     <th>Đơn tạo (xu hướng)</th><th class="num">DT at-risk / TH</th><th>Người chăm</th><th>Team</th>
@@ -2894,7 +3002,8 @@ function renderBanMoi(){
   catch(e){ console.warn('banMoi kho trend', e); khoTrend={rows:[],upRows:[],hasKho:false,thangLabel,elapsed,totalDays}; }
   const charts=buildBanMoiChartSeries(banmoi, flt);
 
-  let html=`<div class="page-header"><div><div class="page-title">Bán Mới (KHM)</div><div class="page-sub">Tháng ${thangLabel} · ${elapsed}/${totalDays} ngày · <span class="unit-note">triệu đồng</span></div></div>
+  const sharedAm=getSharedAmFilter();
+  let html=`<div class="page-header"><div><div class="page-title">Bán Mới (KHM)</div><div class="page-sub">${sharedAm?`AM <b>${docEsc(sharedAm)}</b> · `:''}Tháng ${thangLabel} · ${elapsed}/${totalDays} ngày · <span class="unit-note">triệu đồng</span></div></div>
     <span class="fresh-badge ${dataFreshness(dtNgay).cls}">${dataFreshness(dtNgay).label}</span></div>`;
   if(!(banmoi&&banmoi.length>1)){
     html+=emptyStateHtml('Chưa có dữ liệu Banmoi', 'Deploy GAS kèm sheet Banmoi rồi Cập nhật dữ liệu.');
@@ -3004,10 +3113,12 @@ function fmtNhomWowCell(parts){
   return `<div class="nhom-wow-stack">${badges.join('')}</div>`;
 }
 function thangNumLabel(thangOrLabel){
+  const p=parseThang(thangOrLabel);
+  if(p) return String(p.m);
   const m=String(thangOrLabel||'').match(/\/0?(\d+)$/);
   return m?String(+m[1]):String(thangOrLabel||'');
 }
-function renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc, dtNgay){
+function renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc, dtNgay, thang){
   const shared=getSharedAmFilter();
   const baseRows=shared?rows.filter(r=>matchSharedAm(r.am)):rows;
   const withKpi=baseRows.filter(r=>r.kpiCm>0);
@@ -3017,6 +3128,9 @@ function renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, t
   const pctCls=p=>p>=100?'pct-g':p>=70?'pct-y':'pct-r';
   const totalActual=baseRows.reduce((s,r)=>s+r.actual,0);
   const totalProj=baseRows.reduce((s,r)=>s+(r.projected||0),0);
+  const totalDtN1=baseRows.reduce((s,r)=>s+(r.dtN1||0),0);
+  const totalDtN2=baseRows.reduce((s,r)=>s+(r.dtN2||0),0);
+  const totalDtN3=baseRows.reduce((s,r)=>s+(r.dtN3||0),0);
   const kpiCmShow=shared?baseRows.reduce((s,r)=>s+(r.kpiCm||0),0):totalKpiCm;
   const kpiCmPeriodShow=shared?baseRows.reduce((s,r)=>s+(r.kpiCmPeriod||0),0):totalKpiCmPeriod;
   const gtcShow=shared?baseRows.reduce((s,r)=>s+(r.gtc||0),0):(totalGtc||0);
@@ -3025,6 +3139,12 @@ function renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, t
   const rateProjCty=pct(totalProj, kpiCmShow);
   const colDat=p=>p>=100?'down':'up';
   const thangN=thangNumLabel(thangLabel);
+  const thangN1=thang?prevThang(thang):null;
+  const thangN2=thangN1?prevThang(thangN1):null;
+  const thangN3=thangN2?prevThang(thangN2):null;
+  const hdrN1=`Tháng ${thangNumLabel(thangN1)||'N-1'}`;
+  const hdrN2=`Tháng ${thangNumLabel(thangN2)||'N-2'}`;
+  const hdrN3=`Tháng ${thangNumLabel(thangN3)||'N-3'}`;
   let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon" style="background:var(--yellow)">📈</div>KPI AM Tháng ${thangN}</div><span class="badge">${thangLabel} · KPI Cty · ${elapsed}/${totalDays} ngày</span></div>`;
   html+=`<div class="kpi-grid" style="margin:16px 22px 0;padding:0">
     <div class="kpi-card" style="margin:0">
@@ -3059,7 +3179,9 @@ function renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, t
       <th style="width:36px">#</th>
       <th class="col-sticky">AM</th>
       <th class="num">Target Tháng</th>
-      <th class="num">Est Full M</th>
+      <th class="num">${hdrN2}<span class="ck">vs ${hdrN3}</span></th>
+      <th class="num">${hdrN1}<span class="ck">vs ${hdrN2}</span></th>
+      <th class="num">Est Full M<span class="ck">vs ${hdrN1}</span></th>
       <th class="num">MTD M</th>
       <th class="num">% Đạt LTC</th>
       <th class="num">% Đạt Cty</th>
@@ -3067,11 +3189,14 @@ function renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, t
     list.forEach((r,i)=>{
       const proj=r.projected!=null?r.projected:(elapsed?r.actual/elapsed*totalDays:0);
       const weak=r.rateGtcCmPeriod<100;
+      const dtN1=r.dtN1||0, dtN2=r.dtN2||0, dtN3=r.dtN3||0;
       html+=`<tr class="${weak?'row-warn':''}">
         <td><span class="rank-num${i<3?' top3':''}">${i+1}</span></td>
         <td class="col-sticky">${amCellWithSpark(r.am, dtNgay)}</td>
         <td class="num">${fmtVndCell(r.kpiCm)}</td>
-        <td class="num">${fmtVndCell(proj)}</td>
+        <td class="num">${fmtVndWithMom(dtN2, dtN3)}</td>
+        <td class="num">${fmtVndWithMom(dtN1, dtN2)}</td>
+        <td class="num">${fmtVndWithMom(proj, dtN1)}</td>
         <td class="num">${fmtVndCell(r.actual)}</td>
         <td class="num"><span class="pct-pill ${pctCls(r.rateCmPeriod)}">${r.rateCmPeriod.toFixed(0)}%</span></td>
         <td class="num">${r.kpiCmPeriod?`<span class="pct-pill ${pctCls(r.rateGtcCmPeriod)}">${r.rateGtcCmPeriod.toFixed(0)}%</span>`:'—'}</td>
@@ -3079,7 +3204,9 @@ function renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, t
     });
     html+=`<tr class="tot"><td></td><td class="col-sticky">TỔNG ${shared?'AM':'VÙNG'}</td>
       <td class="num">${fmtVndCell(kpiCmShow)}</td>
-      <td class="num">${fmtVndCell(totalProj)}</td>
+      <td class="num">${fmtVndWithMom(totalDtN2, totalDtN3)}</td>
+      <td class="num">${fmtVndWithMom(totalDtN1, totalDtN2)}</td>
+      <td class="num">${fmtVndWithMom(totalProj, totalDtN1)}</td>
       <td class="num">${fmtVndCell(totalActual)}</td>
       <td class="num"><span class="pct-pill ${pctCls(rateLtcCk)}">${rateLtcCk.toFixed(0)}%</span></td>
       <td class="num"><span class="pct-pill ${pctCls(rateCtyCk)}">${rateCtyCk.toFixed(0)}%</span></td>
@@ -3087,7 +3214,7 @@ function renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, t
     html+=`</tbody></table></div>`;
   }
   html+=`</div>`;
-  html+=analysisQuick(`KPI AM Tháng ${thangN} · sắp xếp theo <b>% Đạt KPI Cty (cùng kỳ)</b> cao→thấp. Dự kiến DT LTC = MTD LTC ÷ ${elapsed} × ${totalDays}. Tỷ lệ dự kiến Vùng = Dự kiến DT LTC / KPI Cty.`);
+  html+=analysisQuick(`KPI AM Tháng ${thangN} · sắp xếp theo <b>% Đạt KPI Cty (cùng kỳ)</b> cao→thấp. Mũi tên cạnh số: ▲ xanh tăng / ▼ đỏ giảm — Est Full M vs ${hdrN1}, ${hdrN1} vs ${hdrN2}, ${hdrN2} vs ${hdrN3}. Dự kiến DT LTC = MTD LTC ÷ ${elapsed} × ${totalDays}. Tỷ lệ dự kiến Vùng = Dự kiến DT LTC / KPI Cty.`);
   html+=`</div>`;
   return html;
 }
@@ -3177,16 +3304,18 @@ function renderOverviewInsightCard(opts){
   const rateProj=pct(totalProjected, totalKpiCm);
   const rateMtd=pct(totalActual, totalKpiCm);
   const {recs, maxDate}=parseTotalKHNhomRecs(totalKH);
+  const viewRecs=filterRecsByAm(recs);
   const dayScale=buildDayScaleFromDtNgay(totalKH, dtNgay, currentThang());
   // Scale DT trên recs cho bảng nhóm / bưu cục
-  const scaledRecs=recs.map(r=>{
+  const scaledRecs=viewRecs.map(r=>{
     const k=dayScale[r.ngay]!=null?dayScale[r.ngay]:1;
     return {...r, dt:(r.dt||0)*k};
   });
-  const per=buildNhomCombinedPeriod(scaledRecs);
-  const dayIns=buildDayN1N2Insight(recs, dayScale);
+  const per=buildNhomCombinedPeriod(recs);
+  const dayIns=buildDayN1N2Insight(viewRecs, dayScale);
+  const sharedAm=getSharedAmFilter();
   const noteText=buildOverviewNoteText({
-    title:'Vùng TNT',
+    title:sharedAm||'Vùng TNT',
     thangN,
     kpi:totalKpiCm,
     mtd:totalActual,
@@ -3360,9 +3489,11 @@ function buildDayScaleFromDtNgay(totalKH, dtNgay, thang){
   const h=totalKH[0];
   const iVung=idxOf(h,'Vung'), iDT=idxOf(h,'DT');
   const iNgayChuan=idxNgayChuanHoa(h), iNgay=idxOf(h,'Ngay');
+  const iAM=idxOf(h,'AM Chuẩn');
   for(let i=1;i<totalKH.length;i++){
     const r=totalKH[i];
     if(iVung>=0 && (r[iVung]||'').trim() && !isVungTnt(r[iVung])) continue;
+    if(iAM>=0 && !matchSharedAm(r[iAM])) continue;
     const iso=resolveSheetNgayIso(r, iNgayChuan, iNgay);
     if(!iso) continue;
     if(thang){
@@ -3377,10 +3508,11 @@ function buildDayScaleFromDtNgay(totalKH, dtNgay, thang){
     if(dt) dayRaw[iso]=(dayRaw[iso]||0)+dt;
   }
   if(dtNgay&&dtNgay.length>1){
-    const hd=dtNgay[0], iNgayD=idxOf(hd,'Ngay'), iDTD=idxOf(hd,'DoanhThu');
+    const hd=dtNgay[0], iNgayD=idxOf(hd,'Ngay'), iDTD=idxOf(hd,'DoanhThu'), iAMD=idxOf(hd,'AM Chuẩn');
     if(iNgayD>=0&&iDTD>=0){
       for(let i=1;i<dtNgay.length;i++){
         const r=dtNgay[i];
+        if(iAMD>=0 && !matchSharedAm(r[iAMD])) continue;
         const iso=normalizeNgayToIso(r[iNgayD]);
         if(!iso) continue;
         dayLtc[iso]=(dayLtc[iso]||0)+parseVNNum(r[iDTD]);
@@ -3486,43 +3618,61 @@ function nhomPeriodBanner(per){
 function renderNhomKHCard(recs, maxDate){
   if(!recs.length) return '<div class="section-note">Chưa có dữ liệu.</div>';
   const per=buildNhomCombinedPeriod(recs);
-  const totCur=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,(r,b)=>r.ngay===b,per.last3d),0);
-  const totPrev=NHOM_LABELS.reduce((s,g)=>s+dtFor(recs,null,'',g,(r,b)=>r.ngay===b,per.prev3d),0);
+  const view=filterRecsByAm(recs);
+  const shared=getSharedAmFilter();
+  if(!view.length) return `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">👥</div>Doanh Thu Theo Nhóm Khách Hàng</div></div>${emptyStateHtml('Không có dữ liệu AM đã lọc', 'Thử xóa lọc AM hoặc chọn AM khác.')}</div>`;
+  const totCur=NHOM_LABELS.reduce((s,g)=>s+dtFor(view,null,'',g,(r,b)=>r.ngay===b,per.last3d),0);
+  const totPrev=NHOM_LABELS.reduce((s,g)=>s+dtFor(view,null,'',g,(r,b)=>r.ngay===b,per.prev3d),0);
   const dPct=totPrev>0?((totCur-totPrev)/totPrev*100):0;
   let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">👥</div>Doanh Thu Theo Nhóm Khách Hàng</div><span class="badge">${isoShort2(maxDate)}</span></div>
-  <div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📊 ${nhomPeriodBanner(per)} · Δ = so với ngày/tuần liền kề trước đó · Đơn vị: triệu đồng</div>`;
-  html+=`<div class="am-title">Tổng Hợp Toàn Vùng TNT</div>`;
-  html+=renderNhomCombinedTable(recs,per,null,'Vùng');
-  html+=`<div class="am-title" style="font-size:11px;background:var(--card);color:var(--text-sub)">Theo AM · Ngày + Tuần + Tháng liền một bảng</div>`;
-  html+=renderNhomCombinedTable(recs,per,'am','AM');
-  html+=analysisQuick(`3 ngày gần nhất <b>${per.last3d.map(isoShort2).join(' · ')||'—'}</b>: vùng đạt <b>${fmtVnd(totCur)}</b> (${dPct>=0?'+':''}${dPct.toFixed(0)}% vs 3 ngày trước).`);
+  <div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📊 ${nhomPeriodBanner(per)} · Δ = so với ngày/tuần liền kề trước đó · Đơn vị: triệu đồng${shared?` · AM <b>${docEsc(shared)}</b>`:''}</div>`;
+  html+=`<div class="am-title">${shared?`AM ${docEsc(shared)}`:'Tổng Hợp Toàn Vùng TNT'}</div>`;
+  html+=renderNhomCombinedTable(view,per,null,shared?'AM':'Vùng');
+  if(!shared){
+    html+=`<div class="am-title" style="font-size:11px;background:var(--card);color:var(--text-sub)">Theo AM · Ngày + Tuần + Tháng liền một bảng</div>`;
+    html+=renderNhomCombinedTable(view,per,'am','AM');
+  }
+  html+=analysisQuick(`3 ngày gần nhất <b>${per.last3d.map(isoShort2).join(' · ')||'—'}</b>: ${shared?'AM':'vùng'} đạt <b>${fmtVnd(totCur)}</b> (${dPct>=0?'+':''}${dPct.toFixed(0)}% vs 3 ngày trước).`);
   html+=`</div>`;
   return html;
 }
 function renderNhomTinhCard(recs, maxDate){
   if(!recs.length) return '<div class="section-note">Chưa có dữ liệu.</div>';
   const per=buildNhomCombinedPeriod(recs);
+  const view=filterRecsByAm(recs);
+  const shared=getSharedAmFilter();
+  if(!view.length) return `<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">🗺️</div>Doanh Thu Khách Hàng Theo Tỉnh</div></div>${emptyStateHtml('Không có dữ liệu AM đã lọc', 'Thử xóa lọc AM hoặc chọn AM khác.')}</div>`;
   const byTinh={};
-  recs.filter(r=>per.last3d.includes(r.ngay)).forEach(r=>{
+  view.filter(r=>per.last3d.includes(r.ngay)).forEach(r=>{
     const t=r.tinh||'—';
     byTinh[t]=(byTinh[t]||0)+r.dt;
   });
   const topTinh=Object.entries(byTinh).sort((a,b)=>b[1]-a[1])[0];
   let html=`<div class="card"><div class="card-header"><div class="card-title"><div class="card-icon">🗺️</div>Doanh Thu Khách Hàng Theo Tỉnh</div><span class="badge">${isoShort2(maxDate)}</span></div>
-  <div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📊 ${nhomPeriodBanner(per)} · Δ = so với ngày/tuần liền kề trước đó · Đơn vị: triệu đồng</div>`;
-  html+=`<div class="am-title">Theo Tỉnh · Ngày + Tuần + Tháng liền một bảng</div>`;
-  html+=renderNhomCombinedTable(recs,per,'tinh','Tỉnh');
+  <div class="data-banner" style="margin:0;border-radius:0;border-left:none;border-right:none;border-top:none">📊 ${nhomPeriodBanner(per)} · Δ = so với ngày/tuần liền kề trước đó · Đơn vị: triệu đồng${shared?` · AM <b>${docEsc(shared)}</b>`:''}</div>`;
+  html+=`<div class="am-title">${shared?`AM ${docEsc(shared)} · `:''}Theo Tỉnh · Ngày + Tuần + Tháng liền một bảng</div>`;
+  html+=renderNhomCombinedTable(view,per,'tinh','Tỉnh');
   html+=analysisQuick(`3 ngày gần nhất <b>${per.last3d.map(isoShort2).join(' · ')||'—'}</b>. Tỉnh dẫn đầu: <b>${topTinh?topTinh[0]:'—'}</b>${topTinh?` (${fmtVnd(topTinh[1])})`:''}.`);
   html+=`</div>`;
   return html;
 }
 function parseThangSheet(s){
   s=(s||'').trim().replace(/\s+/g,'');
+  // YYYY/M · YYYY/MM · YYYY/tuần (≥13 trong layout hybrid)
   let m=s.match(/^(\d{4})[\/\-](\d{1,2})$/);
-  if(!m) return null;
-  const y=+m[1], p=+m[2];
-  if(p<0) return null;
-  return {y,p,key:`${y}/${p}`};
+  if(m){
+    const y=+m[1], p=+m[2];
+    if(p<0) return null;
+    return {y,p,key:`${y}/${p}`};
+  }
+  // M/YYYY · MM/YYYY (vd. 7/2026, 07/2026) — chỉ tháng lịch 1–12
+  m=s.match(/^(\d{1,2})[\/\-](\d{4})$/);
+  if(m){
+    const p=+m[1], y=+m[2];
+    if(p<1||p>12) return null;
+    return {y,p,key:`${y}/${p}`};
+  }
+  return null;
 }
 function detectDtThangLayout(dtThang, yearOnly){
   if(!dtThang||dtThang.length<2) return {hybrid:false,maxPeriod:0};
@@ -3610,13 +3760,21 @@ function parseDtThangSheet(dtThang, yearOnly){
   const iLoai=idxOf(h,'Loại Hàng'), iTinh=idxOf(h,'Tỉnh Chuẩn');
   const data=fillDownThangColumn(dtThang, iThang);
   const layout=detectDtThangLayout(data, yearOnly);
+  // Nếu sheet vừa có tháng lịch (1–12) vừa có tuần (≥13), chỉ lấy tháng lịch để tránh cộng trùng.
+  let hasCalendarMonth=false;
+  for(let i=1;i<data.length;i++){
+    const ts=parseThangSheet(data[i][iThang]);
+    if(ts&&ts.y===yearOnly&&ts.p>=1&&ts.p<=12){ hasCalendarMonth=true; break; }
+  }
   const recs=[];
   for(let i=1;i<data.length;i++){
     const r=data[i];
     const ts=parseThangSheet(r[iThang]);
+    if(!ts) continue;
+    if(layout.hybrid && hasCalendarMonth && ts.p>12) continue;
     const loai=normLoaiHang(r[iLoai]);
     const tinh=(r[iTinh]||'').trim();
-    const cal=ts?calendarFromPeriod(ts.y, ts.p, layout):null;
+    const cal=calendarFromPeriod(ts.y, ts.p, layout);
     if(!cal||!loai||cal.y!==yearOnly) continue;
     if(isFutureMonth(cal.y, cal.m)) continue;
     recs.push({y:cal.y,m:cal.m,key:`${cal.y}/${cal.m}`,tinh,loai,dt:parseVNNum(r[iDT]),vol:Math.round(parseVNNum(r[iVol]))});
@@ -3638,11 +3796,13 @@ function sumSheetDtMonth(sheet, thang){
   const h=sheet[0];
   const iThang=idxOf(h,'Thang'), iDT=idxOf(h,'DoanhThu');
   if(iThang<0||iDT<0) return 0;
+  const data=fillDownThangColumn(sheet, iThang);
   let total=0;
-  for(let i=1;i<sheet.length;i++){
-    const r=sheet[i];
+  for(let i=1;i<data.length;i++){
+    const r=data[i];
     const cell=(r[iThang]||'').trim();
     if(cell && !rowMatchesPreferredThang(cell, thang, null)) continue;
+    if(!cell) continue;
     total+=parseVNNum(r[iDT]);
   }
   return total;
@@ -3654,11 +3814,13 @@ function sumGtcByAM(sheet, thang){
   const iThang=idxOf(h,'Thang'), iDT=idxOf(h,'DoanhThu');
   const iAmC=idxOf(h,'AM Chuẩn'), iAM=idxOf(h,'AM'), iVung=idxOf(h,'Vung');
   if(iThang<0||iDT<0) return {};
+  const data=fillDownThangColumn(sheet, iThang);
   const by={};
-  for(let i=1;i<sheet.length;i++){
-    const r=sheet[i];
+  for(let i=1;i<data.length;i++){
+    const r=data[i];
     const cell=(r[iThang]||'').trim();
     if(cell && !rowMatchesPreferredThang(cell, thang, null)) continue;
+    if(!cell) continue;
     if(iVung>=0 && (r[iVung]||'').trim() && !isVungTnt(r[iVung])) continue;
     let am=(iAmC>=0?(r[iAmC]||''):'').trim();
     if(!am && iAM>=0){
@@ -3874,6 +4036,8 @@ function suggestAmBanMoiNhanXet(r){
   return 'Cần theo dõi thêm và hỗ trợ AM đẩy bán mới';
 }
 function shortThangT(label){
+  const p=parseThang(label);
+  if(p) return `T${p.m}`;
   const m=String(label||'').match(/\/0?(\d+)$/);
   if(m) return `T${+m[1]}`;
   const m2=String(label||'').match(/T\s*0?(\d+)/i);
@@ -4057,6 +4221,7 @@ function sumNhomDtCungKy(totalKH, thang, grp, elapsedDays){
   const {recs}=parseTotalKHNhomRecs(totalKH);
   const maxDay=Math.max(1, elapsedDays);
   return recs.filter(r=>{
+    if(!matchSharedAm(r.am)) return false;
     if(grp&&r.grp!==grp) return false;
     if(!r.thang||!thangEq(r.thang, thang)) return false;
     const d=+String(r.ngay||'').slice(8,10);
@@ -4153,14 +4318,32 @@ function fmtMomPct(cur, prev){
   return (p>=0?'+':'')+p.toFixed(1)+'%';
 }
 function reconcileDtWithKetQua(recs, ketQua, thang){
-  const p=parseThang(thang);
-  if(!p||!ketQua||ketQua.length<2) return recs;
-  const kqTotal=sumKetQuaMonth(ketQua, thang);
-  if(!kqTotal) return recs;
-  const dtTotal=recs.filter(r=>r.y===p.y&&r.m===p.m).reduce((s,r)=>s+r.dt,0);
-  if(!dtTotal||dtTotal>=kqTotal*0.98) return recs;
-  const ratio=kqTotal/dtTotal;
-  return recs.map(r=>(r.y===p.y&&r.m===p.m)?{...r,dt:r.dt*ratio}:r);
+  if(!ketQua||ketQua.length<2||!recs||!recs.length) return recs;
+  const months=new Set();
+  const h=ketQua[0];
+  const iThang=idxOf(h,'Thang');
+  if(iThang>=0){
+    const data=fillDownThangColumn(ketQua, iThang);
+    for(let i=1;i<data.length;i++){
+      const p=parseThang((data[i][iThang]||'').trim());
+      if(p) months.add(`${p.y}/${p.m}`);
+    }
+  }
+  const cur=parseThang(thang);
+  if(cur) months.add(`${cur.y}/${cur.m}`);
+  if(!months.size) return recs;
+  let out=recs;
+  months.forEach(mk=>{
+    const p=parseThang(mk);
+    if(!p) return;
+    const kqTotal=sumKetQuaMonth(ketQua, mk);
+    if(!kqTotal) return;
+    const dtTotal=out.filter(r=>r.y===p.y&&r.m===p.m).reduce((s,r)=>s+r.dt,0);
+    if(!dtTotal||dtTotal>=kqTotal*0.98) return;
+    const ratio=kqTotal/dtTotal;
+    out=out.map(r=>(r.y===p.y&&r.m===p.m)?{...r,dt:r.dt*ratio}:r);
+  });
+  return out;
 }
 function aggMonthlyByYear(recs, year){
   const a=asOfParts();
@@ -4209,9 +4392,13 @@ function mkChart(id, cfg){
   if(!el||typeof Chart==='undefined') return;
   window._charts[id]=new Chart(el, cfg);
 }
+/** Số ngày tối thiểu mới vẽ đường dự kiến trên chart YoY (tránh MTD÷1×31 làm lệch trục). */
+const CHART_PROJ_MIN_DAYS = 7;
 function buildMonthProjectLine(series, {year, curY, curM, elapsed, totalDays}){
   const out=Array(12).fill(null);
   if(year!==curY||!elapsed||elapsed>=totalDays) return out;
+  // Đầu tháng (<7 ngày) ngoại suy không ổn định — không vẽ đường dự kiến trên chart tháng.
+  if(elapsed < CHART_PROJ_MIN_DAYS) return out;
   const idx=curM-1;
   const mtd=series[idx];
   if(mtd==null||mtd<=0) return out;
@@ -4274,9 +4461,13 @@ function drawOverviewCharts(recs, progress){
 }
 function renderChartSection(progress){
   const p=progress||{};
-  const projNote=(p.elapsed&&p.totalDays&&p.elapsed<p.totalDays)
-    ? ` · <span style="color:#0284C7">† Tháng ${String(p.m).padStart(2,'0')}: đường nét đứt = dự kiến cả tháng (MTD÷${p.elapsed}×${p.totalDays} ngày)</span>`
-    : '';
+  const mm=p.m!=null?String(p.m).padStart(2,'0'):'—';
+  let projNote='';
+  if(p.elapsed&&p.totalDays&&p.elapsed<p.totalDays){
+    projNote = p.elapsed < CHART_PROJ_MIN_DAYS
+      ? ` · <span style="color:#64748B">Tháng ${mm}: đang MTD thực tế (${p.elapsed}/${p.totalDays} ngày) — chưa ngoại suy full tháng</span>`
+      : ` · <span style="color:#0284C7">† Tháng ${mm}: đường nét đứt = dự kiến cả tháng (MTD÷${p.elapsed}×${p.totalDays} ngày)</span>`;
+  }
   return `<div class="chart-grid">
     <div class="chart-box"><div class="chart-title">Doanh Thu Theo Tháng</div><div class="chart-sub">So sánh 2025 vs 2026 · triệu đồng${projNote}</div><div class="chart-wrap"><canvas id="cDtYoY"></canvas></div></div>
     <div class="chart-box"><div class="chart-title">Hàng Nặng / Hàng Nhẹ Theo Tháng</div><div class="chart-sub">So sánh 2025 · 2026 · triệu đồng${projNote}</div><div class="chart-wrap"><canvas id="cLoaiHang"></canvas></div></div>
@@ -4610,9 +4801,20 @@ function lastNgayInMonth(dates, thang){
 }
 function parseThang(s){
   s=(s||'').trim().replace(/\s+/g,'');
-  const m=s.match(/^(\d{4})[\/\-](\d{1,2})$/);
-  if(!m) return null;
-  return { y:+m[1], m:+m[2] };
+  // YYYY/M · YYYY/MM
+  let m=s.match(/^(\d{4})[\/\-](\d{1,2})$/);
+  if(m){
+    const y=+m[1], mo=+m[2];
+    if(mo>=1&&mo<=12) return { y, m:mo };
+    return null;
+  }
+  // M/YYYY · MM/YYYY (vd. 7/2026, 07/2026)
+  m=s.match(/^(\d{1,2})[\/\-](\d{4})$/);
+  if(m){
+    const mo=+m[1], y=+m[2];
+    if(mo>=1&&mo<=12) return { y, m:mo };
+  }
+  return null;
 }
 function monthKeyNorm(s){
   const p=parseThang(s);
@@ -4635,22 +4837,25 @@ function uniqueMonthsSorted(monthKeys){
 function canonicalThangKey(y,m){
   return `${y}/${String(m).padStart(2,'0')}`;
 }
+/** Mọi biến thể chuỗi tháng cùng 1 kỳ: 2026/7, 2026/07, 7/2026, 07/2026. */
+function thangAliases(y,m){
+  const mm=String(m).padStart(2,'0');
+  return [`${y}/${m}`, `${y}/${mm}`, `${m}/${y}`, `${mm}/${y}`];
+}
 function thangCellPreferred(rows, iThang, thang){
   const p=parseThang(thang);
   if(!p||iThang<0) return null;
-  const canon=canonicalThangKey(p.y,p.m), short=`${p.y}/${p.m}`;
-  let hasCanon=false, hasShort=false;
+  const aliases=thangAliases(p.y,p.m);
+  const found=new Set();
   rows.forEach(r=>{
     const t=(r[iThang]||'').trim();
-    if(t===canon) hasCanon=true;
-    if(t===short) hasShort=true;
+    if(aliases.includes(t)) found.add(t);
   });
-  if(hasCanon) return canon;
-  if(hasShort) return short;
+  for(const a of aliases) if(found.has(a)) return a;
   return null;
 }
 function rowMatchesPreferredThang(cell, thang, preferred){
-  // Luôn so theo y/m đã chuẩn hóa — cộng cả 2026/7 và 2026/07
+  // Chuẩn hóa y/m — cộng cả 2026/7, 2026/07, 7/2026, 07/2026
   if(!cell) return true;
   return thangEq(cell.trim(), thang);
 }
@@ -4658,11 +4863,15 @@ function sumKetQuaMonth(ketQua, thang){
   if(!ketQua||ketQua.length<2) return 0;
   const h=ketQua[0];
   const iAM=idxOf(h,'AM Chuẩn'), iDT=idxOf(h,'DoanhThu'), iThang=idxOf(h,'Thang');
+  const data=iThang>=0?fillDownThangColumn(ketQua, iThang):ketQua;
   let total=0;
-  for(let i=1;i<ketQua.length;i++){
-    const r=ketQua[i];
+  for(let i=1;i<data.length;i++){
+    const r=data[i];
     if(!r[iAM]) continue;
-    if(iThang>=0&&r[iThang]&&!rowMatchesPreferredThang(r[iThang], thang, null)) continue;
+    if(iThang>=0){
+      const cell=(r[iThang]||'').trim();
+      if(!cell||!rowMatchesPreferredThang(cell, thang, null)) continue;
+    }
     total+=parseVNNum(r[iDT]);
   }
   return total;
@@ -4840,6 +5049,7 @@ async function loadAll(opts){
         loaded = true;
         syncAsOfFromData();
         document.getElementById('exportDocBtn').disabled = false;
+        const emb=document.getElementById('exportMonthDocBtn'); if(emb) emb.disabled=false;
         const ageMin=Math.max(0, Math.round((Date.now()-(cached.fetchedAt||0))/60000));
         document.getElementById('lastUpdate').textContent = 'Cache '+new Date(cached.fetchedAt||Date.now()).toLocaleString('vi-VN')+(ageMin?` (${ageMin} phút trước)`:'')+' · đang đồng bộ…';
         const deepPage=readDeepLinkBeforeRender();
@@ -4859,6 +5069,7 @@ async function loadAll(opts){
     loaded = true;
     syncAsOfFromData();
     document.getElementById('exportDocBtn').disabled = false;
+    const emb2=document.getElementById('exportMonthDocBtn'); if(emb2) emb2.disabled=false;
     document.getElementById('lastUpdate').textContent = (background?'Đã đồng bộ: ':'Tải lúc: ') + new Date().toLocaleString('vi-VN');
     const deepPage=background?'':readDeepLinkBeforeRender();
     renderAllPages();
@@ -4906,7 +5117,8 @@ function showPage(p, opts){
 /* ===================== 1) TỔNG QUAN ===================== */
 function renderOverview(){
   const el = document.getElementById('overview');
-  const { ketQua, kpiAM, dtNgay, phanNhom, dtThang, dtThang2025, khNhomA, totalKH, dtGtc, banmoi } = window._DATA;
+  const raw = window._DATA||{};
+  const { ketQua, kpiAM, dtNgay, phanNhom, dtThang, dtThang2025, khNhomA, totalKH, dtGtc, banmoi } = getDataForAmFilter();
   const thang = currentThang();
   const thangLabel = formatThangLabel(thang);
   const dtThangRecs = reconcileDtWithKetQua(mergeDtThangRecs(dtThang2025, dtThang), ketQua, thang);
@@ -4925,7 +5137,7 @@ function renderOverview(){
   const gtcByAM = sumGtcByAM(dtGtc, thang);
   const totalGtc = Object.values(gtcByAM).reduce((s,v)=>s+v,0);
 
-  const monthProgress = getMonthProgress(dtNgay);
+  const monthProgress = getMonthProgress(raw.dtNgay);
   const { elapsed, totalDays, pctTime, maxDataDay } = monthProgress;
 
   // --- KPI Vùng / KPI Cty (KPI CM) theo AM — sheet KPI AM ---
@@ -4942,7 +5154,7 @@ function renderOverview(){
     const am=r[iAMk];
     const vung=parseVNNum(r[iKPIVung]);
     const cm=iKPICm>=0?parseVNNum(r[iKPICm]):0;
-    // Tránh nhân đôi KPI nếu cùng AM có cả 2026/7 và 2026/07 cùng giá trị
+    // Tránh nhân đôi KPI nếu cùng AM có cả 2026/7, 2026/07, 7/2026, 07/2026
     if(!(am in kpiVungByAM) || vung>kpiVungByAM[am]){
       if(am in kpiVungByAM) totalKpiVung-=kpiVungByAM[am];
       kpiVungByAM[am]=vung;
@@ -4961,6 +5173,11 @@ function renderOverview(){
   const allAM = [...new Set([...Object.keys(actualByAM), ...Object.keys(kpiVungByAM), ...Object.keys(kpiCmByAM), ...Object.keys(volByAM), ...Object.keys(gtcByAM)])].sort();
   let totalActual=0, totalKPIPeriod=0, totalProjected=0, totalKpiCmPeriod=0;
   const thangPrevM = prevThang(thang);
+  const thangN2M = thangPrevM?prevThang(thangPrevM):null;
+  const thangN3M = thangN2M?prevThang(thangN2M):null;
+  const dtN1ByAM = thangPrevM?sumKetQuaByAM(ketQua, thangPrevM):{};
+  const dtN2ByAM = thangN2M?sumKetQuaByAM(ketQua, thangN2M):{};
+  const dtN3ByAM = thangN3M?sumKetQuaByAM(ketQua, thangN3M):{};
   const prevLtcByAM = sumAmDtNgayCungKy(dtNgay, thangPrevM, elapsed);
   const curLtcByAMCk = sumAmDtNgayCungKy(dtNgay, thang, elapsed);
   const rows = allAM.map(am=>{
@@ -4974,9 +5191,12 @@ function renderOverview(){
     const projected = actual/elapsed*totalDays;
     const prevLtcCk = prevLtcByAM[am]||0;
     const actualCk = curLtcByAMCk[am]||0;
+    const dtN1 = dtN1ByAM[am]||0;
+    const dtN2 = dtN2ByAM[am]||0;
+    const dtN3 = dtN3ByAM[am]||0;
     totalActual+=actual; totalKPIPeriod+=kpiVungPeriod; totalProjected+=projected; totalKpiCmPeriod+=kpiCmPeriod;
     return {
-      am, actual, actualCk, vol, gtc, prevLtcCk,
+      am, actual, actualCk, vol, gtc, prevLtcCk, dtN1, dtN2, dtN3,
       kpi: kpiVung, kpiPeriod: kpiVungPeriod, ratePeriod: pct(actual, kpiVungPeriod),
       kpiVung, kpiVungPeriod, projRateVung: pct(projected, kpiVung),
       kpiCm, kpiCmPeriod, rateCmPeriod: pct(actual, kpiCmPeriod),
@@ -4998,10 +5218,10 @@ function renderOverview(){
   const dtByDate = buildDtNgayByDate(dtNgay, thang);
   const weekBreakdown = buildMonthWeekBreakdown(dtByDate, thang, totalKpiVung, totalDays);
   const weekSection = renderOverviewWeekSection(weekBreakdown, thangLabel, totalKpiVung);
-  const nhom14dSeries = buildNhomDtLastNDays(totalKH, 14, dtNgay);
+  const nhom14dSeries = buildNhomDtLastNDays(raw.totalKH, 14, raw.dtNgay);
   const nhom14dSection = renderOverviewNhom14dSection(nhom14dSeries);
-  const khASection = renderOverviewKhASection(buildKhCanXuLy(khNhomA, totalKH, thang, monthProgress, dtNgay));
-  const noOrder3dSection = renderOverviewNoOrder3dSection(buildKhNoOrder3d(totalKH, thang, 3));
+  const khASection = renderOverviewKhASection(buildKhCanXuLy(raw.khNhomA, raw.totalKH, thang, monthProgress, raw.dtNgay));
+  const noOrder3dSection = renderOverviewNoOrder3dSection(buildKhNoOrder3d(raw.totalKH, thang, 3));
   let banMoiMtd=0, banMoiMtdPrev=0;
   try{
     const bmCur=sumBanMoiKhmCungKy(banmoi, thang, elapsed);
@@ -5026,7 +5246,7 @@ function renderOverview(){
   }catch(e){ console.warn('banMoiMtd', e); }
   let projectionSection='';
   try{
-    projectionSection=renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc, dtNgay);
+    projectionSection=renderOverviewProjectionSection(rows, elapsed, totalDays, thangLabel, totalKpiCm, totalKpiCmPeriod, totalGtc, dtNgay, thang);
   }catch(e){
     console.error('projectionSection', e);
     projectionSection=`<div class="data-banner err">Lỗi render KPI AM Tháng: ${String(e&&e.message||e)}</div>`;
@@ -5035,7 +5255,7 @@ function renderOverview(){
   try{
     insightSection=renderOverviewInsightCard({
       totalActual, totalKpiCm: totalKpiCm||totalKpiVung, totalProjected,
-      elapsed, totalDays, thangLabel, totalKH, dtNgay, banMoiMtd, banMoiMtdPrev
+      elapsed, totalDays, thangLabel, totalKH: raw.totalKH, dtNgay: raw.dtNgay, banMoiMtd, banMoiMtdPrev
     });
   }catch(e){
     console.error('insightSection', e);
@@ -5080,7 +5300,7 @@ function renderOverview(){
   </div>`;
 
   const { recs: pnRecs } = parsePhanNhomRecs(phanNhom);
-  const slkhInfo = slkhByNhomCurrentMonth(pnRecs, thang);
+  const slkhInfo = slkhByNhomCurrentMonth(filterRecsByAm(pnRecs), thang);
   const slkhSection = renderSlkhSection(slkhInfo, thangLabel);
   const chartSection = renderChartSection(monthProgress);
   const hangSection = renderHangNangNheSection(dtThangRecs);
@@ -5094,7 +5314,7 @@ function renderOverview(){
     mtd:totalActual, pctKpi:rateTotal, deltaCk:deltaCkPct, alertCount,
     thangLabel, elapsed, totalDays
   });
-  const fresh=dataFreshness(dtNgay);
+  const fresh=dataFreshness(raw.dtNgay);
   const healthCls=healthClassFromPct(rateTotal);
   const needRows=(declinePack.rows||[]).slice(0,5).map(r=>({
     am:r.am, meta:`${r.pctW.toFixed(0)}%`
@@ -5220,7 +5440,7 @@ function renderDecline(){
   body += `</div>`;
 
   el.innerHTML = `
-  <div class="page-header"><div><div class="page-title">AM Giảm Doanh Thu</div><div class="page-sub">Cùng kỳ tuần hiện tại vs tuần trước · không so tổng tuần thiếu ngày · <span class="unit-note">triệu đồng</span></div></div></div>
+  <div class="page-header"><div><div class="page-title">AM Giảm Doanh Thu</div><div class="page-sub">${getSharedAmFilter()?`AM <b>${docEsc(getSharedAmFilter())}</b> · `:''}Cùng kỳ tuần hiện tại vs tuần trước · không so tổng tuần thiếu ngày · <span class="unit-note">triệu đồng</span></div></div></div>
   ${amBar}
   <div class="data-banner">📅 Tháng <b>${thangLabel}</b> · So sánh cùng kỳ <b>${daysUsed} ngày</b>: <b>${spanLbl}</b> (${weekLabelShort(weekCur)}) vs <b>${prevLbl}</b> (${weekLabelShort(weekPrev)}).</div>
   ${body}
@@ -5274,8 +5494,9 @@ function renderSegment(){
   });
   const topAm = amTotals.slice().sort((a,b)=>b.tot-a.tot)[0];
 
+  const sharedAm=getSharedAmFilter();
   el.innerHTML = `
-  <div class="page-header"><div><div class="page-title">Phân Nhóm Khách Hàng</div><div class="page-sub">Theo AM · 3 ngày gần nhất · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
+  <div class="page-header"><div><div class="page-title">Phân Nhóm Khách Hàng</div><div class="page-sub">${sharedAm?`AM <b>${docEsc(sharedAm)}</b> · `:''}Theo AM · 3 ngày gần nhất · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
   ${renderGlobalAmBar(listKnownAms())}
   ${nhomStaleBanner(maxDate)}
   <div class="data-banner" style="margin-top:0">📊 3 ngày gần nhất: <b>${last3.map(isoShort2).join(' · ')||'—'}</b></div>
@@ -5290,8 +5511,9 @@ function renderNhomKH(){
   const { totalKH } = window._DATA;
   if(!totalKH || totalKH.length<2){ el.innerHTML = `<div class="data-banner err">Không có dữ liệu nhóm khách hàng.</div>`; return; }
   const { recs, maxDate } = parseTotalKHNhomRecs(totalKH);
+  const sharedAm=getSharedAmFilter();
   el.innerHTML = `
-  <div class="page-header"><div><div class="page-title">Doanh Thu Theo Nhóm Khách Hàng</div><div class="page-sub">Tổng vùng &amp; theo AM · 3 ngày gần nhất · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
+  <div class="page-header"><div><div class="page-title">Doanh Thu Theo Nhóm Khách Hàng</div><div class="page-sub">${sharedAm?`AM <b>${docEsc(sharedAm)}</b> · `:'Tổng vùng &amp; theo AM · '}3 ngày gần nhất · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
   ${renderGlobalAmBar(listKnownAms())}
   ${nhomStaleBanner(maxDate)}
   ${renderNhomKHCard(recs, maxDate)}
@@ -5304,8 +5526,9 @@ function renderDtTinh(){
   const { totalKH } = window._DATA;
   if(!totalKH || totalKH.length<2){ el.innerHTML = `<div class="data-banner err">Không có dữ liệu nhóm khách hàng.</div>`; return; }
   const { recs, maxDate } = parseTotalKHNhomRecs(totalKH);
+  const sharedAm=getSharedAmFilter();
   el.innerHTML = `
-  <div class="page-header"><div><div class="page-title">Doanh Thu Khách Hàng Theo Tỉnh</div><div class="page-sub">Phân nhóm KH theo tỉnh · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
+  <div class="page-header"><div><div class="page-title">Doanh Thu Khách Hàng Theo Tỉnh</div><div class="page-sub">${sharedAm?`AM <b>${docEsc(sharedAm)}</b> · `:''}Phân nhóm KH theo tỉnh · <span class="unit-note">triệu đồng</span></div></div><span class="badge">Mới nhất: ${isoShort2(maxDate)}</span></div>
   ${renderGlobalAmBar(listKnownAms())}
   ${nhomStaleBanner(maxDate)}
   ${renderNhomTinhCard(recs, maxDate)}
@@ -5315,7 +5538,8 @@ function renderDtTinh(){
 /* ===================== 4) NHÓM A — PHÂN TÍCH KHÁCH HÀNG (sheet khách hàng nhóm A) ===================== */
 function renderNhomA(){
   const el = document.getElementById('nhomA');
-  const { khNhomA, dtNgay } = window._DATA;
+  const { khNhomA } = window._DATA;
+  const dtNgay = (window._DATA||{}).dtNgay;
   if(!khNhomA || khNhomA.length<2){
     el.innerHTML = '<div class="data-banner err">Không có dữ liệu sheet khách hàng nhóm A.</div>';
     return;
@@ -5458,7 +5682,7 @@ function renderNhomA(){
   tableChurn += `</div>`;
 
   el.innerHTML = `
-  <div class="page-header"><div><div class="page-title">Nhóm A — Phân Tích KH</div><div class="page-sub">Tháng hiện tại: <b>${thangCurLabel}</b> · So với <b>${thangPrevLabel}</b> · nguồn <b>khách hàng nhóm A</b> · <span class="unit-note">triệu đồng</span></div></div></div>
+  <div class="page-header"><div><div class="page-title">Nhóm A — Phân Tích KH</div><div class="page-sub">${getSharedAmFilter()?`AM <b>${docEsc(getSharedAmFilter())}</b> · `:''}Tháng hiện tại: <b>${thangCurLabel}</b> · So với <b>${thangPrevLabel}</b> · nguồn <b>khách hàng nhóm A</b> · <span class="unit-note">triệu đồng</span></div></div></div>
   ${renderGlobalAmBar(listKnownAms())}
   <div class="data-banner">📅 Nguồn sheet <b>khách hàng nhóm A</b> (gid=${GID.khNhomA}). Tháng suy từ cột <b>Ngay</b>. Giảm hạng: <b>DT TB ngày × ${totalDays} ngày &lt; 45 tr</b> (qua ${elapsed} ngày).</div>
   ${kpiCards}
@@ -5674,7 +5898,8 @@ function suggestGiamDonAction(r){
 }
 
 function buildWeeklyReportData(){
-  const { ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH, banmoi } = window._DATA;
+  const raw = window._DATA||{};
+  const { ketQua, kpiAM, dtNgay, phanNhom, khNhomA, dtThang, dtThang2025, dtGtc, totalKH, banmoi } = getDataForAmFilter();
   const thang = currentThang();
   const thangPrevM = prevThang(thang);
   const thangLabel = formatThangLabel(thang);
@@ -5682,7 +5907,7 @@ function buildWeeklyReportData(){
   const dtThangRecs = reconcileDtWithKetQua(mergeDtThangRecs(dtThang2025, dtThang), ketQua, thang);
   const { recs: pnRecs, maxDate: pnMaxDateInit } = parsePhanNhomRecs(phanNhom);
   let pnMaxDate = pnMaxDateInit;
-  const { elapsed, totalDays } = getMonthProgress(dtNgay);
+  const { elapsed, totalDays } = getMonthProgress(raw.dtNgay);
 
   // LTC cùng kỳ N ngày (từ DT-Ngày) — dùng để so sánh MTD vs MTD-1
   const sumObj = o => Object.values(o||{}).reduce((s,x)=>s+(+x||0),0);
@@ -6579,6 +6804,507 @@ function exportWeeklyReportDoc(){
   btn.disabled=false;
 }
 
+/* ===================== XUẤT BÁO CÁO THÁNG (.doc) ===================== */
+function sumKetQuaByAM(ketQua, thang){
+  const by={};
+  if(!ketQua||ketQua.length<2) return by;
+  const h=ketQua[0];
+  const iAM=idxOf(h,'AM Chuẩn'), iDT=idxOf(h,'DoanhThu'), iThang=idxOf(h,'Thang');
+  const data=iThang>=0?fillDownThangColumn(ketQua, iThang):ketQua;
+  for(let i=1;i<data.length;i++){
+    const r=data[i];
+    if(!r[iAM]) continue;
+    if(iThang>=0){
+      const cell=(r[iThang]||'').trim();
+      if(!cell||!rowMatchesPreferredThang(cell, thang, null)) continue;
+    }
+    by[r[iAM]]=(by[r[iAM]]||0)+parseVNNum(r[iDT]);
+  }
+  return by;
+}
+function kpiByAMForThang(kpiAM, thang){
+  const kpiVung={}, kpiCm={};
+  if(!kpiAM||kpiAM.length<2) return {kpiVung, kpiCm};
+  const h=kpiAM[0];
+  const iAM=idxOf(h,'AM'), iVung=idxOf(h,'KPI Vùng'), iThang=idxOf(h,'Tháng');
+  let iCm=idxOf(h,'KPI Cty');
+  if(iCm<0) iCm=idxOf(h,'KPI CM');
+  if(iCm<0) iCm=idxOf(h,'KPI CM tháng');
+  for(let i=1;i<kpiAM.length;i++){
+    const r=kpiAM[i];
+    if(!r[iAM]) continue;
+    if(iThang>=0&&r[iThang]&&!rowMatchesPreferredThang(r[iThang], thang, null)) continue;
+    const am=r[iAM], v=parseVNNum(r[iVung]), cm=iCm>=0?parseVNNum(r[iCm]):0;
+    if(!(am in kpiVung)||v>kpiVung[am]) kpiVung[am]=v;
+    if(cm && (!(am in kpiCm)||cm>kpiCm[am])) kpiCm[am]=cm;
+  }
+  return {kpiVung, kpiCm};
+}
+function sumNhomDtFullMonth(totalKH, thang, grp){
+  const p=parseThang(thang);
+  if(!p) return 0;
+  return sumNhomDtCungKy(totalKH, thang, grp, daysInMonth(p.y, p.m));
+}
+function sumBanMoiFullMonth(banmoi, thang){
+  const p=parseThang(thang);
+  if(!p) return 0;
+  return sumBanMoiKhmCungKy(banmoi, thang, daysInMonth(p.y, p.m));
+}
+/** SLKH (unique MaKH) + DT theo nhóm A/BCD/EF/G trong tháng. */
+function buildNhomMonthStats(totalKH, thang){
+  const empty={rows:[], totalKh:0, totalDt:0};
+  if(!totalKH||totalKH.length<2||!thang) return empty;
+  const {recs}=parseTotalKHNhomRecs(totalKH);
+  const byGrp={};
+  NHOM_LABELS.forEach(g=>{ byGrp[g]={grp:g, kh:new Set(), dt:0}; });
+  recs.forEach(r=>{
+    if(!r.grp||!byGrp[r.grp]) return;
+    if(!r.thang||!thangEq(r.thang, thang)) return;
+    if(!(r.dt>0) && !r.ma) return;
+    byGrp[r.grp].dt+=(r.dt||0);
+    if(r.ma) byGrp[r.grp].kh.add(r.ma);
+  });
+  const rows=NHOM_LABELS.map(g=>{
+    const o=byGrp[g];
+    return {grp:g, slkh:o.kh.size, dt:o.dt};
+  });
+  return {
+    rows,
+    totalKh:rows.reduce((s,r)=>s+r.slkh,0),
+    totalDt:rows.reduce((s,r)=>s+r.dt,0)
+  };
+}
+/** Bán mới (KHM) theo AM trong tháng — SLKH mới + Volume + DT. */
+function buildBanMoiByAMMonth(banmoi, thang, elapsedDays){
+  const p=parseThang(thang);
+  const maxD=Math.max(1, elapsedDays||(p?daysInMonth(p.y,p.m):31));
+  const {recs, firstByMa}=parseBanMoiSheet(banmoi);
+  const newKh=new Set();
+  Object.keys(firstByMa||{}).forEach(ma=>{
+    const f=firstByMa[ma];
+    const mk=monthKeyFromIso(f);
+    if(!mk||!thangEq(mk,thang)) return;
+    const d=+String(f).slice(8,10);
+    if(d>=1&&d<=maxD) newKh.add(ma);
+  });
+  const byAm={};
+  recs.forEach(r=>{
+    if(!r.ma || !newKh.has(r.ma)) return;
+    const mk=monthKeyFromIso(r.iso);
+    if(!mk||!thangEq(mk,thang)) return;
+    const d=+String(r.iso).slice(8,10);
+    if(d<1||d>maxD) return;
+    const am=(r.am&&r.am!=='—')?r.am:'—';
+    if(!byAm[am]) byAm[am]={am, dt:0, vol:0, kh:new Set()};
+    byAm[am].dt+=(r.dt||0);
+    byAm[am].vol+=(r.vol||0);
+    byAm[am].kh.add(r.ma);
+  });
+  const rows=Object.values(byAm).map(r=>({
+    am:r.am, dt:r.dt, vol:Math.round(r.vol||0), slkh:r.kh.size
+  })).sort((a,b)=>b.dt-a.dt||b.slkh-a.slkh);
+  return {
+    rows,
+    totalDt:rows.reduce((s,r)=>s+r.dt,0),
+    totalVol:rows.reduce((s,r)=>s+r.vol,0),
+    totalSlkh:rows.reduce((s,r)=>s+r.slkh,0)
+  };
+}
+/** So sánh KH nhóm A giữa 2 tháng: tăng / giảm / rời bỏ / giảm đơn. */
+function buildKhAMonthMom(khNhomA, thang, thangPrev){
+  const byCust=parseKhNhomAByCust(khNhomA);
+  const rows=Object.values(byCust).map(c=>{
+    const dtCur=monthDtFromDates(c.dates, thang);
+    const dtPrev=monthDtFromDates(c.dates, thangPrev);
+    const volCur=monthVolFromVols(c.vols||{}, thang);
+    const volPrev=monthVolFromVols(c.vols||{}, thangPrev);
+    const delta=dtCur-dtPrev;
+    const pctMom=dtPrev>0?(delta/dtPrev*100):(dtCur>0?100:0);
+    const churn=dtPrev>0&&dtCur<=0;
+    const giamDon=dtPrev>0&&dtCur>0&&dtCur<dtPrev*0.7;
+    const tang=dtCur>dtPrev&&(dtPrev>0||dtCur>0);
+    const giam=dtPrev>0&&dtCur<dtPrev&&!churn;
+    return {
+      ma:c.ma, ten:c.ten||c.ma||'—', am:c.am||'—',
+      dtCur, dtPrev, volCur, volPrev, delta, pctMom,
+      churn, giamDon, tang, giam
+    };
+  }).filter(r=>r.dtCur>0||r.dtPrev>0);
+  const tangRows=rows.filter(r=>r.tang).sort((a,b)=>b.delta-a.delta);
+  const giamRows=rows.filter(r=>r.giam).sort((a,b)=>a.delta-b.delta);
+  const churnRows=rows.filter(r=>r.churn).sort((a,b)=>b.dtPrev-a.dtPrev);
+  const giamDonRows=rows.filter(r=>r.giamDon).sort((a,b)=>a.pctMom-b.pctMom);
+  const byAmMap={};
+  rows.forEach(r=>{
+    const am=r.am||'—';
+    if(!byAmMap[am]) byAmMap[am]={am, total:0, nTang:0, nGiam:0, nChurn:0, nGiamDon:0, nMoi:0, dtCur:0, dtPrev:0};
+    const o=byAmMap[am];
+    o.total++;
+    if(r.tang) o.nTang++;
+    if(r.giam) o.nGiam++;
+    if(r.churn) o.nChurn++;
+    if(r.giamDon) o.nGiamDon++;
+    if(r.dtPrev<=0&&r.dtCur>0) o.nMoi++;
+    o.dtCur+=r.dtCur;
+    o.dtPrev+=r.dtPrev;
+  });
+  const byAm=Object.values(byAmMap).sort((a,b)=>b.dtCur-a.dtCur||a.am.localeCompare(b.am,'vi'));
+  return {
+    total:rows.length,
+    nTang:tangRows.length, nGiam:giamRows.length,
+    nChurn:churnRows.length, nGiamDon:giamDonRows.length,
+    tangRows, giamRows, churnRows, giamDonRows, byAm,
+    dtCur:rows.reduce((s,r)=>s+r.dtCur,0),
+    dtPrev:rows.reduce((s,r)=>s+r.dtPrev,0)
+  };
+}
+function buildMonthlyReportData(){
+  const {ketQua, kpiAM, totalKH, banmoi, khNhomA, dtNgay}=getDataForAmFilter();
+  const planThang=currentThang(); // T8 (tháng hiện tại)
+  const sumThang=prevThang(planThang); // T7 (tháng tổng kết)
+  const sumPrev=prevThang(sumThang); // T6 (đối chiếu churn)
+  const sumLabel=formatThangLabel(sumThang);
+  const planLabel=formatThangLabel(planThang);
+  const sumPrevLabel=formatThangLabel(sumPrev);
+  const pSum=parseThang(sumThang)||{y:0,m:0};
+  const daysSum=daysInMonth(pSum.y, pSum.m);
+
+  const ltcSum=sumKetQuaMonth(ketQua, sumThang);
+  const banMoiSum=sumBanMoiFullMonth(banmoi, sumThang);
+  const nhomStats=buildNhomMonthStats(totalKH, sumThang);
+  const aSum=(nhomStats.rows.find(r=>r.grp==='A')||{}).dt||sumNhomDtFullMonth(totalKH, sumThang, 'A');
+  const bcdSum=(nhomStats.rows.find(r=>r.grp==='BCD')||{}).dt||sumNhomDtFullMonth(totalKH, sumThang, 'BCD');
+  const efSum=(nhomStats.rows.find(r=>r.grp==='EF')||{}).dt||sumNhomDtFullMonth(totalKH, sumThang, 'EF');
+  const gSum=(nhomStats.rows.find(r=>r.grp==='G')||{}).dt||0;
+  let giuCuSum=aSum+bcdSum+efSum;
+  if(banMoiSum>0 && ltcSum>0) giuCuSum=Math.max(0, ltcSum-banMoiSum);
+  else if(ltcSum>0){
+    const alloc=allocateGiuBanMoi(ltcSum, giuCuSum, banMoiSum);
+    giuCuSum=alloc.mtdGiu;
+  }
+  const banMoiByAmSum=buildBanMoiByAMMonth(banmoi, sumThang, daysSum);
+
+  const actualByAM=sumKetQuaByAM(ketQua, sumThang);
+  const {kpiVung:kpiVungSum, kpiCm:kpiCmSum}=kpiByAMForThang(kpiAM, sumThang);
+  const amKpiRows=uniqueList([...Object.keys(actualByAM), ...Object.keys(kpiVungSum), ...Object.keys(kpiCmSum)])
+    .filter(am=>am&&!/^\d+$/.test(am))
+    .map(am=>{
+      const actual=actualByAM[am]||0;
+      const kpiCm=kpiCmSum[am]||0;
+      const kpiVung=kpiVungSum[am]||0;
+      const kpi=kpiCm>0?kpiCm:kpiVung;
+      const rate=pct(actual, kpi);
+      const dat=kpi>0&&actual>=kpi;
+      return {am, actual, kpi, kpiCm, kpiVung, rate, dat};
+    })
+    .sort((a,b)=>b.actual-a.actual);
+  const amDat=amKpiRows.filter(r=>r.dat);
+  const amMiss=amKpiRows.filter(r=>r.kpi>0&&!r.dat);
+
+  const khA=buildKhAMonthMom(khNhomA, sumThang, sumPrev);
+
+  // Kế hoạch tháng hiện tại theo AM: giữ cũ = DT tháng trước; bán mới = max(0, KPI − giữ cũ)
+  const {kpiVung:kpiVungPlan, kpiCm:kpiCmPlan}=kpiByAMForThang(kpiAM, planThang);
+  const prevByAM=sumKetQuaByAM(ketQua, sumThang);
+  const planProg=getMonthProgress(dtNgay);
+  const mtdPlanByAM=sumAmDtNgayCungKy(dtNgay, planThang, planProg.elapsed);
+  const banMoiPlanMtd=sumBanMoiKhmCungKy(banmoi, planThang, planProg.elapsed);
+  const banMoiByAmPlan=buildBanMoiByAMMonth(banmoi, planThang, planProg.elapsed);
+  const banMoiActualByAm=Object.fromEntries((banMoiByAmPlan.rows||[]).map(r=>[r.am, r]));
+  const planAmRows=uniqueList([...Object.keys(kpiVungPlan), ...Object.keys(kpiCmPlan), ...Object.keys(prevByAM), ...Object.keys(banMoiActualByAm)])
+    .filter(am=>am&&!/^\d+$/.test(am))
+    .map(am=>{
+      const kpiCm=kpiCmPlan[am]||0;
+      const kpiVung=kpiVungPlan[am]||0;
+      const kpi=kpiCm>0?kpiCm:kpiVung;
+      const giuCu=prevByAM[am]||0;
+      const banMoi=Math.max(0, kpi-giuCu);
+      const mtd=mtdPlanByAM[am]||0;
+      const bmAct=banMoiActualByAm[am]||{dt:0,vol:0,slkh:0};
+      return {
+        am, kpi, giuCu, banMoi, mtd, pctMtd:pct(mtd, kpi),
+        banMoiMtd:bmAct.dt||0, banMoiSlkh:bmAct.slkh||0, banMoiVol:bmAct.vol||0,
+        pctBanMoi:pct(bmAct.dt||0, banMoi)
+      };
+    })
+    .sort((a,b)=>b.kpi-a.kpi);
+  const planTot={
+    kpi:planAmRows.reduce((s,r)=>s+r.kpi,0),
+    giuCu:planAmRows.reduce((s,r)=>s+r.giuCu,0),
+    banMoi:planAmRows.reduce((s,r)=>s+r.banMoi,0),
+    mtd:planAmRows.reduce((s,r)=>s+r.mtd,0),
+    banMoiMtd:planAmRows.reduce((s,r)=>s+(r.banMoiMtd||0),0),
+    banMoiSlkh:planAmRows.reduce((s,r)=>s+(r.banMoiSlkh||0),0),
+    banMoiVol:planAmRows.reduce((s,r)=>s+(r.banMoiVol||0),0)
+  };
+
+  return {
+    vung:VUNG_NAME,
+    dateStr:new Date().toISOString().slice(0,10),
+    sumThang, planThang, sumPrev,
+    sumLabel, planLabel, sumPrevLabel,
+    shortSum:shortThangT(sumLabel),
+    shortPlan:shortThangT(planLabel),
+    shortPrev:shortThangT(sumPrevLabel),
+    daysSum,
+    ltcSum, giuCuSum, banMoiSum, aSum, bcdSum, efSum, gSum,
+    nhomStats, banMoiByAmSum, banMoiByAmPlan,
+    amKpiRows, amDat, amMiss,
+    khA,
+    planAmRows, planTot, banMoiPlanMtd,
+    planElapsed:planProg.elapsed, planTotalDays:planProg.totalDays
+  };
+}
+function renderMonthlyReportDocHtml(d){
+  const h=(v)=>docEsc(v==null?'':v);
+  const nhom=(d.nhomStats&&d.nhomStats.rows)||[];
+  const nhomRows=nhom.map(r=>`<tr>
+    <td align="center"><b>${h(r.grp)}</b></td>
+    <td align="right">${fmt(r.slkh||0)}</td>
+    <td align="right">${h(fmtVnd(r.dt||0))}</td>
+    <td align="right">${h(d.nhomStats.totalDt?pct(r.dt||0, d.nhomStats.totalDt).toFixed(1)+'%':'—')}</td>
+  </tr>`).join('') || `<tr><td colspan="4"><i>Chưa có dữ liệu nhóm KH tháng ${h(d.shortSum)}</i></td></tr>`;
+
+  const bmSumRows=((d.banMoiByAmSum&&d.banMoiByAmSum.rows)||[]).map(r=>`<tr>
+    <td>${h(r.am)}</td>
+    <td align="right">${fmt(r.slkh||0)}</td>
+    <td align="right">${fmt(r.vol||0)}</td>
+    <td align="right">${h(fmtVnd(r.dt||0))}</td>
+    <td align="right">${h(d.banMoiByAmSum.totalDt?pct(r.dt||0, d.banMoiByAmSum.totalDt).toFixed(1)+'%':'—')}</td>
+  </tr>`).join('') || `<tr><td colspan="5"><i>Chưa có bán mới KHM tháng ${h(d.shortSum)}</i></td></tr>`;
+
+  const kpiRows=(d.amKpiRows||[]).map(r=>`<tr>
+    <td>${h(r.am)}</td>
+    <td align="right">${h(fmtVnd(r.actual))}</td>
+    <td align="right">${h(fmtVnd(r.kpi))}</td>
+    <td align="right">${h(r.kpi?r.rate.toFixed(0)+'%':'—')}</td>
+    <td align="center">${r.kpi?(r.dat?'<b style="color:#0D9F6E">ĐẠT</b>':'<b style="color:#D92D20">KHÔNG ĐẠT</b>'):'—'}</td>
+  </tr>`).join('') || `<tr><td colspan="5"><i>Chưa có dữ liệu KPI AM tháng ${h(d.shortSum)}</i></td></tr>`;
+
+  const planRows=(d.planAmRows||[]).map(r=>`<tr>
+    <td>${h(r.am)}</td>
+    <td align="right">${h(fmtVnd(r.kpi))}</td>
+    <td align="right">${h(fmtVnd(r.giuCu))}</td>
+    <td align="right">${h(fmtVnd(r.banMoi))}</td>
+    <td align="right">${h(fmtVnd(r.banMoiMtd||0))}</td>
+    <td align="right">${fmt(r.banMoiSlkh||0)}</td>
+    <td align="right">${h(r.banMoi?r.pctBanMoi.toFixed(0)+'%':'—')}</td>
+    <td align="right">${h(fmtVnd(r.mtd))}</td>
+    <td align="right">${h(r.kpi?r.pctMtd.toFixed(0)+'%':'—')}</td>
+  </tr>`).join('') || `<tr><td colspan="9"><i>Chưa có kế hoạch AM tháng ${h(d.shortPlan)}</i></td></tr>`;
+
+  const bmPlanRows=((d.banMoiByAmPlan&&d.banMoiByAmPlan.rows)||[]).map(r=>`<tr>
+    <td>${h(r.am)}</td>
+    <td align="right">${fmt(r.slkh||0)}</td>
+    <td align="right">${fmt(r.vol||0)}</td>
+    <td align="right">${h(fmtVnd(r.dt||0))}</td>
+  </tr>`).join('') || `<tr><td colspan="4"><i>Chưa có bán mới KHM MTD ${h(d.shortPlan)}</i></td></tr>`;
+
+  const churn=(d.khA.churnRows||[]).slice(0,40);
+  const giamDon=(d.khA.giamDonRows||[]).slice(0,40);
+  const khAByAm=(d.khA.byAm||[]);
+  const khAByAmRows=khAByAm.map(r=>`<tr>
+    <td>${h(r.am)}</td>
+    <td align="right">${fmt(r.total||0)}</td>
+    <td align="right" style="color:#0D9F6E"><b>${fmt(r.nTang||0)}</b></td>
+    <td align="right" style="color:#D92D20"><b>${fmt(r.nGiam||0)}</b></td>
+    <td align="right">${fmt(r.nChurn||0)}</td>
+    <td align="right">${h(fmtVnd(r.dtCur||0))}</td>
+    <td align="right">${h(fmtVnd(r.dtPrev||0))}</td>
+    <td align="right">${h(fmtMomPct(r.dtCur||0, r.dtPrev||0))}</td>
+  </tr>`).join('') || `<tr><td colspan="8"><i>Chưa có dữ liệu KH nhóm A theo AM.</i></td></tr>`;
+  const khAByAmTot={
+    total:khAByAm.reduce((s,r)=>s+(r.total||0),0),
+    nTang:khAByAm.reduce((s,r)=>s+(r.nTang||0),0),
+    nGiam:khAByAm.reduce((s,r)=>s+(r.nGiam||0),0),
+    nChurn:khAByAm.reduce((s,r)=>s+(r.nChurn||0),0),
+    dtCur:khAByAm.reduce((s,r)=>s+(r.dtCur||0),0),
+    dtPrev:khAByAm.reduce((s,r)=>s+(r.dtPrev||0),0)
+  };
+  const churnHtml=churn.map((r,i)=>`<tr>
+    <td align="center">${i+1}</td>
+    <td>${h(r.ten)}</td>
+    <td>${h(r.am)}</td>
+    <td align="right">${h(fmtVnd(r.dtPrev))}</td>
+    <td align="right">${h(fmtVnd(r.dtCur))}</td>
+    <td align="center">Rời bỏ</td>
+  </tr>`).join('');
+  const giamHtml=giamDon.map((r,i)=>`<tr>
+    <td align="center">${i+1}</td>
+    <td>${h(r.ten)}</td>
+    <td>${h(r.am)}</td>
+    <td align="right">${h(fmtVnd(r.dtPrev))}</td>
+    <td align="right">${h(fmtVnd(r.dtCur))}</td>
+    <td align="right">${h((r.pctMom>=0?'+':'')+r.pctMom.toFixed(0)+'%')}</td>
+  </tr>`).join('');
+
+  return `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>Báo cáo tháng ${h(d.vung)}</title>
+<style>
+@page{size:A4;margin:2cm}
+body{font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.45;color:#000}
+h1{font-size:14pt;text-align:center;text-transform:uppercase;margin:0 0 6px}
+h2{font-size:12pt;text-transform:uppercase;margin:16px 0 8px}
+h3{font-size:12pt;font-weight:bold;margin:14px 0 6px}
+p{margin:6px 0}
+table.doc{border-collapse:collapse;width:100%;margin:8px 0 12px}
+table.doc th,table.doc td{border:1px solid #000;padding:5px 7px;font-size:11pt;vertical-align:middle}
+table.doc th{background:#F3F4F6;font-weight:bold;text-align:center}
+.meta{text-align:center;color:#444;margin-bottom:12px}
+.ok{color:#0D9F6E;font-weight:bold}.bad{color:#D92D20;font-weight:bold}
+</style></head><body>
+<h1>Báo cáo kinh doanh tháng — ${h(d.vung)}</h1>
+<p class="meta">Tổng kết ${h(d.shortSum)} · Kế hoạch ${h(d.shortPlan)} · Xuất ngày ${h(d.dateStr)}</p>
+
+<h2>1. Tổng kết tháng ${h(d.shortSum)}</h2>
+<p><b>Doanh thu LTC:</b> ${h(fmtVnd(d.ltcSum))} &nbsp;|&nbsp;
+<b>Giữ cũ (A/BCD/EF):</b> ${h(fmtVnd(d.giuCuSum))} &nbsp;|&nbsp;
+<b>Bán mới (KHM):</b> ${h(fmtVnd(d.banMoiSum))}</p>
+
+<h3>1.1. Số lượng KH &amp; doanh thu theo nhóm</h3>
+<p>Nguồn TotalKH · SLKH = số MaKH unique có phát sinh DT trong ${h(d.shortSum)}.</p>
+<table class="doc"><thead><tr>
+  <th>Nhóm</th><th>SLKH</th><th>Doanh thu</th><th>% DT</th>
+</tr></thead><tbody>${nhomRows}
+<tr>
+  <td align="center"><b>Tổng</b></td>
+  <td align="right"><b>${fmt((d.nhomStats&&d.nhomStats.totalKh)||0)}</b></td>
+  <td align="right"><b>${h(fmtVnd((d.nhomStats&&d.nhomStats.totalDt)||0))}</b></td>
+  <td align="right"><b>100%</b></td>
+</tr>
+</tbody></table>
+<p>Giữ cũ: A <b>${h(fmtVnd(d.aSum))}</b> · BCD <b>${h(fmtVnd(d.bcdSum))}</b> · EF <b>${h(fmtVnd(d.efSum))}</b>
+&nbsp;|&nbsp; Bán mới (nhóm G / TotalKH): <b>${h(fmtVnd(d.gSum||0))}</b>
+&nbsp;|&nbsp; Bán mới KHM (Banmoi): <b>${h(fmtVnd(d.banMoiSum))}</b></p>
+
+<h3>1.2. Bán mới theo AM — ${h(d.shortSum)}</h3>
+<p>KHM mới trong tháng · Tổng: <b>${fmt((d.banMoiByAmSum&&d.banMoiByAmSum.totalSlkh)||0)}</b> KH ·
+Vol <b>${fmt((d.banMoiByAmSum&&d.banMoiByAmSum.totalVol)||0)}</b> ·
+DT <b>${h(fmtVnd((d.banMoiByAmSum&&d.banMoiByAmSum.totalDt)||d.banMoiSum||0))}</b></p>
+<table class="doc"><thead><tr>
+  <th>AM</th><th>SLKH mới</th><th>Volume</th><th>Doanh thu KHM</th><th>% DT</th>
+</tr></thead><tbody>${bmSumRows}
+<tr>
+  <td><b>Tổng</b></td>
+  <td align="right"><b>${fmt((d.banMoiByAmSum&&d.banMoiByAmSum.totalSlkh)||0)}</b></td>
+  <td align="right"><b>${fmt((d.banMoiByAmSum&&d.banMoiByAmSum.totalVol)||0)}</b></td>
+  <td align="right"><b>${h(fmtVnd((d.banMoiByAmSum&&d.banMoiByAmSum.totalDt)||0))}</b></td>
+  <td align="right"><b>100%</b></td>
+</tr>
+</tbody></table>
+
+<h3>1.3. KPI ${h(d.shortSum)} theo AM — Đạt / Không đạt</h3>
+<p>Đạt: <span class="ok">${d.amDat.length}</span> AM &nbsp;·&nbsp; Không đạt: <span class="bad">${d.amMiss.length}</span> AM
+${d.amMiss.length?` (${d.amMiss.map(r=>h(r.am)).join(', ')})`:''}</p>
+<table class="doc"><thead><tr>
+  <th>AM</th><th>Thực đạt ${h(d.shortSum)}</th><th>KPI</th><th>% Đạt</th><th>Kết quả</th>
+</tr></thead><tbody>${kpiRows}</tbody></table>
+
+<h3>1.4. Khách hàng nhóm A — tăng / giảm ${h(d.shortSum)} vs ${h(d.shortPrev)}</h3>
+<p>Tổng KH A có DT: <b>${d.khA.total}</b> · Tăng: <b class="ok">${d.khA.nTang}</b> · Giảm: <b class="bad">${d.khA.nGiam}</b>
+· DT A ${h(d.shortSum)}: <b>${h(fmtVnd(d.khA.dtCur))}</b> (vs ${h(d.shortPrev)}: ${h(fmtVnd(d.khA.dtPrev))} · ${h(fmtMomPct(d.khA.dtCur, d.khA.dtPrev))})</p>
+<table class="doc"><thead><tr>
+  <th>AM</th>
+  <th>SLKH A</th>
+  <th>Tăng</th>
+  <th>Giảm</th>
+  <th>Rời bỏ</th>
+  <th>DT A ${h(d.shortSum)}</th>
+  <th>DT A ${h(d.shortPrev)}</th>
+  <th>% MoM</th>
+</tr></thead><tbody>${khAByAmRows}
+<tr>
+  <td><b>Tổng</b></td>
+  <td align="right"><b>${fmt(khAByAmTot.total)}</b></td>
+  <td align="right" style="color:#0D9F6E"><b>${fmt(khAByAmTot.nTang)}</b></td>
+  <td align="right" style="color:#D92D20"><b>${fmt(khAByAmTot.nGiam)}</b></td>
+  <td align="right"><b>${fmt(khAByAmTot.nChurn)}</b></td>
+  <td align="right"><b>${h(fmtVnd(khAByAmTot.dtCur))}</b></td>
+  <td align="right"><b>${h(fmtVnd(khAByAmTot.dtPrev))}</b></td>
+  <td align="right"><b>${h(fmtMomPct(khAByAmTot.dtCur, khAByAmTot.dtPrev))}</b></td>
+</tr>
+</tbody></table>
+<p style="font-size:10.5pt;color:#444"><i>Tăng = DT ${h(d.shortSum)} &gt; DT ${h(d.shortPrev)} · Giảm = còn DT nhưng thấp hơn tháng trước · Rời bỏ = có DT ${h(d.shortPrev)}, hết DT ${h(d.shortSum)}.</i></p>
+
+<h2>2. Kế hoạch tháng ${h(d.shortPlan)} — Giữ cũ / Bán mới theo AM</h2>
+<p>Công thức: <i>Giữ cũ = thực đạt ${h(d.shortSum)} theo AM</i> · <i>Target bán mới = max(0, KPI ${h(d.shortPlan)} − Giữ cũ)</i>.
+MTD ${h(d.shortPlan)} tính đến ngày ${d.planElapsed}/${d.planTotalDays}.
+Bán mới KHM MTD vùng: <b>${h(fmtVnd(d.banMoiPlanMtd))}</b>.</p>
+<table class="doc"><thead><tr>
+  <th>AM</th><th>KPI ${h(d.shortPlan)}</th><th>KH Giữ cũ</th><th>Target Bán mới</th><th>KHM MTD</th><th>SLKH mới</th><th>% KHM/Target</th><th>MTD LTC</th><th>% MTD/KPI</th>
+</tr></thead><tbody>${planRows}
+<tr>
+  <td><b>Tổng vùng</b></td>
+  <td align="right"><b>${h(fmtVnd(d.planTot.kpi))}</b></td>
+  <td align="right"><b>${h(fmtVnd(d.planTot.giuCu))}</b></td>
+  <td align="right"><b>${h(fmtVnd(d.planTot.banMoi))}</b></td>
+  <td align="right"><b>${h(fmtVnd(d.planTot.banMoiMtd||0))}</b></td>
+  <td align="right"><b>${fmt(d.planTot.banMoiSlkh||0)}</b></td>
+  <td align="right"><b>${h(d.planTot.banMoi?pct(d.planTot.banMoiMtd||0,d.planTot.banMoi).toFixed(0)+'%':'—')}</b></td>
+  <td align="right"><b>${h(fmtVnd(d.planTot.mtd))}</b></td>
+  <td align="right"><b>${h(d.planTot.kpi?pct(d.planTot.mtd,d.planTot.kpi).toFixed(0)+'%':'—')}</b></td>
+</tr>
+</tbody></table>
+
+<h3>2.1. Bán mới theo AM — MTD ${h(d.shortPlan)}</h3>
+<table class="doc"><thead><tr>
+  <th>AM</th><th>SLKH mới</th><th>Volume</th><th>Doanh thu KHM</th>
+</tr></thead><tbody>${bmPlanRows}
+<tr>
+  <td><b>Tổng</b></td>
+  <td align="right"><b>${fmt((d.banMoiByAmPlan&&d.banMoiByAmPlan.totalSlkh)||0)}</b></td>
+  <td align="right"><b>${fmt((d.banMoiByAmPlan&&d.banMoiByAmPlan.totalVol)||0)}</b></td>
+  <td align="right"><b>${h(fmtVnd((d.banMoiByAmPlan&&d.banMoiByAmPlan.totalDt)||0))}</b></td>
+</tr>
+</tbody></table>
+
+<h2>3. Khách rời bỏ / giảm đơn ${h(d.shortSum)} vs ${h(d.shortPrev)} (nhóm A)</h2>
+<p>Rời bỏ (có DT ${h(d.shortPrev)}, không còn DT ${h(d.shortSum)}): <b class="bad">${d.khA.nChurn}</b> KH ·
+Giảm đơn (≥30%): <b class="bad">${d.khA.nGiamDon}</b> KH</p>
+
+<h3>3.1. Khách rời bỏ</h3>
+<table class="doc"><thead><tr>
+  <th>#</th><th>Tên shop</th><th>AM</th><th>DT ${h(d.shortPrev)}</th><th>DT ${h(d.shortSum)}</th><th>Trạng thái</th>
+</tr></thead><tbody>
+${churnHtml || '<tr><td colspan="6"><i>Không có khách rời bỏ trong kỳ.</i></td></tr>'}
+</tbody></table>
+
+<h3>3.2. Khách giảm đơn (≥30%)</h3>
+<table class="doc"><thead><tr>
+  <th>#</th><th>Tên shop</th><th>AM</th><th>DT ${h(d.shortPrev)}</th><th>DT ${h(d.shortSum)}</th><th>% MoM</th>
+</tr></thead><tbody>
+${giamHtml || '<tr><td colspan="6"><i>Không có khách giảm đơn ≥30% trong kỳ.</i></td></tr>'}
+</tbody></table>
+
+<p style="margin-top:18px;font-size:10pt;color:#555"><i>Nguồn: Kết Quả · KPI AM · Banmoi · TotalKH · khách hàng nhóm A. File xuất tự động từ dashboard GHN Vùng TNT.</i></p>
+</body></html>`;
+}
+function exportMonthlyReportDoc(){
+  if(!loaded||!window._DATA||!window._DATA.ketQua){
+    alert('Vui lòng bấm "Cập nhật dữ liệu" trước khi xuất báo cáo.');
+    return;
+  }
+  const btn=document.getElementById('exportMonthDocBtn');
+  if(btn) btn.disabled=true;
+  try{
+    const d=buildMonthlyReportData();
+    const html=renderMonthlyReportDocHtml(d);
+    const blob=new Blob(['\ufeff', html], {type:'application/msword;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=`BaoCao-Thang-${d.vung.replace(/\s+/g,'')}-${(d.shortSum||'T').replace(/\s+/g,'')}-KH-${(d.shortPlan||'T').replace(/\s+/g,'')}-${d.dateStr}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  }catch(e){
+    console.error(e);
+    alert('Lỗi xuất báo cáo tháng: '+e.message);
+  }
+  if(btn) btn.disabled=false;
+}
+
 /* ===================== INIT ===================== */
 /* ===================== GOOGLE LOGIN ===================== */
 const ALLOWED_DOMAIN = '@ghn.vn';
@@ -6923,6 +7649,7 @@ window.addEventListener('load', _attachScrollHints);
 setInterval(_attachScrollHints, 1200);
 new MutationObserver(function(){ _attachScrollHints(); }).observe(document.body, {childList:true, subtree:true});
 </script>
+<script src="https://bot-tangcuong.anhquan-94vp.workers.dev/kd-gtalk.js"></script>
 </div><!-- /#appContent -->
 </body>
 </html>
